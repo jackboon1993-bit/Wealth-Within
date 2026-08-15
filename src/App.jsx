@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { getData, setData, deleteData } from "./lib/storage";
+import { supabase } from "./lib/supabaseClient";
 import {
   LineChart,
   Line,
@@ -63,6 +65,7 @@ const nextId = () => uid++;
 /* ============================ default data ============================ */
 
 const defaultProfile = {
+  onboarded: false,
   income: 5800,
   homeValue: 337000,
   homeValueGrowth: 2,
@@ -596,6 +599,60 @@ function QuickImport({ onAdd }) {
   );
 }
 
+const ONBOARDING_SLIDES = [
+  {
+    icon: "overview",
+    title: "Everything, in one place",
+    body: "Income, debts, savings, pension — see your whole financial picture together, instead of piecing it together from five different apps.",
+  },
+  {
+    icon: "forecast",
+    title: "Know exactly where you stand",
+    body: "A plain-English answer to \"am I doing okay?\", plus a financial score, a debt-free date, and a forecast of where you're headed — updated the moment you change a number.",
+  },
+  {
+    icon: "goals",
+    title: "We've filled in example numbers",
+    body: "So you can see how it all works before entering your own. Nothing here is connected to your bank — everything is typed in by you, and stays private to your account.",
+  },
+];
+
+function Onboarding({ onFinish }) {
+  const [step, setStep] = useState(0);
+  const slide = ONBOARDING_SLIDES[step];
+  const isLast = step === ONBOARDING_SLIDES.length - 1;
+
+  return (
+    <div className="wmg-onboard">
+      <div className="wmg-onboard-card">
+        <div className="wmg-onboard-icon">
+          <NavIcon name={slide.icon} />
+        </div>
+        <div className="wmg-onboard-dots">
+          {ONBOARDING_SLIDES.map((_, i) => (
+            <span key={i} className={`wmg-onboard-dot ${i === step ? "on" : ""}`} />
+          ))}
+        </div>
+        <h2 className="wmg-onboard-title">{slide.title}</h2>
+        <p className="wmg-onboard-body">{slide.body}</p>
+        <div className="wmg-onboard-actions">
+          {!isLast && (
+            <button className="wmg-onboard-skip" onClick={onFinish}>
+              Skip
+            </button>
+          )}
+          <button
+            className="wmg-onboard-next"
+            onClick={() => (isLast ? onFinish() : setStep((s) => s + 1))}
+          >
+            {isLast ? "Get started" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
   return (
@@ -679,6 +736,14 @@ function NavIcon({ name }) {
           <path d="M6.4 3H20v18H6.4A2.4 2.4 0 0 1 4 18.6V5.4A2.4 2.4 0 0 1 6.4 3z" />
         </svg>
       );
+    case "more":
+      return (
+        <svg {...common}>
+          <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -700,8 +765,6 @@ function BrandMark({ size = 34 }) {
   );
 }
 
-const STORAGE_KEY = "wmg-profile-v1";
-
 export default function App() {
   const [profile, setProfile] = useState(defaultProfile);
   const [tab, setTab] = useState("overview");
@@ -717,16 +780,10 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!window.storage) {
-        setStorageStatus("unavailable");
-        hasLoaded.current = true;
-        return;
-      }
       try {
-        const result = await window.storage.get(STORAGE_KEY, false);
-        if (!cancelled && result && result.value) {
-          const parsed = JSON.parse(result.value);
-          const merged = mergeWithDefaults(parsed);
+        const result = await getData();
+        if (!cancelled && result) {
+          const merged = mergeWithDefaults(result);
           setProfile(merged);
           if (merged.loans && merged.loans[0]) setSelectedDebtId(merged.loans[0].id);
           setStorageStatus("ready");
@@ -734,7 +791,7 @@ export default function App() {
           setStorageStatus("ready");
         }
       } catch (err) {
-        if (!cancelled) setStorageStatus("ready"); // key just doesn't exist yet — that's fine
+        if (!cancelled) setStorageStatus("error");
       } finally {
         hasLoaded.current = true;
       }
@@ -747,12 +804,12 @@ export default function App() {
 
   // save the household data whenever it changes, debounced, after the initial load completes
   useEffect(() => {
-    if (!hasLoaded.current || !window.storage) return;
+    if (!hasLoaded.current) return;
     setStorageStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        const result = await window.storage.set(STORAGE_KEY, JSON.stringify(profile), false);
+        const result = await setData(profile);
         setStorageStatus(result ? "saved" : "error");
       } catch (err) {
         setStorageStatus("error");
@@ -762,16 +819,15 @@ export default function App() {
   }, [profile]);
 
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const resetData = async () => {
     setProfile(defaultProfile);
     setSelectedDebtId(defaultProfile.loans[0].id);
     setConfirmingReset(false);
-    if (window.storage) {
-      try {
-        await window.storage.delete(STORAGE_KEY, false);
-      } catch (err) {
-        /* nothing to delete — fine */
-      }
+    try {
+      await deleteData();
+    } catch (err) {
+      /* nothing to delete — fine */
     }
   };
 
@@ -1050,6 +1106,8 @@ export default function App() {
     return forecastBaseline.debtFreeMonth - forecast.debtFreeMonth;
   }, [forecastBaseline, forecast]);
 
+  const finishOnboarding = () => setProfile((p) => ({ ...p, onboarded: true }));
+
   /* ================================ render ================================ */
 
   return (
@@ -1097,7 +1155,7 @@ export default function App() {
 
         .wmg-sidebar { width: 240px; flex-shrink: 0; padding: 26px 16px; border-right: 1px solid var(--hair); position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; background: #FFFFFF; }
         @media (max-width: 880px) {
-          .wmg-sidebar { width: 100%; height: auto; position: fixed; left: 0; right: 0; bottom: 0; top: auto; border-right: none; border-top: 1px solid var(--hair); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 20px rgba(15,30,25,0.08); z-index: 20; }
+          .wmg-sidebar { width: auto; height: auto; position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); top: auto; border: 1px solid var(--hair); border-radius: 22px; padding: 6px; box-shadow: 0 12px 28px -8px rgba(15,30,25,0.18); z-index: 20; }
         }
 
         .wmg-brand-block { display: flex; align-items: center; gap: 11px; margin-bottom: 26px; }
@@ -1107,19 +1165,29 @@ export default function App() {
         @media (max-width: 880px) { .wmg-brand-block { display: none; } }
 
         .wmg-nav { display: flex; flex-direction: column; gap: 3px; }
-        @media (max-width: 880px) { .wmg-nav { flex-direction: row; overflow-x: auto; gap: 2px; justify-content: space-between; } }
+        @media (max-width: 880px) { .wmg-nav { flex-direction: row; gap: 2px; justify-content: space-around; } }
         .wmg-nav-item { display: flex; align-items: center; gap: 11px; text-align: left; background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; padding: 9px 12px; cursor: pointer; border-radius: 12px; white-space: nowrap; transition: color .15s ease, background .15s ease; }
         .wmg-nav-icon-badge { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 10px; background: var(--ink-3); color: var(--paper-dim); flex-shrink: 0; transition: background .15s ease, color .15s ease; }
         .wmg-nav-item:hover { color: var(--paper); background: var(--ink-3); }
         .wmg-nav-item.active { color: var(--paper); background: var(--brand-soft); font-weight: 700; }
         .wmg-nav-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
+        .wmg-nav-more { display: none; }
         @media (max-width: 880px) {
-          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 7px 6px; border-radius: 12px; min-width: 60px; flex: 1; }
+          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 7px 4px; border-radius: 12px; min-width: 56px; flex: 1; }
           .wmg-nav-item span:last-child { font-size: 9px; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; }
           .wmg-nav-item.active { background: transparent; }
-          .wmg-nav-icon-badge { width: 34px; height: 34px; }
+          .wmg-nav-icon-badge { width: 32px; height: 32px; }
+          .wmg-nav-item-overflow { display: none; }
+          .wmg-nav-more { display: flex; }
         }
 
+        .wmg-more-sheet-backdrop { position: fixed; inset: 0; background: rgba(23,35,31,0.4); z-index: 40; display: flex; align-items: flex-end; }
+        .wmg-more-sheet { width: 100%; background: #FFFFFF; border-radius: 22px 22px 0 0; padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 30px rgba(23,35,31,0.2); }
+        .wmg-more-sheet-handle { width: 36px; height: 4px; border-radius: 3px; background: var(--hair); margin: 6px auto 14px; }
+        .wmg-more-sheet-item { display: flex; align-items: center; gap: 14px; width: 100%; background: transparent; border: none; padding: 10px 6px; border-radius: 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 600; color: var(--paper); text-align: left; cursor: pointer; }
+        .wmg-more-sheet-item.active { background: var(--brand-soft); }
+        .wmg-more-sheet-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
+        @media (min-width: 881px) { .wmg-more-sheet-backdrop { display: none; } }
         .wmg-sidebar-foot { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--hair); font-size: 11px; color: var(--paper-dim); line-height: 1.6; }
         @media (max-width: 880px) { .wmg-sidebar-foot { display: none; } }
         .wmg-sync-row { display: flex; align-items: center; gap: 7px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; }
@@ -1132,7 +1200,7 @@ export default function App() {
         .wmg-reset-btn.danger { border-color: var(--rust); color: var(--rust); }
 
         .wmg-main { flex: 1; min-width: 0; padding: 0 0 70px; }
-        @media (max-width: 880px) { .wmg-main { padding-bottom: 96px; } }
+        @media (max-width: 880px) { .wmg-main { padding-bottom: 112px; } }
 
         .wmg-topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 32px; background: rgba(245,242,234,0.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--hair); flex-wrap: wrap; }
         @media (max-width: 880px) { .wmg-topbar { position: relative; padding: 16px 18px; background: transparent; backdrop-filter: none; border-bottom: none; } }
@@ -1152,21 +1220,25 @@ export default function App() {
 
         .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 20px; padding: 22px; box-shadow: 0 1px 2px rgba(15,30,25,0.03), 0 10px 24px -12px rgba(15,30,25,0.10); }
 
-        .wmg-hero { display: grid; grid-template-columns: 210px 1fr; gap: 8px; align-items: center; background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 60%, #1AA187 100%); border-radius: 24px; padding: 26px 30px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 8px; position: relative; overflow: hidden; }
+        .wmg-hero { background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 60%, #1AA187 100%); border-radius: 24px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; overflow: hidden; }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
-        @media (max-width: 720px) { .wmg-hero { grid-template-columns: 1fr; text-align: center; padding: 24px 22px; } }
-        .wmg-hero-gauge { display: flex; flex-direction: column; align-items: center; }
-        .wmg-hero-gauge .wmg-gauge { width: 165px; height: auto; }
-        .wmg-hero-score-num { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 34px; font-weight: 800; margin-top: -10px; }
-        .wmg-hero-score-max { font-size: 15px; font-weight: 600; opacity: 0.75; }
-        .wmg-hero-score-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
-        .wmg-hero-body { position: relative; z-index: 1; }
-        .wmg-hero-verdict { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 600; line-height: 1.4; margin: 0 0 16px; }
-        .wmg-hero-verdict strong { font-weight: 800; }
-        .wmg-hero-mini-stats { display: flex; gap: 28px; flex-wrap: wrap; }
-        @media (max-width: 720px) { .wmg-hero-mini-stats { justify-content: center; } }
-        .wmg-hero-mini-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }
-        .wmg-hero-mini-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; }
+        .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 500; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
+        .wmg-hero-label strong { font-weight: 800; }
+        .wmg-hero-main-row { display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
+        .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; }
+        .wmg-hero-net-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 27px; font-weight: 800; }
+        .wmg-hero-score-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 800; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,0.2); }
+
+        .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 8px; padding: 2px 2px 8px; }
+        .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 14px; padding: 10px 14px; min-width: 92px; }
+        .wmg-chip-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--paper-dim); white-space: nowrap; }
+        .wmg-chip-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
+
+        .wmg-coach-single { display: flex; align-items: flex-start; gap: 10px; background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 65%); border: none; }
+        .wmg-coach-single p { font-size: 13.5px; line-height: 1.55; font-weight: 500; }
+        .wmg-coach-single .wmg-coach-dot { margin-top: 5px; }
+        .wmg-coach-more { display: block; margin: 8px auto 0; background: transparent; border: none; color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 6px 10px; }
+        .wmg-coach-more:hover { text-decoration: underline; }
 
         .wmg-section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--paper); margin: 30px 0 12px; display: flex; align-items: center; gap: 10px; }
         .wmg-section-title:first-child { margin-top: 0; }
@@ -1307,8 +1379,25 @@ export default function App() {
         .wmg-accordion-body { padding: 0 2px 16px; font-size: 13.5px; line-height: 1.65; color: var(--paper-dim); }
 
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
+
+        .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 55%, #1AA187 100%); }
+        .wmg-onboard-card { width: 100%; max-width: 360px; background: #FFFFFF; border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); }
+        .wmg-onboard-icon { width: 56px; height: 56px; border-radius: 16px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+        .wmg-onboard-icon svg { width: 26px; height: 26px; }
+        .wmg-onboard-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 20px; }
+        .wmg-onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hair); transition: all .2s ease; }
+        .wmg-onboard-dot.on { background: var(--coral); width: 18px; border-radius: 3px; }
+        .wmg-onboard-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 12px; color: var(--paper); }
+        .wmg-onboard-body { font-size: 13.5px; line-height: 1.6; color: var(--paper-dim); margin-bottom: 28px; }
+        .wmg-onboard-actions { display: flex; align-items: center; justify-content: center; gap: 14px; }
+        .wmg-onboard-skip { background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+        .wmg-onboard-next { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 30px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; }
+        .wmg-onboard-next:hover { background: var(--brand-2); }
       `}</style>
 
+      {storageStatus !== "loading" && !profile.onboarded ? (
+        <Onboarding onFinish={finishOnboarding} />
+      ) : (
       <div className="wmg-app">
         {/* sidebar */}
         <div className="wmg-sidebar">
@@ -1320,23 +1409,53 @@ export default function App() {
             </div>
           </div>
           <nav className="wmg-nav">
-            {NAV.map((n) => (
-              <button key={n.key} className={`wmg-nav-item ${tab === n.key ? "active" : ""}`} onClick={() => setTab(n.key)}>
+            {NAV.map((n, i) => (
+              <button
+                key={n.key}
+                className={`wmg-nav-item ${tab === n.key ? "active" : ""} ${i >= 4 ? "wmg-nav-item-overflow" : ""}`}
+                onClick={() => setTab(n.key)}
+              >
                 <span className="wmg-nav-icon-badge"><NavIcon name={n.icon} /></span>
                 <span>{n.label}</span>
               </button>
             ))}
+            <button
+              className={`wmg-nav-item wmg-nav-more ${["pension", "forecast", "education"].includes(tab) ? "active" : ""}`}
+              onClick={() => setMoreOpen(true)}
+            >
+              <span className="wmg-nav-icon-badge"><NavIcon name="more" /></span>
+              <span>More</span>
+            </button>
           </nav>
+          {moreOpen && (
+            <div className="wmg-more-sheet-backdrop" onClick={() => setMoreOpen(false)}>
+              <div className="wmg-more-sheet" onClick={(e) => e.stopPropagation()}>
+                <div className="wmg-more-sheet-handle" />
+                {NAV.slice(4).map((n) => (
+                  <button
+                    key={n.key}
+                    className={`wmg-more-sheet-item ${tab === n.key ? "active" : ""}`}
+                    onClick={() => {
+                      setTab(n.key);
+                      setMoreOpen(false);
+                    }}
+                  >
+                    <span className="wmg-nav-icon-badge"><NavIcon name={n.icon} /></span>
+                    {n.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="wmg-sidebar-foot">
             <div className="wmg-sync-row">
               <span className={`wmg-sync-dot status-${storageStatus}`} />
               <span>
                 {storageStatus === "loading" && "Loading your data…"}
-                {storageStatus === "ready" && "Saved on this device"}
+                {storageStatus === "ready" && (supabase ? "Saved to your account" : "Saved on this device")}
                 {storageStatus === "saving" && "Saving…"}
-                {storageStatus === "saved" && "Saved on this device"}
+                {storageStatus === "saved" && (supabase ? "Saved to your account" : "Saved on this device")}
                 {storageStatus === "error" && "Couldn't save — check connection"}
-                {storageStatus === "unavailable" && "Not saved — storage unavailable"}
               </span>
             </div>
             <p style={{ margin: "10px 0" }}>
@@ -1349,6 +1468,11 @@ export default function App() {
               </div>
             ) : (
               <button className="wmg-reset-btn" onClick={() => setConfirmingReset(true)}>Reset to example data</button>
+            )}
+            {supabase && (
+              <button className="wmg-reset-btn" style={{ marginTop: 8 }} onClick={() => supabase.auth.signOut()}>
+                Sign out
+              </button>
             )}
           </div>
         </div>
@@ -1465,6 +1589,7 @@ export default function App() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -1472,54 +1597,46 @@ export default function App() {
 /* ============================== tabs ============================== */
 
 function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips }) {
+  const [showAllTips, setShowAllTips] = useState(false);
+  const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
+
+  const chips = [
+    { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—" },
+    { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—" },
+    { label: "Disposable / mo", value: gbp(totals.available) },
+    { label: "Debt", value: gbp(totals.totalDebt) },
+    { label: "Home equity", value: gbp(totals.homeEquity) },
+    { label: "Savings", value: gbp(profile.savings.balance) },
+    { label: "Pension", value: gbp(profile.pension.balance) },
+    { label: "Investments", value: gbp(profile.investments.balance) },
+  ];
+
   return (
     <>
-      <div className="wmg-hero">
-        <div className="wmg-hero-gauge">
-          <Gauge score={score} variant="hero" />
-          <div className="wmg-hero-score-num">
-            {score}
-            <span className="wmg-hero-score-max">/100</span>
-          </div>
-          <div className="wmg-hero-score-label">Financial score</div>
+      <div className="wmg-hero wmg-hero-compact">
+        <div className="wmg-hero-label">
+          {gap > 0 ? (
+            <>You're <strong>{gbp(Math.round(gap))}/month</strong> away from being financially comfortable.</>
+          ) : (
+            <>You're <strong>{gbp(Math.round(-gap))}/month</strong> past "comfortable." Put the surplus to work.</>
+          )}
         </div>
-        <div className="wmg-hero-body">
-          <p className="wmg-hero-verdict">
-            {gap > 0 ? (
-              <>You're <strong>{gbp(Math.round(gap))}/month</strong> away from being financially comfortable.</>
-            ) : (
-              <>You're <strong>{gbp(Math.round(-gap))}/month</strong> past "comfortable." Put the surplus to work.</>
-            )}
-          </p>
-          <div className="wmg-hero-mini-stats">
-            <div>
-              <div className="wmg-hero-mini-label">Debt-free</div>
-              <div className="wmg-hero-mini-val">{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</div>
-            </div>
-            <div>
-              <div className="wmg-hero-mini-label">Mortgage-free</div>
-              <div className="wmg-hero-mini-val">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
-            </div>
-            <div>
-              <div className="wmg-hero-mini-label">Disposable / month</div>
-              <div className="wmg-hero-mini-val">{gbp(totals.available)}</div>
-            </div>
+        <div className="wmg-hero-main-row">
+          <div>
+            <div className="wmg-hero-net-label">Net worth</div>
+            <div className="wmg-hero-net-val">{gbp(totals.netWorth)}</div>
           </div>
+          <div className={`wmg-hero-score-badge tone-${scoreTone}`}>{score}/100</div>
         </div>
       </div>
 
-      <div className="wmg-section-title">Net worth</div>
-      <div className="wmg-nw-grid">
-        <Card className="wmg-stat wmg-networth-card">
-          <div className="wmg-stat-icon-badge tone-gold"><StatIcon name="networth" /></div>
-          <div className="wmg-eyebrow">Net worth</div>
-          <div className="wmg-figure tone-gold" style={{ fontSize: 24 }}>{gbp(totals.netWorth)}</div>
-        </Card>
-        <Stat label="Debt" value={gbp(totals.totalDebt)} tone="rust" icon="debt" />
-        <Stat label="Home equity" value={gbp(totals.homeEquity)} tone="sage" icon="home" />
-        <Stat label="Savings" value={gbp(profile.savings.balance)} tone="brand" icon="savings" />
-        <Stat label="Pension" value={gbp(profile.pension.balance)} tone="brand" icon="pension" />
-        <Stat label="Investments" value={gbp(profile.investments.balance)} tone="brand" icon="invest" />
+      <div className="wmg-chip-row">
+        {chips.map((c) => (
+          <div className="wmg-chip" key={c.label}>
+            <div className="wmg-chip-label">{c.label}</div>
+            <div className="wmg-chip-value">{c.value}</div>
+          </div>
+        ))}
       </div>
 
       <div className="wmg-section-title">This month</div>
@@ -1546,21 +1663,34 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
       </Card>
 
       <div className="wmg-section-title">Your coach</div>
-      <Card className="wmg-coach">
-        <div className="wmg-coach-title">"Here's what I'd do if I were you."</div>
-        {coachTips.length === 0 && (
-          <div className="wmg-coach-tip">
-            <span className="wmg-coach-dot dot-sage" />
-            Everything's in decent shape. Keep going.
-          </div>
-        )}
-        {coachTips.map((tip, i) => (
-          <div className="wmg-coach-tip" key={i}>
-            <span className={`wmg-coach-dot dot-${tip.tone}`} />
-            <span>{tip.text}</span>
-          </div>
-        ))}
-      </Card>
+      {coachTips.length === 0 ? (
+        <Card className="wmg-coach-single">
+          <span className="wmg-coach-dot dot-sage" />
+          <p>Everything's in decent shape. Keep going.</p>
+        </Card>
+      ) : (
+        <>
+          <Card className="wmg-coach-single">
+            <span className={`wmg-coach-dot dot-${coachTips[0].tone}`} />
+            <p>{coachTips[0].text}</p>
+          </Card>
+          {coachTips.length > 1 && !showAllTips && (
+            <button className="wmg-coach-more" onClick={() => setShowAllTips(true)}>
+              + {coachTips.length - 1} more {coachTips.length - 1 === 1 ? "tip" : "tips"}
+            </button>
+          )}
+          {showAllTips && (
+            <Card style={{ marginTop: 8 }}>
+              {coachTips.slice(1).map((tip, i) => (
+                <div className="wmg-coach-tip" key={i}>
+                  <span className={`wmg-coach-dot dot-${tip.tone}`} />
+                  <span>{tip.text}</span>
+                </div>
+              ))}
+            </Card>
+          )}
+        </>
+      )}
     </>
   );
 }
