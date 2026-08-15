@@ -3,13 +3,16 @@ import { getData, setData, deleteData } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import {
   LineChart,
+  ComposedChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 
 /* ============================== helpers ============================== */
@@ -69,7 +72,7 @@ const defaultProfile = {
   income: 5800,
   homeValue: 337000,
   homeValueGrowth: 2,
-  mortgage: { balance: 210000, rate: 4.5, payment: 1150 },
+  mortgage: { balance: 210000, rate: 4.5, payment: 1150, allowOverpayment: true, overpaymentCapPct: 10 },
   loans: [
     { id: nextId(), name: "Car loan", balance: 21000, rate: 7.9, payment: 300 },
     { id: nextId(), name: "Personal loan", balance: 18800, rate: 9.9, payment: 290 },
@@ -173,7 +176,15 @@ const defaultProfile = {
     { id: nextId(), name: "House deposit top-up", target: 15000, current: 4000, monthlyContribution: 250, desiredMonths: null },
     { id: nextId(), name: "New car fund", target: 8000, current: 1200, monthlyContribution: 100, desiredMonths: null },
   ],
-  assumptions: { incomeGrowth: 3, inflation: 2.5 },
+  lifeEvents: [
+    { id: nextId(), name: "New car", yearsFromNow: 3, type: "expense", amount: 8000 },
+    { id: nextId(), name: "Inheritance", yearsFromNow: 12, type: "income", amount: 15000 },
+  ],
+  scenarios: [
+    { id: nextId(), name: "Balanced", allocationPct: 50 },
+    { id: nextId(), name: "Aggressive debt payoff", allocationPct: 100 },
+  ],
+  assumptions: { incomeGrowth: 3, inflation: 2.5, growthUncertaintyPct: 2 },
 };
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a
@@ -186,7 +197,7 @@ function mergeWithDefaults(saved) {
   nestedObjectKeys.forEach((k) => {
     merged[k] = { ...defaultProfile[k], ...(saved[k] && typeof saved[k] === "object" ? saved[k] : {}) };
   });
-  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals"];
+  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals", "lifeEvents", "scenarios"];
   arrayKeys.forEach((k) => {
     merged[k] = Array.isArray(saved[k]) ? saved[k] : defaultProfile[k];
   });
@@ -209,22 +220,26 @@ function estimateUKIncomeTax(grossAnnual) {
 
 /* ============================ forecast engine ============================ */
 
-function runForecast(profile, totals, horizonYears, allocationPct) {
+function runForecast(profile, totals, horizonYears, allocationPct, growthOffsetPct = 0) {
   const months = horizonYears * 12;
-  const debts = [...profile.loans, ...profile.cards].map((d) => ({ ...d }));
-  let mortgageBalance = profile.mortgage.balance;
+  const debts = [...profile.loans, ...profile.cards].map((d) => ({ ...d, isMortgage: false }));
   const mortgageRate = profile.mortgage.rate;
   const mortgagePayment = profile.mortgage.payment;
+  const mortgageOverpaymentAllowed = profile.mortgage.allowOverpayment ?? true;
+  const mortgageCapPct = (profile.mortgage.overpaymentCapPct ?? 10) / 100;
+  const mortgageEntry = { id: "mortgage", name: "Mortgage", balance: profile.mortgage.balance, rate: mortgageRate, payment: mortgagePayment, isMortgage: true };
+  const allEntries = [...debts, mortgageEntry];
+  const avalanchePool = mortgageOverpaymentAllowed ? allEntries : debts;
   let homeValue = profile.homeValue;
   const homeGrowth = profile.homeValueGrowth;
 
   let savings = profile.savings.balance;
-  const savingsRate = profile.savings.growthRate;
+  const savingsRate = Math.max(0, profile.savings.growthRate + growthOffsetPct);
   let investments = profile.investments.balance;
-  const investRate = profile.investments.growthRate;
+  const investRate = Math.max(0, profile.investments.growthRate + growthOffsetPct);
   const investContribution = profile.investments.monthlyContribution;
   let pension = profile.pension.balance;
-  const pensionRate = profile.pension.growthMedium;
+  const pensionRate = Math.max(0, profile.pension.growthMedium + growthOffsetPct);
   const pensionContribution = profile.pension.contribution;
 
   let essential = totals.essential - mortgagePayment;
@@ -239,10 +254,27 @@ function runForecast(profile, totals, horizonYears, allocationPct) {
   const startAgeMonths = (profile.pension.currentAge ?? 35) * 12;
   let statePensionStartMonth = null;
 
+  let mortgageYearStartBalance = mortgageEntry.balance;
+  let mortgageYearOverpaid = 0;
+
+  const lifeEvents = (profile.lifeEvents || [])
+    .map((e) => ({
+      ...e,
+      month: Math.max(1, Math.round((e.yearsFromNow ?? 0) * 12)),
+      signedAmount: (e.type === "expense" ? -1 : 1) * Math.abs(e.amount || 0),
+    }))
+    .filter((e) => e.month <= months);
+  const lifeEventsByMonth = {};
+  lifeEvents.forEach((e) => {
+    lifeEventsByMonth[e.month] = (lifeEventsByMonth[e.month] || 0) + e.signedAmount;
+  });
+
   const series = [];
   let debtFreeMonth = null;
+  let mortgageFreeMonth = null;
   const startingDebt = debts.reduce((s, d) => s + d.balance, 0);
   if (startingDebt <= 0) debtFreeMonth = 0;
+  if (mortgageEntry.balance <= 0) mortgageFreeMonth = 0;
 
   for (let m = 1; m <= months; m++) {
     // pay rises and cost-of-living increases, applied monthly
@@ -251,57 +283,76 @@ function runForecast(profile, totals, horizonYears, allocationPct) {
     lifestyle *= 1 + inflationM;
     statePensionMonthly *= 1 + inflationM;
 
+    // reset the annual overpayment allowance at the start of each mortgage year
+    if ((m - 1) % 12 === 0) {
+      mortgageYearStartBalance = mortgageEntry.balance;
+      mortgageYearOverpaid = 0;
+    }
+
     const statePensionAdd = statePensionIncluded && startAgeMonths + m >= statePensionClaimAgeMonths ? statePensionMonthly : 0;
     if (statePensionAdd > 0 && statePensionStartMonth === null) statePensionStartMonth = m;
 
-    if (mortgageBalance > 0) {
-      const mi = mortgageBalance * (mortgageRate / 100 / 12);
-      const mp = Math.min(mortgagePayment, mortgageBalance + mi);
-      mortgageBalance = Math.max(0, mortgageBalance + mi - mp);
-    }
     homeValue *= 1 + homeGrowth / 100 / 12;
 
-    let scheduledDebtPayment = 0;
-    debts.forEach((d) => {
+    let scheduledPayment = 0;
+    allEntries.forEach((d) => {
       if (d.balance > 0) {
         const di = d.balance * (d.rate / 100 / 12);
         const dp = Math.min(d.payment, d.balance + di);
         d.balance = Math.max(0, d.balance + di - dp);
-        scheduledDebtPayment += dp;
+        scheduledPayment += dp;
       }
     });
 
-    const surplus = income + statePensionAdd - essential - lifestyle - scheduledDebtPayment - mortgagePayment;
+    const surplus = income + statePensionAdd - essential - lifestyle - scheduledPayment;
     let extraSavings;
     if (surplus > 0) {
       const extraDebt = surplus * (allocationPct / 100);
       extraSavings = surplus - extraDebt;
       let remaining = extraDebt;
       let guard = 0;
-      while (remaining > 0.01 && guard < 20) {
-        const target = debts.filter((d) => d.balance > 0).sort((a, b) => b.rate - a.rate)[0];
+      while (remaining > 0.01 && guard < 30) {
+        const candidates = avalanchePool
+          .filter((d) => {
+            if (d.balance <= 0) return false;
+            if (d.isMortgage) {
+              const capRemaining = mortgageYearStartBalance * mortgageCapPct - mortgageYearOverpaid;
+              return capRemaining > 0.01;
+            }
+            return true;
+          })
+          .sort((a, b) => b.rate - a.rate);
+        const target = candidates[0];
         if (!target) break;
-        const pay = Math.min(remaining, target.balance);
+        let pay = Math.min(remaining, target.balance);
+        if (target.isMortgage) {
+          const capRemaining = mortgageYearStartBalance * mortgageCapPct - mortgageYearOverpaid;
+          pay = Math.min(pay, capRemaining);
+          mortgageYearOverpaid += pay;
+        }
         target.balance -= pay;
         remaining -= pay;
         guard++;
       }
+      // anything that couldn't find a debt target (fully paid off, or mortgage capped) goes to savings instead
+      extraSavings += remaining;
     } else {
       extraSavings = surplus;
     }
 
-    savings = savings * (1 + savingsRate / 100 / 12) + extraSavings;
+    savings = savings * (1 + savingsRate / 100 / 12) + extraSavings + (lifeEventsByMonth[m] || 0);
     investments = investments * (1 + investRate / 100 / 12) + investContribution;
     pension = pension * (1 + pensionRate / 100 / 12) + pensionContribution;
 
     const remainingNonMortgageDebt = debts.reduce((s, d) => s + d.balance, 0);
     if (debtFreeMonth === null && remainingNonMortgageDebt <= 0.5) debtFreeMonth = m;
+    if (mortgageFreeMonth === null && mortgageEntry.balance <= 0.5) mortgageFreeMonth = m;
 
     if (m % 12 === 0) {
       const year = m / 12;
-      const homeEquity = homeValue - mortgageBalance;
+      const homeEquity = homeValue - mortgageEntry.balance;
       const netWorth = homeEquity + savings + investments + pension - remainingNonMortgageDebt;
-      const debtTotal = remainingNonMortgageDebt + mortgageBalance;
+      const debtTotal = remainingNonMortgageDebt + mortgageEntry.balance;
       const savingsInvest = savings + investments;
       const discount = Math.pow(1 + (profile.assumptions?.inflation ?? 0) / 100, year);
       series.push({
@@ -318,7 +369,7 @@ function runForecast(profile, totals, horizonYears, allocationPct) {
     }
   }
 
-  return { series, debtFreeMonth, statePensionStartMonth };
+  return { series, debtFreeMonth, mortgageFreeMonth, statePensionStartMonth, resolvedLifeEvents: lifeEvents };
 }
 
 function parseDebtLines(text) {
@@ -1093,6 +1144,21 @@ export default function App() {
     setProfile((p) => ({ ...p, goals: [...p.goals, { id: nextId(), name: "New goal", target: 1000, current: 0, monthlyContribution: 50, desiredMonths: null }] }));
   const removeGoal = (id) => setProfile((p) => ({ ...p, goals: p.goals.filter((g) => g.id !== id) }));
 
+  const updateLifeEvent = (id, field, value) =>
+    setProfile((p) => ({ ...p, lifeEvents: p.lifeEvents.map((e) => (e.id === id ? { ...e, [field]: value } : e)) }));
+  const addLifeEvent = () =>
+    setProfile((p) => ({ ...p, lifeEvents: [...p.lifeEvents, { id: nextId(), name: "New event", yearsFromNow: 5, type: "expense", amount: 1000 }] }));
+  const removeLifeEvent = (id) => setProfile((p) => ({ ...p, lifeEvents: p.lifeEvents.filter((e) => e.id !== id) }));
+
+  const addScenario = (allocationPct) =>
+    setProfile((p) => ({
+      ...p,
+      scenarios: [...p.scenarios, { id: nextId(), name: `Scenario ${p.scenarios.length + 1}`, allocationPct }],
+    }));
+  const updateScenario = (id, field, value) =>
+    setProfile((p) => ({ ...p, scenarios: p.scenarios.map((s) => (s.id === id ? { ...s, [field]: value } : s)) }));
+  const removeScenario = (id) => setProfile((p) => ({ ...p, scenarios: p.scenarios.filter((s) => s.id !== id) }));
+
   const flowSegments = [
     { key: "essential", label: "Essential", value: totals.essential, tone: "slate" },
     { key: "debt", label: "Debt", value: totals.debtPayments, tone: "rust" },
@@ -1577,6 +1643,12 @@ export default function App() {
                 totals={totals}
                 profile={profile}
                 setField={setField}
+                updateLifeEvent={updateLifeEvent}
+                addLifeEvent={addLifeEvent}
+                removeLifeEvent={removeLifeEvent}
+                addScenario={addScenario}
+                updateScenario={updateScenario}
+                removeScenario={removeScenario}
               />
             )}
 
@@ -1836,6 +1908,27 @@ function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArra
             <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Mortgage-free</div>
             <div className="wmg-figure tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
           </div>
+        </div>
+        <div className="wmg-two-col" style={{ marginTop: 4 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--paper-dim)" }}>
+            <input
+              type="checkbox"
+              checked={profile.mortgage.allowOverpayment}
+              onChange={(e) => setField(["mortgage", "allowOverpayment"])(e.target.checked)}
+            />
+            Let the Cash Flow Forecast put spare surplus toward the mortgage too, not just loans and cards
+          </label>
+          {profile.mortgage.allowOverpayment && (
+            <Field label="Penalty-free overpayment allowance (% of balance/year)">
+              <input
+                className="wmg-input"
+                type="number"
+                step="1"
+                value={profile.mortgage.overpaymentCapPct}
+                onChange={(e) => setField(["mortgage", "overpaymentCapPct"])(Number(e.target.value))}
+              />
+            </Field>
+          )}
         </div>
       </Card>
 
@@ -2117,11 +2210,49 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
   );
 }
 
-function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocationPct, forecast, interestSavedFromAllocation, totals, profile, setField }) {
+function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocationPct, forecast, interestSavedFromAllocation, totals, profile, setField, updateLifeEvent, addLifeEvent, removeLifeEvent, addScenario, updateScenario, removeScenario }) {
   const [realTerms, setRealTerms] = useState(false);
   const suffix = realTerms ? "Real" : "";
   const last = forecast.series[forecast.series.length - 1];
   const key = (base) => `${base}${suffix}`;
+
+  const growthUncertainty = profile.assumptions?.growthUncertaintyPct ?? 2;
+  const forecastLow = useMemo(
+    () => runForecast(profile, totals, horizonYears, allocationPct, -growthUncertainty),
+    [profile, totals, horizonYears, allocationPct, growthUncertainty]
+  );
+  const forecastHigh = useMemo(
+    () => runForecast(profile, totals, horizonYears, allocationPct, growthUncertainty),
+    [profile, totals, horizonYears, allocationPct, growthUncertainty]
+  );
+  const lastLow = forecastLow.series[forecastLow.series.length - 1];
+  const lastHigh = forecastHigh.series[forecastHigh.series.length - 1];
+
+  const chartData = forecast.series.map((row, i) => {
+    const lo = forecastLow.series[i];
+    const hi = forecastHigh.series[i];
+    return {
+      ...row,
+      netWorthLow: lo ? lo.netWorth : row.netWorth,
+      netWorthBand: lo && hi ? Math.max(0, hi.netWorth - lo.netWorth) : 0,
+      netWorthLowReal: lo ? lo.netWorthReal : row.netWorthReal,
+      netWorthBandReal: lo && hi ? Math.max(0, hi.netWorthReal - lo.netWorthReal) : 0,
+    };
+  });
+
+  const SCENARIO_COLORS = ["#0F6B5C", "#FF6B4A", "#97721F", "#1E8F5F", "#D6483A", "#5B6473"];
+  const scenarioForecasts = useMemo(
+    () => profile.scenarios.map((s) => ({ ...s, result: runForecast(profile, totals, horizonYears, s.allocationPct, 0) })),
+    [profile, totals, horizonYears]
+  );
+  const scenarioChartData = (scenarioForecasts[0]?.result.series || []).map((_, i) => {
+    const point = { year: i + 1 };
+    scenarioForecasts.forEach((s) => {
+      const row = s.result.series[i];
+      point[`s_${s.id}`] = row ? row[key("netWorth")] : null;
+    });
+    return point;
+  });
 
   return (
     <>
@@ -2159,28 +2290,42 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
           </div>
         </div>
 
-        <div className="wmg-two-col" style={{ marginTop: 4 }}>
+        <div className="wmg-three-col" style={{ marginTop: 4 }}>
           <Field label="Assumed annual pay growth (%)">
             <input className="wmg-input" type="number" step="0.1" value={profile.assumptions.incomeGrowth} onChange={(e) => setField(["assumptions", "incomeGrowth"])(Number(e.target.value))} />
           </Field>
           <Field label="Assumed annual inflation (%)">
             <input className="wmg-input" type="number" step="0.1" value={profile.assumptions.inflation} onChange={(e) => setField(["assumptions", "inflation"])(Number(e.target.value))} />
           </Field>
+          <Field label="Growth uncertainty (± percentage points)">
+            <input className="wmg-input" type="number" step="0.5" min="0" value={profile.assumptions.growthUncertaintyPct} onChange={(e) => setField(["assumptions", "growthUncertaintyPct"])(Number(e.target.value))} />
+          </Field>
         </div>
 
         <div style={{ width: "100%", height: 320, marginTop: 10 }}>
           <ResponsiveContainer>
-            <LineChart data={forecast.series} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+            <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid stroke="#E2E5EA" vertical={false} />
               <XAxis dataKey="year" tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E2E5EA" />
               <YAxis tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E2E5EA" width={54} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
+              {forecast.resolvedLifeEvents?.map((e) => (
+                <ReferenceLine
+                  key={e.id}
+                  x={Math.round((e.month / 12) * 10) / 10}
+                  stroke={e.type === "expense" ? "#D6483A" : "#1E8F5F"}
+                  strokeDasharray="3 3"
+                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D6483A" : "#1E8F5F" }}
+                />
+              ))}
+              <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
+              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#9A752B" fillOpacity={0.15} isAnimationActive={false} />
               <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#9A752B" strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#B23B2E" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#227A56" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="#626B7A" strokeWidth={2} dot={false} strokeDasharray="4 3" />
-            </LineChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
 
@@ -2188,6 +2333,11 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
           <div>
             <div className="wmg-calc-item-label">Net worth in {horizonYears} years{realTerms ? " (today's money)" : ""}</div>
             <div className="wmg-calc-item-val" style={{ color: "var(--gold)" }}>{last ? gbp(last[key("netWorth")]) : "—"}</div>
+            {lastLow && lastHigh && (
+              <div className="wmg-sub" style={{ marginTop: 2 }}>
+                Likely range: {gbp(lastLow[key("netWorth")])} – {gbp(lastHigh[key("netWorth")])}
+              </div>
+            )}
           </div>
           <div>
             <div className="wmg-calc-item-label">Debt remaining then</div>
@@ -2196,6 +2346,10 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
           <div>
             <div className="wmg-calc-item-label">Debt-free date</div>
             <div className="wmg-calc-item-val" style={{ color: "var(--paper)" }}>{forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} yrs`}</div>
+          </div>
+          <div>
+            <div className="wmg-calc-item-label">Mortgage-free date</div>
+            <div className="wmg-calc-item-val" style={{ color: "var(--brand)" }}>{forecast.mortgageFreeMonth !== null ? addMonths(forecast.mortgageFreeMonth) : `beyond ${horizonYears} yrs`}</div>
           </div>
           {interestSavedFromAllocation !== null && interestSavedFromAllocation > 0 && (
             <div>
@@ -2220,16 +2374,157 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
 
         <div className="wmg-forecast-note">
           Income grows at {profile.assumptions.incomeGrowth}%/yr and essential + lifestyle spending inflate at{" "}
-          {profile.assumptions.inflation}%/yr, compounding monthly. Mortgage, loan and card payments are held fixed, as
-          they contractually are. Cash savings, investments and pension compound at the rates set in their own
-          sections; house prices grow at the rate set in Debts &amp; Mortgage.{" "}
+          {profile.assumptions.inflation}%/yr, compounding monthly. Extra surplus goes to whichever debt has the
+          highest interest rate first —{" "}
+          {profile.mortgage.allowOverpayment
+            ? `including your mortgage, up to ${profile.mortgage.overpaymentCapPct}% of its balance per year (the usual penalty-free limit on UK mortgages) — set this in Debts & Mortgage.`
+            : "your mortgage is excluded from this, and just pays its normal monthly amount — turn this on in Debts & Mortgage if you'd like it included."}{" "}
+          Cash savings, investments and pension compound at the rates set in their own sections; house prices grow at
+          the rate set in Debts &amp; Mortgage.{" "}
           {profile.statePension?.included
             ? `Your State Pension (£${profile.statePension.weeklyAmount}/week today) is added to household income from age ${profile.statePension.claimAge}, uprated with inflation.`
             : "Your State Pension isn't included — switch it on in Pension & Retirement."}{" "}
-          "Today's money" discounts every figure back to present-day purchasing power using the inflation rate above.
-          Real life still has rate changes, job changes and surprises — treat this as a direction of travel, not a
-          promise.
+          Any life events below land as a lump sum into your cash savings in the year they happen, then grow (or reduce
+          what you have) from there. The shaded band around the net worth line shows what happens if savings,
+          investment and pension growth run {growthUncertainty} percentage points below or above what you've set —
+          nobody can promise a return, so the line alone was always a bit more confident than reality. "Today's money"
+          discounts every figure back to present-day purchasing power using the inflation rate above. Real life still
+          has rate changes, job changes and surprises — treat this as a direction of travel, not a promise.
         </div>
+      </Card>
+
+      <div className="wmg-section-title">Compare scenarios</div>
+      <div className="wmg-section-desc">
+        Save a couple of different debt-vs-saving splits and see them plotted together, instead of overwriting the
+        line every time you move the slider above.
+      </div>
+      <Card>
+        {profile.scenarios.length > 0 && (
+          <div style={{ width: "100%", height: 260, marginBottom: 16 }}>
+            <ResponsiveContainer>
+              <LineChart data={scenarioChartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                <CartesianGrid stroke="#E2E5EA" vertical={false} />
+                <XAxis dataKey="year" tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E2E5EA" />
+                <YAxis tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E2E5EA" width={54} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
+                {scenarioForecasts.map((s, idx) => (
+                  <Line
+                    key={s.id}
+                    type="monotone"
+                    dataKey={`s_${s.id}`}
+                    name={`${s.name} (${s.allocationPct}% to debt)`}
+                    stroke={SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}
+                    strokeWidth={2.5}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {profile.scenarios.length > 0 && (
+          <div className="wmg-array-row" style={{ marginBottom: 4 }}>
+            <div style={{ flex: 2 }} className="wmg-field-label">Name</div>
+            <div style={{ flex: 1 }} className="wmg-field-label">% to debt</div>
+            <div style={{ flex: 2 }} className="wmg-field-label">Net worth then</div>
+            <div style={{ width: 32 }} />
+          </div>
+        )}
+        {scenarioForecasts.map((s, idx) => {
+          const finalRow = s.result.series[s.result.series.length - 1];
+          return (
+            <div className="wmg-array-row" key={s.id}>
+              <input
+                className="wmg-input"
+                style={{ flex: 2, borderLeft: `3px solid ${SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}` }}
+                value={s.name}
+                onChange={(e) => updateScenario(s.id, "name", e.target.value)}
+              />
+              <input
+                className="wmg-input"
+                type="number"
+                min="0"
+                max="100"
+                style={{ flex: 1 }}
+                value={s.allocationPct}
+                onChange={(e) => updateScenario(s.id, "allocationPct", Number(e.target.value))}
+              />
+              <div style={{ flex: 2, display: "flex", alignItems: "center", fontFamily: "Inter", fontWeight: 700, fontSize: 13 }}>
+                {finalRow ? gbp(finalRow[key("netWorth")]) : "—"}
+              </div>
+              <button className="wmg-icon-btn" onClick={() => removeScenario(s.id)} aria-label="Remove">
+                ✕
+              </button>
+            </div>
+          );
+        })}
+        <button className="wmg-add-btn" onClick={() => addScenario(allocationPct)}>
+          + Save current split ({allocationPct}% to debt) as a scenario
+        </button>
+      </Card>
+
+      <div className="wmg-section-title">Life events</div>
+      <div className="wmg-section-desc">
+        One-off things that aren't part of your regular monthly numbers — a redundancy payout, an inheritance, a house
+        move, a wedding, university fees. Add them here and the forecast above actually accounts for them landing in
+        that year, marked on the chart.
+      </div>
+      <Card>
+        {profile.lifeEvents.length === 0 && (
+          <div className="wmg-sub" style={{ marginBottom: 12 }}>No life events added yet.</div>
+        )}
+        {profile.lifeEvents.length > 0 && (
+          <div className="wmg-array-row" style={{ marginBottom: 4 }}>
+            <div style={{ flex: 2 }} className="wmg-field-label">Name</div>
+            <div style={{ flex: 1 }} className="wmg-field-label">Type</div>
+            <div style={{ flex: 1 }} className="wmg-field-label">Amount</div>
+            <div style={{ flex: 1 }} className="wmg-field-label">In (years)</div>
+            <div style={{ width: 32 }} />
+          </div>
+        )}
+        {profile.lifeEvents.map((e) => (
+          <div className="wmg-array-row" key={e.id}>
+            <input
+              className="wmg-input"
+              style={{ flex: 2 }}
+              value={e.name}
+              onChange={(ev) => updateLifeEvent(e.id, "name", ev.target.value)}
+            />
+            <select
+              className="wmg-select"
+              style={{ flex: 1 }}
+              value={e.type}
+              onChange={(ev) => updateLifeEvent(e.id, "type", ev.target.value)}
+            >
+              <option value="expense">Expense</option>
+              <option value="income">Windfall</option>
+            </select>
+            <input
+              className="wmg-input"
+              type="number"
+              style={{ flex: 1 }}
+              value={e.amount}
+              onChange={(ev) => updateLifeEvent(e.id, "amount", Number(ev.target.value))}
+            />
+            <input
+              className="wmg-input"
+              type="number"
+              step="0.5"
+              style={{ flex: 1 }}
+              title="Years from now"
+              value={e.yearsFromNow}
+              onChange={(ev) => updateLifeEvent(e.id, "yearsFromNow", Number(ev.target.value))}
+            />
+            <button className="wmg-icon-btn" onClick={() => removeLifeEvent(e.id)} aria-label="Remove">
+              ✕
+            </button>
+          </div>
+        ))}
+        <button className="wmg-add-btn" onClick={addLifeEvent}>
+          + Add life event
+        </button>
       </Card>
     </>
   );
