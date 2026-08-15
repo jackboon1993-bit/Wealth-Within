@@ -9,8 +9,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { getData, setData, deleteData } from "./lib/storage";
-import { supabase } from "./lib/supabaseClient";
 
 /* ============================== helpers ============================== */
 
@@ -354,9 +352,64 @@ function Card({ children, className = "", style = {} }) {
   );
 }
 
-function Stat({ label, value, tone = "paper", sub }) {
+function StatIcon({ name }) {
+  const common = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round" };
+  switch (name) {
+    case "networth":
+      return (
+        <svg {...common}>
+          <path d="M12 3v3M12 18v3M4.2 7.8l2.1 1.8M17.7 14.4l2.1 1.8M3 12h3M18 12h3M4.2 16.2l2.1-1.8M17.7 9.6l2.1-1.8" />
+          <circle cx="12" cy="12" r="3.4" />
+        </svg>
+      );
+    case "debt":
+      return (
+        <svg {...common}>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M2 10h20" />
+          <path d="M6 15h4" />
+        </svg>
+      );
+    case "home":
+      return (
+        <svg {...common}>
+          <path d="M3 11.5 12 4l9 7.5" />
+          <path d="M5.5 10v9.5a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V10" />
+        </svg>
+      );
+    case "savings":
+      return (
+        <svg {...common}>
+          <path d="M4 13.5c0-3.6 3.1-6.5 7-6.5.9 0 1.8.15 2.6.44L17 5.5l1 3-2.1 1.2c1 1.1 1.6 2.4 1.6 3.8v1.7l2 1.3-1 1.5H17v1.5a1 1 0 0 1-1 1h-2.2a1 1 0 0 1-1-.86L12.5 18h-1.3l-.3 1.34a1 1 0 0 1-1 .86H7.7a1 1 0 0 1-1-1V17.5C5 16.3 4 15 4 13.5z" />
+          <circle cx="14.5" cy="10.5" r="0.6" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "pension":
+      return (
+        <svg {...common}>
+          <path d="M12 3 4.5 6v6c0 5 3.2 8.3 7.5 9.9 4.3-1.6 7.5-4.9 7.5-9.9V6L12 3z" />
+        </svg>
+      );
+    case "invest":
+      return (
+        <svg {...common}>
+          <polyline points="3 17 9.5 10.5 14 15 21 6.5" />
+          <polyline points="15 6.5 21 6.5 21 12.5" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
+function Stat({ label, value, tone = "paper", sub, icon }) {
   return (
     <Card className="wmg-stat">
+      {icon && (
+        <div className={`wmg-stat-icon-badge tone-${tone}`}>
+          <StatIcon name={icon} />
+        </div>
+      )}
       <div className="wmg-eyebrow">{label}</div>
       <div className={`wmg-figure tone-${tone}`}>{value}</div>
       {sub && <div className="wmg-sub">{sub}</div>}
@@ -373,42 +426,58 @@ function ProgressBar({ value, max, tone = "gold" }) {
   );
 }
 
-function Gauge({ score }) {
+function Gauge({ score, variant = "light" }) {
   const cx = 110,
     cy = 118,
     r = 92;
   const theta = (180 - clamp(score, 0, 100) * 1.8) * (Math.PI / 180);
   const nx = cx + (r - 12) * Math.cos(theta);
   const ny = cy - (r - 12) * Math.sin(theta);
+  const isHero = variant === "hero";
+  const trackColor = isHero ? "rgba(255,255,255,0.28)" : "#EDE7DA";
+  const needleColor = isHero ? "#FFFFFF" : "#142420";
+  const hubFill = isHero ? "#FF8A65" : "#0F6B5C";
+  const hubStroke = isHero ? "#0B5A48" : "#FFFFFF";
+  const gradId = isHero ? "gaugeGradHero" : "gaugeGrad";
 
   return (
     <svg viewBox="0 0 220 134" className="wmg-gauge" role="img" aria-label={`Financial score ${score} out of 100`}>
       <defs>
-        <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#B23B2E" />
-          <stop offset="50%" stopColor="#9A752B" />
-          <stop offset="100%" stopColor="#227A56" />
+        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+          {isHero ? (
+            <>
+              <stop offset="0%" stopColor="#FF8A65" />
+              <stop offset="50%" stopColor="#FFD9A0" />
+              <stop offset="100%" stopColor="#BFF7E3" />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor="#D6483A" />
+              <stop offset="50%" stopColor="#9A752B" />
+              <stop offset="100%" stopColor="#0F6B5C" />
+            </>
+          )}
         </linearGradient>
       </defs>
       <path
         d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
         fill="none"
-        stroke="#E2E5EA"
-        strokeWidth="11"
+        stroke={trackColor}
+        strokeWidth="12"
         strokeLinecap="round"
         pathLength="100"
       />
       <path
         d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
         fill="none"
-        stroke="url(#gaugeGrad)"
-        strokeWidth="11"
+        stroke={`url(#${gradId})`}
+        strokeWidth="12"
         strokeLinecap="round"
         pathLength="100"
         strokeDasharray={`${clamp(score, 0, 100)} 100`}
       />
-      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#171B21" strokeWidth="2.5" strokeLinecap="round" />
-      <circle cx={cx} cy={cy} r="5.5" fill="#9A752B" stroke="#FFFFFF" strokeWidth="2" />
+      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={needleColor} strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx={cx} cy={cy} r="6" fill={hubFill} stroke={hubStroke} strokeWidth="2" />
     </svg>
   );
 }
@@ -620,17 +689,18 @@ function BrandMark({ size = 34 }) {
     <svg width={size} height={size} viewBox="0 0 34 34" fill="none">
       <defs>
         <linearGradient id="brandMarkGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#B5924C" />
-          <stop offset="100%" stopColor="#8A6A22" />
+          <stop offset="0%" stopColor="#17A184" />
+          <stop offset="100%" stopColor="#0B5A48" />
         </linearGradient>
       </defs>
-      <rect width="34" height="34" rx="9" fill="url(#brandMarkGrad)" />
-      <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="26" cy="10" r="1.8" fill="#FFFFFF" />
+      <rect width="34" height="34" rx="10" fill="url(#brandMarkGrad)" />
+      <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <circle cx="26" cy="10" r="1.9" fill="#FF8A65" />
     </svg>
   );
 }
 
+const STORAGE_KEY = "wmg-profile-v1";
 
 export default function App() {
   const [profile, setProfile] = useState(defaultProfile);
@@ -647,10 +717,16 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      if (!window.storage) {
+        setStorageStatus("unavailable");
+        hasLoaded.current = true;
+        return;
+      }
       try {
-        const result = await getData();
-        if (!cancelled && result) {
-          const merged = mergeWithDefaults(result);
+        const result = await window.storage.get(STORAGE_KEY, false);
+        if (!cancelled && result && result.value) {
+          const parsed = JSON.parse(result.value);
+          const merged = mergeWithDefaults(parsed);
           setProfile(merged);
           if (merged.loans && merged.loans[0]) setSelectedDebtId(merged.loans[0].id);
           setStorageStatus("ready");
@@ -658,7 +734,7 @@ export default function App() {
           setStorageStatus("ready");
         }
       } catch (err) {
-        if (!cancelled) setStorageStatus("error");
+        if (!cancelled) setStorageStatus("ready"); // key just doesn't exist yet — that's fine
       } finally {
         hasLoaded.current = true;
       }
@@ -671,12 +747,12 @@ export default function App() {
 
   // save the household data whenever it changes, debounced, after the initial load completes
   useEffect(() => {
-    if (!hasLoaded.current) return;
+    if (!hasLoaded.current || !window.storage) return;
     setStorageStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        const result = await setData(profile);
+        const result = await window.storage.set(STORAGE_KEY, JSON.stringify(profile), false);
         setStorageStatus(result ? "saved" : "error");
       } catch (err) {
         setStorageStatus("error");
@@ -690,10 +766,12 @@ export default function App() {
     setProfile(defaultProfile);
     setSelectedDebtId(defaultProfile.loans[0].id);
     setConfirmingReset(false);
-    try {
-      await deleteData();
-    } catch (err) {
-      /* nothing to delete — fine */
+    if (window.storage) {
+      try {
+        await window.storage.delete(STORAGE_KEY, false);
+      } catch (err) {
+        /* nothing to delete — fine */
+      }
     }
   };
 
@@ -977,226 +1055,255 @@ export default function App() {
   return (
     <div className="wmg-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .wmg-root {
-          --ink: #F4F5F7;
+          --ink: #F5F2EA;
           --ink-2: #FFFFFF;
-          --ink-3: #F0F1F4;
-          --paper: #171B21;
-          --paper-dim: #626B7A;
-          --gold: #9A752B;
-          --sage: #227A56;
-          --rust: #B23B2E;
-          --slate: #55606E;
-          --hair: #E2E5EA;
-          --gold-soft: #C9A24B;
-          --sage-soft: #6FA089;
-          --rust-soft: #C1594A;
-          --slate-soft: #5A6B84;
+          --ink-3: #F1EDE3;
+          --paper: #17231F;
+          --paper-dim: #667069;
+          --brand: #0F6B5C;
+          --brand-2: #14876F;
+          --brand-deep: #0A4638;
+          --brand-soft: #DCEFE8;
+          --coral: #FF6B4A;
+          --coral-soft: #FFE1D6;
+          --gold: #97721F;
+          --gold-soft: #F3E7C9;
+          --sage: #1E8F5F;
+          --sage-soft: #D9F1E2;
+          --rust: #D6483A;
+          --rust-soft: #FBE2DE;
+          --slate: #5B6473;
+          --slate-soft: #E9E7DE;
+          --hair: #E7E1D3;
+          --gold-fill: #E8C878;
+          --sage-fill: #7FC4A0;
+          --rust-fill: #E8917F;
+          --slate-fill: #97A0AA;
           background: var(--ink);
           color: var(--paper);
-          font-family: 'Inter', sans-serif;
+          font-family: 'Plus Jakarta Sans', sans-serif;
           min-height: 100%;
           font-variant-numeric: tabular-nums;
         }
         .wmg-root * { box-sizing: border-box; }
-        .wmg-mono { font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; }
-        .wmg-serif { font-family: 'Inter', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+        .wmg-mono { font-family: 'Plus Jakarta Sans', sans-serif; font-variant-numeric: tabular-nums; }
+        .wmg-serif { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; letter-spacing: -0.01em; }
 
         .wmg-app { display: flex; min-height: 100vh; align-items: flex-start; }
         @media (max-width: 880px) { .wmg-app { flex-direction: column; } }
 
-        .wmg-sidebar { width: 236px; flex-shrink: 0; padding: 28px 18px; border-right: 1px solid var(--hair); position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; background: #FFFFFF; }
-        @media (max-width: 880px) { .wmg-sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--hair); padding: 18px; } }
+        .wmg-sidebar { width: 240px; flex-shrink: 0; padding: 26px 16px; border-right: 1px solid var(--hair); position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; background: #FFFFFF; }
+        @media (max-width: 880px) {
+          .wmg-sidebar { width: 100%; height: auto; position: fixed; left: 0; right: 0; bottom: 0; top: auto; border-right: none; border-top: 1px solid var(--hair); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 20px rgba(15,30,25,0.08); z-index: 20; }
+        }
 
-        .wmg-brand-block { display: flex; align-items: center; gap: 11px; margin-bottom: 28px; }
+        .wmg-brand-block { display: flex; align-items: center; gap: 11px; margin-bottom: 26px; }
         .wmg-brand-block svg { flex-shrink: 0; }
-        .wmg-brand { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; margin: 0; line-height: 1.2; color: var(--paper); }
+        .wmg-brand { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.02em; margin: 0; line-height: 1.2; color: var(--paper); }
         .wmg-brand-tagline { font-size: 10.5px; color: var(--paper-dim); margin-top: 2px; letter-spacing: 0.01em; }
-        @media (max-width: 880px) { .wmg-brand-block { margin-bottom: 16px; } }
+        @media (max-width: 880px) { .wmg-brand-block { display: none; } }
 
-        .wmg-nav { display: flex; flex-direction: column; gap: 2px; }
-        @media (max-width: 880px) { .wmg-nav { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; } }
-        .wmg-nav-item { display: flex; align-items: center; gap: 10px; text-align: left; background: transparent; border: none; border-left: 2px solid transparent; color: var(--paper-dim); font-family: 'Inter', sans-serif; font-size: 13.5px; padding: 9px 14px; cursor: pointer; border-radius: 0 6px 6px 0; white-space: nowrap; transition: color .15s ease, background .15s ease, border-color .15s ease; }
-        .wmg-nav-icon { display: flex; color: var(--paper-dim); flex-shrink: 0; transition: color .15s ease; }
+        .wmg-nav { display: flex; flex-direction: column; gap: 3px; }
+        @media (max-width: 880px) { .wmg-nav { flex-direction: row; overflow-x: auto; gap: 2px; justify-content: space-between; } }
+        .wmg-nav-item { display: flex; align-items: center; gap: 11px; text-align: left; background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; padding: 9px 12px; cursor: pointer; border-radius: 12px; white-space: nowrap; transition: color .15s ease, background .15s ease; }
+        .wmg-nav-icon-badge { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 10px; background: var(--ink-3); color: var(--paper-dim); flex-shrink: 0; transition: background .15s ease, color .15s ease; }
         .wmg-nav-item:hover { color: var(--paper); background: var(--ink-3); }
-        .wmg-nav-item:hover .wmg-nav-icon { color: var(--gold); }
-        .wmg-nav-item.active { color: var(--paper); background: var(--ink-3); border-left-color: var(--gold); font-weight: 600; }
-        .wmg-nav-item.active .wmg-nav-icon { color: var(--gold); }
-        @media (max-width: 880px) { .wmg-nav-item { border-left: none; border-bottom: 2px solid transparent; border-radius: 6px; } .wmg-nav-item.active { border-bottom-color: var(--gold); } }
+        .wmg-nav-item.active { color: var(--paper); background: var(--brand-soft); font-weight: 700; }
+        .wmg-nav-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
+        @media (max-width: 880px) {
+          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 7px 6px; border-radius: 12px; min-width: 60px; flex: 1; }
+          .wmg-nav-item span:last-child { font-size: 9px; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; }
+          .wmg-nav-item.active { background: transparent; }
+          .wmg-nav-icon-badge { width: 34px; height: 34px; }
+        }
 
-        .wmg-sidebar-foot { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--hair); font-size: 11px; color: var(--paper-dim); line-height: 1.6; }
+        .wmg-sidebar-foot { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--hair); font-size: 11px; color: var(--paper-dim); line-height: 1.6; }
         @media (max-width: 880px) { .wmg-sidebar-foot { display: none; } }
-        .wmg-sync-row { display: flex; align-items: center; gap: 7px; font-family: 'Inter', sans-serif; font-size: 10.5px; }
+        .wmg-sync-row { display: flex; align-items: center; gap: 7px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; }
         .wmg-sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--paper-dim); flex-shrink: 0; }
         .wmg-sync-dot.status-ready, .wmg-sync-dot.status-saved { background: var(--sage); }
         .wmg-sync-dot.status-saving, .wmg-sync-dot.status-loading { background: var(--gold); }
         .wmg-sync-dot.status-error, .wmg-sync-dot.status-unavailable { background: var(--rust); }
-        .wmg-reset-btn { background: transparent; border: 1px solid var(--hair); color: var(--paper-dim); font-family: 'Inter', sans-serif; font-size: 10.5px; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
-        .wmg-reset-btn:hover { border-color: var(--gold); color: var(--gold); }
+        .wmg-reset-btn { background: transparent; border: 1px solid var(--hair); color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; font-weight: 600; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+        .wmg-reset-btn:hover { border-color: var(--brand); color: var(--brand); }
         .wmg-reset-btn.danger { border-color: var(--rust); color: var(--rust); }
 
         .wmg-main { flex: 1; min-width: 0; padding: 0 0 70px; }
+        @media (max-width: 880px) { .wmg-main { padding-bottom: 96px; } }
 
-        .wmg-topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 32px; background: rgba(244,245,247,0.86); backdrop-filter: blur(6px); border-bottom: 1px solid var(--hair); flex-wrap: wrap; }
-        @media (max-width: 880px) { .wmg-topbar { position: relative; padding: 16px 18px; } }
-        .wmg-topbar-title { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+        .wmg-topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 32px; background: rgba(245,242,234,0.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--hair); flex-wrap: wrap; }
+        @media (max-width: 880px) { .wmg-topbar { position: relative; padding: 16px 18px; background: transparent; backdrop-filter: none; border-bottom: none; } }
+        .wmg-topbar-left { display: flex; align-items: center; gap: 10px; }
+        .wmg-topbar-brand { display: none; }
+        @media (max-width: 880px) { .wmg-topbar-brand { display: flex; } }
+        .wmg-topbar-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; letter-spacing: -0.015em; }
         .wmg-topbar-stats { display: flex; gap: 22px; flex-wrap: wrap; }
         .wmg-topbar-stat { text-align: right; }
-        .wmg-topbar-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--paper-dim); font-family: 'Inter', sans-serif; }
-        .wmg-topbar-stat-val { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; }
-        .wmg-score-chip { display: flex; align-items: center; gap: 8px; border: 1px solid var(--hair); border-radius: 999px; padding: 6px 14px 6px 10px; }
+        .wmg-topbar-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }
+        .wmg-topbar-stat-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; }
+        .wmg-score-chip { display: flex; align-items: center; gap: 8px; background: var(--brand-soft); border-radius: 999px; padding: 6px 14px 6px 10px; }
         .wmg-score-chip-dot { width: 8px; height: 8px; border-radius: 50%; }
 
-        .wmg-content { padding: 28px 32px 0; }
-        @media (max-width: 880px) { .wmg-content { padding: 22px 18px 0; } }
+        .wmg-content { padding: 24px 32px 0; }
+        @media (max-width: 880px) { .wmg-content { padding: 4px 18px 0; } }
 
-        .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 12px; padding: 20px; box-shadow: 0 1px 2px rgba(23,27,33,0.04), 0 1px 8px rgba(23,27,33,0.03); }
+        .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 20px; padding: 22px; box-shadow: 0 1px 2px rgba(15,30,25,0.03), 0 10px 24px -12px rgba(15,30,25,0.10); }
 
-        .wmg-score-row { display: grid; grid-template-columns: 260px 1fr; gap: 18px; margin-bottom: 8px; }
-        @media (max-width: 720px) { .wmg-score-row { grid-template-columns: 1fr; } }
-        .wmg-score-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .wmg-gauge { width: 190px; height: auto; }
-        .wmg-score-num { font-family: 'Inter', sans-serif; font-size: 36px; font-weight: 600; margin-top: -8px; }
-        .wmg-score-label { font-family: 'Inter', sans-serif; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper-dim); }
+        .wmg-hero { display: grid; grid-template-columns: 210px 1fr; gap: 8px; align-items: center; background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 60%, #1AA187 100%); border-radius: 24px; padding: 26px 30px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 8px; position: relative; overflow: hidden; }
+        .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
+        @media (max-width: 720px) { .wmg-hero { grid-template-columns: 1fr; text-align: center; padding: 24px 22px; } }
+        .wmg-hero-gauge { display: flex; flex-direction: column; align-items: center; }
+        .wmg-hero-gauge .wmg-gauge { width: 165px; height: auto; }
+        .wmg-hero-score-num { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 34px; font-weight: 800; margin-top: -10px; }
+        .wmg-hero-score-max { font-size: 15px; font-weight: 600; opacity: 0.75; }
+        .wmg-hero-score-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
+        .wmg-hero-body { position: relative; z-index: 1; }
+        .wmg-hero-verdict { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 600; line-height: 1.4; margin: 0 0 16px; }
+        .wmg-hero-verdict strong { font-weight: 800; }
+        .wmg-hero-mini-stats { display: flex; gap: 28px; flex-wrap: wrap; }
+        @media (max-width: 720px) { .wmg-hero-mini-stats { justify-content: center; } }
+        .wmg-hero-mini-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }
+        .wmg-hero-mini-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; }
 
-        .wmg-verdict-card { display: flex; flex-direction: column; justify-content: center; }
-        .wmg-verdict { font-family: 'Inter', sans-serif; font-size: 21px; line-height: 1.4; margin: 0 0 14px; }
-        .wmg-verdict .wmg-mono { color: var(--gold); }
-        .wmg-mini-stats { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 4px; }
-        .wmg-mini-stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--paper-dim); font-family: 'Inter', sans-serif; }
-        .wmg-mini-stat-val { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; }
-
-        .wmg-section-title { font-family: 'Inter', sans-serif; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); margin: 32px 0 12px; display: flex; align-items: center; gap: 10px; }
+        .wmg-section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--paper); margin: 30px 0 12px; display: flex; align-items: center; gap: 10px; }
         .wmg-section-title:first-child { margin-top: 0; }
-        .wmg-section-title::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+        .wmg-section-title::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); flex-shrink: 0; }
         .wmg-section-desc { font-size: 12.5px; color: var(--paper-dim); margin: -6px 0 14px; max-width: 60ch; }
 
         .wmg-nw-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
         @media (max-width: 900px) { .wmg-nw-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 560px) { .wmg-nw-grid { grid-template-columns: repeat(2, 1fr); } }
-        .wmg-stat { padding: 15px 16px; }
-        .wmg-stat .wmg-eyebrow { color: var(--paper-dim); margin-bottom: 8px; font-size: 10px; }
-        .wmg-figure { font-family: 'Inter', sans-serif; font-size: 19px; font-weight: 600; }
+        .wmg-stat { padding: 18px 18px; position: relative; }
+        .wmg-stat .wmg-eyebrow { color: var(--paper-dim); margin-bottom: 6px; font-size: 10.5px; font-weight: 600; }
+        .wmg-stat-icon-badge { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; margin-bottom: 12px; }
+        .wmg-stat-icon-badge.tone-gold { background: var(--gold-soft); color: var(--gold); }
+        .wmg-stat-icon-badge.tone-sage { background: var(--sage-soft); color: var(--sage); }
+        .wmg-stat-icon-badge.tone-rust { background: var(--rust-soft); color: var(--rust); }
+        .wmg-stat-icon-badge.tone-brand { background: var(--brand-soft); color: var(--brand); }
+        .wmg-stat-icon-badge.tone-slate { background: var(--slate-soft); color: var(--slate); }
+        .wmg-figure { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 700; }
         .wmg-sub { font-size: 11px; color: var(--paper-dim); margin-top: 4px; }
         .tone-paper { color: var(--paper); }
         .tone-gold { color: var(--gold); }
         .tone-sage { color: var(--sage); }
         .tone-rust { color: var(--rust); }
         .tone-slate { color: var(--slate); }
-        .wmg-networth-card { grid-column: span 2; background: linear-gradient(135deg, #FBF6E9, var(--ink-2)); }
+        .tone-brand { color: var(--brand); }
+        .wmg-networth-card { grid-column: span 2; background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 70%); }
         @media (max-width: 560px) { .wmg-networth-card { grid-column: span 2; } }
 
-        .wmg-flow-bar { display: flex; width: 100%; height: 36px; border-radius: 7px; overflow: hidden; border: 1px solid var(--hair); }
-        .wmg-flow-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; transition: width .3s ease; }
-        .bg-slate { background: var(--slate-soft); color: #171B21; }
-        .bg-rust { background: var(--rust-soft); color: #171B21; }
-        .bg-gold { background: var(--gold-soft); color: #171B21; }
-        .bg-sage { background: var(--sage-soft); color: #171B21; }
-        .wmg-flow-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; }
-        .wmg-flow-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-        .wmg-swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
-        .wmg-flow-legend-val { font-family: 'Inter', sans-serif; margin-left: 4px; color: var(--paper-dim); }
+        .wmg-flow-bar { display: flex; width: 100%; height: 38px; border-radius: 12px; overflow: hidden; }
+        .wmg-flow-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; transition: width .3s ease; }
+        .bg-slate { background: var(--slate-fill); color: #17231F; }
+        .bg-rust { background: var(--rust-fill); color: #17231F; }
+        .bg-gold { background: var(--gold-fill); color: #17231F; }
+        .bg-sage { background: var(--sage-fill); color: #17231F; }
+        .wmg-flow-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 16px; }
+        .wmg-flow-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; }
+        .wmg-swatch { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+        .wmg-flow-legend-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; margin-left: 4px; color: var(--paper-dim); }
 
         .wmg-horizon { position: relative; height: 5px; background: var(--hair); border-radius: 3px; margin: 44px 10px 26px; }
         .wmg-horizon-point { position: absolute; top: -7px; width: 19px; height: 19px; border-radius: 50%; border: 3px solid var(--ink-2); }
-        .wmg-horizon-label { position: absolute; top: -44px; font-size: 10.5px; white-space: nowrap; font-family: 'Inter', sans-serif; text-align: center; transform: translateX(-50%); text-transform: uppercase; letter-spacing: 0.04em; }
-        .wmg-horizon-date { position: absolute; top: 18px; font-size: 12px; font-weight: 600; white-space: nowrap; transform: translateX(-50%); font-family: 'Inter', sans-serif; }
+        .wmg-horizon-label { position: absolute; top: -44px; font-size: 10.5px; white-space: nowrap; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-align: center; transform: translateX(-50%); text-transform: uppercase; letter-spacing: 0.04em; }
+        .wmg-horizon-date { position: absolute; top: 18px; font-size: 12px; font-weight: 700; white-space: nowrap; transform: translateX(-50%); font-family: 'Plus Jakarta Sans', sans-serif; }
 
         .wmg-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         @media (max-width: 720px) { .wmg-two-col { grid-template-columns: 1fr; } }
         .wmg-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
         @media (max-width: 780px) { .wmg-three-col { grid-template-columns: 1fr; } }
 
-        .wmg-select { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 7px; padding: 9px 11px; font-family: 'Inter', sans-serif; font-size: 12.5px; width: 100%; }
+        .wmg-select { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
         .wmg-slider-row { display: flex; align-items: center; gap: 14px; }
-        .wmg-slider { flex: 1; accent-color: var(--gold); }
-        .wmg-slider-val { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: var(--gold); min-width: 60px; text-align: right; }
+        .wmg-slider { flex: 1; accent-color: var(--brand); }
+        .wmg-slider-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--brand); min-width: 60px; text-align: right; }
 
         .wmg-calc-result { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 10px; padding-top: 14px; border-top: 1px dashed var(--hair); }
-        .wmg-calc-item-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); font-family: 'Inter', sans-serif; }
-        .wmg-calc-item-val { font-family: 'Inter', sans-serif; font-size: 17px; font-weight: 600; color: var(--sage); }
+        .wmg-calc-item-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }
+        .wmg-calc-item-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; color: var(--sage); }
 
         .wmg-ef-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-        .wmg-progress-track { width: 100%; height: 11px; background: var(--ink-3); border-radius: 6px; overflow: hidden; border: 1px solid var(--hair); }
-        .wmg-progress-fill { height: 100%; border-radius: 6px; transition: width .3s ease; }
-        .wmg-progress-fill.tone-gold { background: var(--gold); }
-        .wmg-progress-fill.tone-sage { background: var(--sage); }
+        .wmg-progress-track { width: 100%; height: 12px; background: var(--ink-3); border-radius: 999px; overflow: hidden; }
+        .wmg-progress-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
+        .wmg-progress-fill.tone-gold { background: linear-gradient(90deg, var(--gold), #C9A64B); }
+        .wmg-progress-fill.tone-sage { background: linear-gradient(90deg, var(--brand), var(--sage)); }
 
         .wmg-sub-list { display: flex; flex-direction: column; gap: 8px; }
-        .wmg-sub-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; background: var(--ink-3); border-radius: 9px; border: 1px solid var(--hair); }
+        .wmg-sub-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--ink-3); border-radius: 14px; }
         .wmg-sub-row.cancelled { opacity: 0.4; }
         .wmg-sub-left { display: flex; align-items: center; gap: 10px; }
-        .wmg-sub-name { font-size: 13.5px; }
-        .wmg-flag { font-size: 9.5px; font-family: 'Inter', sans-serif; color: var(--gold); border: 1px solid var(--gold); border-radius: 999px; padding: 2px 8px; }
-        .wmg-sub-amount { font-family: 'Inter', sans-serif; font-size: 13.5px; }
-        .wmg-toggle-btn { font-family: 'Inter', sans-serif; font-size: 10.5px; border: 1px solid var(--hair); background: transparent; color: var(--paper); padding: 6px 12px; border-radius: 999px; cursor: pointer; margin-left: 14px; }
+        .wmg-sub-name { font-size: 13.5px; font-weight: 500; }
+        .wmg-flag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--coral); background: var(--coral-soft); border-radius: 999px; padding: 3px 9px; }
+        .wmg-sub-amount { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; }
+        .wmg-toggle-btn { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; font-weight: 700; border: 1px solid var(--hair); background: #FFFFFF; color: var(--paper); padding: 6px 12px; border-radius: 999px; cursor: pointer; margin-left: 14px; }
         .wmg-toggle-btn.is-cancelled { border-color: var(--sage); color: var(--sage); }
-        .wmg-subs-total { display: flex; justify-content: space-between; margin-top: 14px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--paper-dim); }
+        .wmg-subs-total { display: flex; justify-content: space-between; margin-top: 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; color: var(--paper-dim); font-weight: 600; }
 
-        .wmg-coach { border-left: 3px solid var(--gold); }
-        .wmg-coach-title { font-family: 'Inter', sans-serif; font-style: italic; font-size: 16px; margin-bottom: 12px; }
-        .wmg-coach-tip { display: flex; gap: 10px; padding: 11px 0; border-top: 1px solid var(--hair); font-size: 13.5px; line-height: 1.5; }
+        .wmg-coach { border: none; background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 60%); }
+        .wmg-coach-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 12px; color: var(--paper); }
+        .wmg-coach-tip { display: flex; gap: 10px; padding: 11px 0; border-top: 1px solid rgba(151,114,31,0.14); font-size: 13.5px; line-height: 1.5; }
         .wmg-coach-tip:first-of-type { border-top: none; }
         .wmg-coach-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
         .dot-gold { background: var(--gold); }
         .dot-sage { background: var(--sage); }
         .dot-rust { background: var(--rust); }
 
-        .wmg-field-label { font-family: 'Inter', sans-serif; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 6px; display: block; }
+        .wmg-field-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 6px; display: block; }
         .wmg-field { margin-bottom: 12px; }
-        .wmg-input { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 7px; padding: 9px 10px; font-family: 'Inter', sans-serif; font-size: 12.5px; width: 100%; }
-        .wmg-input:focus, .wmg-select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+        .wmg-input { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 10px; padding: 10px 11px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
+        .wmg-input:focus, .wmg-select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
         .wmg-textarea { min-height: 92px; resize: vertical; line-height: 1.6; }
         .wmg-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .wmg-add-btn:disabled:hover { border-color: var(--hair); color: var(--paper-dim); }
         .wmg-array-editor { margin-bottom: 6px; }
-        .wmg-array-title { font-size: 11.5px; color: var(--paper-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-family: 'Inter', sans-serif;}
+        .wmg-array-title { font-size: 11.5px; color: var(--paper-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif;}
         .wmg-array-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-        .wmg-icon-btn { background: transparent; border: 1px solid var(--hair); color: var(--rust); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; flex-shrink: 0; }
-        .wmg-add-btn { background: transparent; border: 1px dashed var(--hair); color: var(--paper-dim); border-radius: 8px; padding: 8px 12px; font-size: 11.5px; cursor: pointer; width: 100%; font-family: 'Inter', sans-serif; }
-        .wmg-add-btn:hover { border-color: var(--gold); color: var(--gold); }
+        .wmg-icon-btn { background: var(--rust-soft); border: none; color: var(--rust); border-radius: 9px; width: 34px; height: 34px; cursor: pointer; flex-shrink: 0; font-weight: 700; }
+        .wmg-add-btn { background: transparent; border: 1.5px dashed var(--hair); color: var(--paper-dim); border-radius: 12px; padding: 10px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; width: 100%; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .wmg-add-btn:hover { border-color: var(--brand); color: var(--brand); }
 
         .wmg-cat-card { margin-bottom: 14px; }
         .wmg-cat-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
         .wmg-cat-name-input { flex: 2; }
         .wmg-cat-type-select { flex: 1; }
-        .wmg-cat-subtotal { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--hair); font-family: 'Inter', sans-serif; font-size: 12.5px; }
-        .wmg-cat-subtotal-val { font-weight: 600; }
-        .wmg-tag { font-size: 9.5px; font-family: 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--hair); color: var(--paper-dim); }
-        .wmg-tag.essential { border-color: var(--slate); color: var(--paper); }
-        .wmg-tag.lifestyle { border-color: var(--gold); color: var(--gold); }
+        .wmg-cat-subtotal { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--hair); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; }
+        .wmg-cat-subtotal-val { font-weight: 700; }
+        .wmg-tag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 9px; border-radius: 999px; color: var(--paper-dim); background: var(--ink-3); }
+        .wmg-tag.essential { background: var(--slate-soft); color: var(--slate); }
+        .wmg-tag.lifestyle { background: var(--coral-soft); color: var(--coral); }
 
         .wmg-goal-card { margin-bottom: 14px; }
         .wmg-goal-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
-        .wmg-goal-name-input { font-family: 'Inter', sans-serif; font-size: 16px; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--paper); padding: 2px 0; }
-        .wmg-goal-name-input:focus { outline: none; border-bottom-color: var(--gold); }
+        .wmg-goal-name-input { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 16px; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--paper); padding: 2px 0; }
+        .wmg-goal-name-input:focus { outline: none; border-bottom-color: var(--brand); }
         .wmg-goal-numbers { display: flex; gap: 20px; flex-wrap: wrap; margin: 12px 0; }
         .wmg-goal-plan { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--hair); font-size: 13px; line-height: 1.6; }
-        .wmg-goal-plan-highlight { color: var(--gold); font-weight: 600; }
+        .wmg-goal-plan-highlight { color: var(--brand); font-weight: 700; }
         .wmg-inline-input { width: 90px; }
 
         .wmg-pension-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
         @media (max-width: 780px) { .wmg-pension-cards { grid-template-columns: 1fr; } }
-        .wmg-pension-scenario-name { font-family: 'Inter', sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
-        .wmg-pension-value { font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 600; margin-bottom: 4px; }
+        .wmg-pension-scenario-name { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+        .wmg-pension-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; margin-bottom: 4px; }
         .wmg-pension-income { font-size: 12px; color: var(--paper-dim); }
 
-        .wmg-tooltip { background: #FFFFFF; border: 1px solid var(--hair); border-radius: 8px; padding: 10px 12px; font-size: 12px; box-shadow: 0 4px 16px rgba(23,27,33,0.1); }
-        .wmg-tooltip-label { font-family: 'Inter', sans-serif; color: var(--paper-dim); margin-bottom: 6px; font-size: 11px; }
+        .wmg-tooltip { background: #FFFFFF; border: 1px solid var(--hair); border-radius: 12px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 24px rgba(15,30,25,0.12); }
+        .wmg-tooltip-label { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--paper-dim); margin-bottom: 6px; font-size: 11px; font-weight: 600; }
         .wmg-tooltip-row { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
         .wmg-tooltip-name { color: var(--paper-dim); }
-        .wmg-tooltip-val { font-family: 'Inter', sans-serif; font-weight: 600; margin-left: auto; }
+        .wmg-tooltip-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; margin-left: auto; }
 
         .wmg-forecast-summary { display: flex; gap: 24px; flex-wrap: wrap; margin: 18px 0 6px; padding: 16px 0; border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
         .wmg-forecast-note { font-size: 11.5px; color: var(--paper-dim); margin-top: 14px; line-height: 1.6; }
 
         .wmg-accordion-item { border-bottom: 1px solid var(--hair); }
         .wmg-accordion-item:last-child { border-bottom: none; }
-        .wmg-accordion-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: transparent; border: none; text-align: left; padding: 14px 2px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: var(--paper); }
-        .wmg-accordion-head:hover { color: var(--gold); }
-        .wmg-accordion-icon { font-family: 'Inter', sans-serif; font-size: 16px; color: var(--gold); flex-shrink: 0; width: 18px; text-align: center; }
+        .wmg-accordion-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: transparent; border: none; text-align: left; padding: 14px 2px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--paper); }
+        .wmg-accordion-head:hover { color: var(--brand); }
+        .wmg-accordion-icon { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; color: var(--brand); flex-shrink: 0; width: 18px; text-align: center; }
         .wmg-accordion-body { padding: 0 2px 16px; font-size: 13.5px; line-height: 1.65; color: var(--paper-dim); }
 
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
@@ -1215,7 +1322,7 @@ export default function App() {
           <nav className="wmg-nav">
             {NAV.map((n) => (
               <button key={n.key} className={`wmg-nav-item ${tab === n.key ? "active" : ""}`} onClick={() => setTab(n.key)}>
-                <span className="wmg-nav-icon"><NavIcon name={n.icon} /></span>
+                <span className="wmg-nav-icon-badge"><NavIcon name={n.icon} /></span>
                 <span>{n.label}</span>
               </button>
             ))}
@@ -1225,10 +1332,11 @@ export default function App() {
               <span className={`wmg-sync-dot status-${storageStatus}`} />
               <span>
                 {storageStatus === "loading" && "Loading your data…"}
-                {storageStatus === "ready" && (supabase ? "Saved to your account" : "Saved on this device")}
+                {storageStatus === "ready" && "Saved on this device"}
                 {storageStatus === "saving" && "Saving…"}
-                {storageStatus === "saved" && (supabase ? "Saved to your account" : "Saved on this device")}
+                {storageStatus === "saved" && "Saved on this device"}
                 {storageStatus === "error" && "Couldn't save — check connection"}
+                {storageStatus === "unavailable" && "Not saved — storage unavailable"}
               </span>
             </div>
             <p style={{ margin: "10px 0" }}>
@@ -1242,22 +1350,16 @@ export default function App() {
             ) : (
               <button className="wmg-reset-btn" onClick={() => setConfirmingReset(true)}>Reset to example data</button>
             )}
-            {supabase && (
-              <button
-                className="wmg-reset-btn"
-                style={{ marginTop: 8 }}
-                onClick={() => supabase.auth.signOut()}
-              >
-                Sign out
-              </button>
-            )}
           </div>
         </div>
 
         {/* main */}
         <div className="wmg-main">
           <div className="wmg-topbar">
-            <div className="wmg-topbar-title">{NAV.find((n) => n.key === tab)?.label}</div>
+            <div className="wmg-topbar-left">
+              <span className="wmg-topbar-brand"><BrandMark size={26} /></span>
+              <div className="wmg-topbar-title">{NAV.find((n) => n.key === tab)?.label}</div>
+            </div>
             <div className="wmg-topbar-stats">
               <div className="wmg-score-chip">
                 <span className="wmg-score-chip-dot" style={{ background: score >= 70 ? "var(--sage)" : score >= 45 ? "var(--gold)" : "var(--rust)" }} />
@@ -1372,51 +1474,52 @@ export default function App() {
 function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips }) {
   return (
     <>
-      <div className="wmg-score-row">
-        <Card className="wmg-score-card">
-          <Gauge score={score} />
-          <div className="wmg-score-num">
+      <div className="wmg-hero">
+        <div className="wmg-hero-gauge">
+          <Gauge score={score} variant="hero" />
+          <div className="wmg-hero-score-num">
             {score}
-            <span style={{ fontSize: 16, color: "var(--paper-dim)" }}>/100</span>
+            <span className="wmg-hero-score-max">/100</span>
           </div>
-          <div className="wmg-score-label">Financial score</div>
-        </Card>
-        <Card className="wmg-verdict-card">
-          <p className="wmg-verdict">
+          <div className="wmg-hero-score-label">Financial score</div>
+        </div>
+        <div className="wmg-hero-body">
+          <p className="wmg-hero-verdict">
             {gap > 0 ? (
-              <>You're <span className="wmg-mono">{gbp(Math.round(gap))}/month</span> away from being financially comfortable.</>
+              <>You're <strong>{gbp(Math.round(gap))}/month</strong> away from being financially comfortable.</>
             ) : (
-              <>You're <span className="wmg-mono">{gbp(Math.round(-gap))}/month</span> past "comfortable." Put the surplus to work.</>
+              <>You're <strong>{gbp(Math.round(-gap))}/month</strong> past "comfortable." Put the surplus to work.</>
             )}
           </p>
-          <div className="wmg-mini-stats">
+          <div className="wmg-hero-mini-stats">
             <div>
-              <div className="wmg-mini-stat-label">Debt-free</div>
-              <div className="wmg-mini-stat-val">{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</div>
+              <div className="wmg-hero-mini-label">Debt-free</div>
+              <div className="wmg-hero-mini-val">{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</div>
             </div>
             <div>
-              <div className="wmg-mini-stat-label">Mortgage-free</div>
-              <div className="wmg-mini-stat-val">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
+              <div className="wmg-hero-mini-label">Mortgage-free</div>
+              <div className="wmg-hero-mini-val">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
             </div>
             <div>
-              <div className="wmg-mini-stat-label">Disposable / month</div>
-              <div className="wmg-mini-stat-val">{gbp(totals.available)}</div>
+              <div className="wmg-hero-mini-label">Disposable / month</div>
+              <div className="wmg-hero-mini-val">{gbp(totals.available)}</div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       <div className="wmg-section-title">Net worth</div>
       <div className="wmg-nw-grid">
         <Card className="wmg-stat wmg-networth-card">
+          <div className="wmg-stat-icon-badge tone-gold"><StatIcon name="networth" /></div>
           <div className="wmg-eyebrow">Net worth</div>
           <div className="wmg-figure tone-gold" style={{ fontSize: 24 }}>{gbp(totals.netWorth)}</div>
         </Card>
-        <Stat label="Debt" value={gbp(totals.totalDebt)} tone="rust" />
-        <Stat label="Home equity" value={gbp(totals.homeEquity)} tone="sage" />
-        <Stat label="Savings" value={gbp(profile.savings.balance)} tone="paper" />
-        <Stat label="Pension" value={gbp(profile.pension.balance)} tone="paper" />
-        <Stat label="Investments" value={gbp(profile.investments.balance)} tone="paper" />
+        <Stat label="Debt" value={gbp(totals.totalDebt)} tone="rust" icon="debt" />
+        <Stat label="Home equity" value={gbp(totals.homeEquity)} tone="sage" icon="home" />
+        <Stat label="Savings" value={gbp(profile.savings.balance)} tone="brand" icon="savings" />
+        <Stat label="Pension" value={gbp(profile.pension.balance)} tone="brand" icon="pension" />
+        <Stat label="Investments" value={gbp(profile.investments.balance)} tone="brand" icon="invest" />
       </div>
 
       <div className="wmg-section-title">This month</div>
