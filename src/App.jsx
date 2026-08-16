@@ -704,6 +704,42 @@ function Onboarding({ onFinish }) {
   );
 }
 
+function useCountUp(target, duration = 700) {
+  const [display, setDisplay] = useState(target);
+  const prevRef = useRef(target);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      prevRef.current = target;
+      setDisplay(target);
+      return;
+    }
+    const start = prevRef.current;
+    const end = target;
+    if (start === end) return;
+    const startTime = performance.now();
+    let frame;
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(start + (end - start) * eased);
+      if (progress < 1) {
+        frame = requestAnimationFrame(tick);
+      } else {
+        prevRef.current = end;
+        setDisplay(end);
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [target, duration]);
+
+  return display;
+}
+
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
   return (
@@ -1174,6 +1210,9 @@ export default function App() {
 
   const finishOnboarding = () => setProfile((p) => ({ ...p, onboarded: true }));
 
+  const animatedTopbarNetWorth = useCountUp(totals.netWorth);
+  const animatedTopbarAvailable = useCountUp(totals.available);
+
   /* ================================ render ================================ */
 
   return (
@@ -1206,6 +1245,7 @@ export default function App() {
           --sage-fill: #7FC4A0;
           --rust-fill: #E8917F;
           --slate-fill: #97A0AA;
+          --coral-text: #B23A1A;
           background: var(--ink);
           color: var(--paper);
           font-family: 'Plus Jakarta Sans', sans-serif;
@@ -1286,9 +1326,9 @@ export default function App() {
 
         .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 20px; padding: 22px; box-shadow: 0 1px 2px rgba(15,30,25,0.03), 0 10px 24px -12px rgba(15,30,25,0.10); }
 
-        .wmg-hero { background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 60%, #1AA187 100%); border-radius: 24px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; overflow: hidden; }
+        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 24px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; overflow: hidden; }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
-        .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 500; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
+        .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
         .wmg-hero-label strong { font-weight: 800; }
         .wmg-hero-main-row { display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; }
@@ -1308,7 +1348,7 @@ export default function App() {
 
         .wmg-section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--paper); margin: 30px 0 12px; display: flex; align-items: center; gap: 10px; }
         .wmg-section-title:first-child { margin-top: 0; }
-        .wmg-section-title::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); flex-shrink: 0; }
+        .wmg-section-title::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brand); flex-shrink: 0; }
         .wmg-section-desc { font-size: 12.5px; color: var(--paper-dim); margin: -6px 0 14px; max-width: 60ch; }
 
         .wmg-nw-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
@@ -1374,7 +1414,7 @@ export default function App() {
         .wmg-sub-row.cancelled { opacity: 0.4; }
         .wmg-sub-left { display: flex; align-items: center; gap: 10px; }
         .wmg-sub-name { font-size: 13.5px; font-weight: 500; }
-        .wmg-flag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--coral); background: var(--coral-soft); border-radius: 999px; padding: 3px 9px; }
+        .wmg-flag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--coral-text); background: var(--coral-soft); border-radius: 999px; padding: 3px 9px; }
         .wmg-sub-amount { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; }
         .wmg-toggle-btn { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; font-weight: 700; border: 1px solid var(--hair); background: #FFFFFF; color: var(--paper); padding: 6px 12px; border-radius: 999px; cursor: pointer; margin-left: 14px; }
         .wmg-toggle-btn.is-cancelled { border-color: var(--sage); color: var(--sage); }
@@ -1411,7 +1451,7 @@ export default function App() {
         .wmg-cat-subtotal-val { font-weight: 700; }
         .wmg-tag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 9px; border-radius: 999px; color: var(--paper-dim); background: var(--ink-3); }
         .wmg-tag.essential { background: var(--slate-soft); color: var(--slate); }
-        .wmg-tag.lifestyle { background: var(--coral-soft); color: var(--coral); }
+        .wmg-tag.lifestyle { background: var(--coral-soft); color: var(--coral-text); }
 
         .wmg-goal-card { margin-bottom: 14px; }
         .wmg-goal-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
@@ -1459,6 +1499,10 @@ export default function App() {
         .wmg-onboard-skip { background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
         .wmg-onboard-next { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 30px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; }
         .wmg-onboard-next:hover { background: var(--brand-2); }
+
+        .wmg-celebration { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 50; background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #FFFFFF; padding: 13px 22px 13px 16px; border-radius: 999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; box-shadow: 0 14px 32px -10px rgba(10,70,56,0.5); display: flex; align-items: center; gap: 10px; max-width: 90vw; animation: wmg-celebration-in 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+        .wmg-celebration-icon { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #FFFFFF; }
+        @keyframes wmg-celebration-in { from { transform: translate(-50%, -24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
       `}</style>
 
       {storageStatus !== "loading" && !profile.onboarded ? (
@@ -1527,6 +1571,11 @@ export default function App() {
             <p style={{ margin: "10px 0" }}>
               Figures are calculated from what you enter. Not connected to any bank, and not financial advice.
             </p>
+            <p style={{ margin: "0 0 10px" }}>
+              <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Privacy</a>
+              {" · "}
+              <a href="/terms.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Terms</a>
+            </p>
             {confirmingReset ? (
               <div style={{ display: "flex", gap: 6 }}>
                 <button className="wmg-reset-btn danger" onClick={resetData}>Yes, reset</button>
@@ -1557,11 +1606,11 @@ export default function App() {
               </div>
               <div className="wmg-topbar-stat">
                 <div className="wmg-topbar-stat-label">Net worth</div>
-                <div className="wmg-topbar-stat-val tone-gold">{gbp(totals.netWorth)}</div>
+                <div className="wmg-topbar-stat-val tone-brand">{gbp(Math.round(animatedTopbarNetWorth))}</div>
               </div>
               <div className="wmg-topbar-stat">
                 <div className="wmg-topbar-stat-label">Available / mo</div>
-                <div className="wmg-topbar-stat-val" style={{ color: totals.available >= 0 ? "var(--sage)" : "var(--rust)" }}>{gbp(totals.available)}</div>
+                <div className="wmg-topbar-stat-val" style={{ color: totals.available >= 0 ? "var(--sage)" : "var(--rust)" }}>{gbp(Math.round(animatedTopbarAvailable))}</div>
               </div>
             </div>
           </div>
@@ -1671,6 +1720,8 @@ export default function App() {
 function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips }) {
   const [showAllTips, setShowAllTips] = useState(false);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
+  const animatedNetWorth = useCountUp(totals.netWorth);
+  const animatedScore = useCountUp(score, 500);
 
   const chips = [
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—" },
@@ -1696,9 +1747,9 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
         <div className="wmg-hero-main-row">
           <div>
             <div className="wmg-hero-net-label">Net worth</div>
-            <div className="wmg-hero-net-val">{gbp(totals.netWorth)}</div>
+            <div className="wmg-hero-net-val">{gbp(Math.round(animatedNetWorth))}</div>
           </div>
-          <div className={`wmg-hero-score-badge tone-${scoreTone}`}>{score}/100</div>
+          <div className={`wmg-hero-score-badge tone-${scoreTone}`}>{Math.round(animatedScore)}/100</div>
         </div>
       </div>
 
@@ -1882,8 +1933,33 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
 
 function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems }) {
   const selectedDebt = allDebts.find((d) => d.id === selectedDebtId) || allDebts[0];
+  const [celebration, setCelebration] = useState(null);
+  const celebrationTimer = useRef(null);
+
+  const makeCelebratingChange = (arrKey, list) => (id, field, value) => {
+    if (field === "balance" && Number(value) <= 0) {
+      const debt = list.find((d) => d.id === id);
+      if (debt && Number(debt.balance) > 0) {
+        setCelebration(debt.name);
+        if (celebrationTimer.current) window.clearTimeout(celebrationTimer.current);
+        celebrationTimer.current = window.setTimeout(() => setCelebration(null), 5000);
+      }
+    }
+    updateArrayItem(arrKey)(id, field, value);
+  };
+
   return (
     <>
+      {celebration && (
+        <div className="wmg-celebration">
+          <span className="wmg-celebration-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </span>
+          {celebration} is paid off — one less thing to worry about.
+        </div>
+      )}
       <div className="wmg-section-title">Mortgage</div>
       <Card>
         <div className="wmg-three-col">
@@ -1946,7 +2022,7 @@ function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArra
             { key: "rate", label: "Rate %", type: "number" },
             { key: "payment", label: "Payment", type: "number" },
           ]}
-          onChange={updateArrayItem("loans")}
+          onChange={makeCelebratingChange("loans", profile.loans)}
           onAdd={addArrayItem("loans", { name: "New loan", balance: 0, rate: 0, payment: 0 })}
           onRemove={removeArrayItem("loans")}
           addLabel="Add loan"
@@ -1964,7 +2040,7 @@ function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArra
             { key: "rate", label: "Rate %", type: "number" },
             { key: "payment", label: "Payment", type: "number" },
           ]}
-          onChange={updateArrayItem("cards")}
+          onChange={makeCelebratingChange("cards", profile.cards)}
           onAdd={addArrayItem("cards", { name: "New card", balance: 0, rate: 0, payment: 0 })}
           onRemove={removeArrayItem("cards")}
           addLabel="Add credit card"
@@ -2320,8 +2396,8 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
                 />
               ))}
               <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#9A752B" fillOpacity={0.15} isAnimationActive={false} />
-              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#9A752B" strokeWidth={2.5} dot={false} />
+              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#0F6B5C" fillOpacity={0.15} isAnimationActive={false} />
+              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#0F6B5C" strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#B23B2E" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#227A56" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="#626B7A" strokeWidth={2} dot={false} strokeDasharray="4 3" />
@@ -2332,7 +2408,7 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
         <div className="wmg-forecast-summary">
           <div>
             <div className="wmg-calc-item-label">Net worth in {horizonYears} years{realTerms ? " (today's money)" : ""}</div>
-            <div className="wmg-calc-item-val" style={{ color: "var(--gold)" }}>{last ? gbp(last[key("netWorth")]) : "—"}</div>
+            <div className="wmg-calc-item-val" style={{ color: "var(--brand)" }}>{last ? gbp(last[key("netWorth")]) : "—"}</div>
             {lastLow && lastHigh && (
               <div className="wmg-sub" style={{ marginTop: 2 }}>
                 Likely range: {gbp(lastLow[key("netWorth")])} – {gbp(lastHigh[key("netWorth")])}
