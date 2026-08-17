@@ -7,6 +7,9 @@ import {
   ComposedChart,
   Line,
   Area,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -591,13 +594,13 @@ function Gauge({ score, variant = "light" }) {
   );
 }
 
-function InfoTip({ text }) {
+function InfoTip({ text, light }) {
   const [open, setOpen] = useState(false);
   return (
     <span className="wmg-infotip-wrap">
       <button
         type="button"
-        className="wmg-infotip-btn"
+        className={`wmg-infotip-btn ${light ? "wmg-infotip-btn-light" : ""}`}
         aria-label="More information"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
@@ -819,6 +822,20 @@ function useCountUp(target, duration = 700) {
   }, [target, duration]);
 
   return display;
+}
+
+function CategoryTooltip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0];
+  return (
+    <div className="wmg-tooltip">
+      <div className="wmg-tooltip-row">
+        <span className="wmg-swatch" style={{ background: p.payload.fill || p.color }} />
+        <span className="wmg-tooltip-name">{p.name}</span>
+        <span className="wmg-tooltip-val">{gbp(p.value)}</span>
+      </div>
+    </div>
+  );
 }
 
 function ChartTooltip({ active, payload, label }) {
@@ -1118,26 +1135,36 @@ export default function App() {
   const coachTips = useMemo(() => {
     const tips = [];
     if (totals.available < 0) {
-      tips.push({ tone: "rust", text: `You're spending ${gbp(Math.abs(totals.available))} more than comes in each month. Close that gap before anything else — start with the lifestyle column.` });
+      tips.push({ tone: "rust", tab: "income", text: `You're spending ${gbp(Math.abs(totals.available))} more than comes in each month. Close that gap before anything else — start with the lifestyle column.` });
     }
     if (flaggedCount > 0) {
-      tips.push({ tone: "gold", text: `Cancel ${flaggedCount} flagged subscriptions → save ${gbp(flaggedSavings)}/month, ${gbp(flaggedSavings * 12)} a year.` });
+      tips.push({ tone: "gold", tab: "income", text: `Cancel ${flaggedCount} flagged subscriptions → save ${gbp(flaggedSavings)}/month, ${gbp(flaggedSavings * 12)} a year.` });
     }
     if (profile.emergencyFund.balance < profile.emergencyFund.target && totals.available > 0) {
       const suggestedMove = Math.max(50, Math.round(Math.min(totals.available * 0.4, profile.emergencyFund.target - profile.emergencyFund.balance) / 10) * 10);
-      tips.push({ tone: "sage", text: `Move ${gbp(suggestedMove)}/month into your emergency fund — you'll reach ${gbp(profile.emergencyFund.target)} in about ${Math.ceil((profile.emergencyFund.target - profile.emergencyFund.balance) / suggestedMove)} months.` });
+      tips.push({ tone: "sage", tab: "goals", text: `Move ${gbp(suggestedMove)}/month into your emergency fund — you'll reach ${gbp(profile.emergencyFund.target)} in about ${Math.ceil((profile.emergencyFund.target - profile.emergencyFund.balance) / suggestedMove)} months.` });
     }
     if (ccAnnualCost > 50) {
-      tips.push({ tone: "rust", text: `Your credit card is costing you roughly ${gbp(ccAnnualCost)} a year in interest. Paying above the minimum here beats most savings rates.` });
+      tips.push({ tone: "rust", tab: "debts", text: `Your credit card is costing you roughly ${gbp(ccAnnualCost)} a year in interest. Paying above the minimum here beats most savings rates.` });
     }
     if (extraCalc && isFinite(extraCalc.interestSaved) && extraCalc.interestSaved > 0) {
-      tips.push({ tone: "gold", text: `An extra ${gbp(extraPayment)}/month on your ${selectedDebt.name.toLowerCase()} saves roughly ${gbp(extraCalc.interestSaved)} in interest and clears it ${Math.round(extraCalc.monthsSaved)} months earlier.` });
+      tips.push({ tone: "gold", tab: "debts", text: `An extra ${gbp(extraPayment)}/month on your ${selectedDebt.name.toLowerCase()} saves roughly ${gbp(extraCalc.interestSaved)} in interest and clears it ${Math.round(extraCalc.monthsSaved)} months earlier.` });
     }
     if (totals.available > comfortableTarget) {
-      tips.push({ tone: "sage", text: `You're already ${gbp(totals.available - comfortableTarget)}/month past "comfortable." Consider directing the surplus at your highest-interest debt or your pension.` });
+      tips.push({ tone: "sage", tab: "forecast", text: `You're already ${gbp(totals.available - comfortableTarget)}/month past "comfortable." Consider directing the surplus at your highest-interest debt or your pension.` });
+    }
+    const essentialRatio = totals.income > 0 ? totals.essential / totals.income : 0;
+    if (essentialRatio > 0.6) {
+      tips.push({ tone: "rust", tab: "income", text: `Essential costs are eating ${Math.round(essentialRatio * 100)}% of your income — a common guideline is keeping this under 50-60%. Worth checking bills and housing costs for anything that could realistically shrink.` });
+    } else if (essentialRatio > 0 && essentialRatio < 0.45) {
+      tips.push({ tone: "sage", tab: "income", text: `Essential costs are a comfortable ${Math.round(essentialRatio * 100)}% of your income — well within the usual 50-60% guideline, giving you real room to save or invest the rest.` });
+    }
+    const pensionContribRatio = totals.income > 0 ? profile.pension.contribution / totals.income : 0;
+    if (pensionContribRatio < 0.05 && profile.pension.contribution >= 0) {
+      tips.push({ tone: "gold", tab: "pension", text: `Your pension contribution is under 5% of income. If your employer offers to match a higher contribution, that's effectively free money left unclaimed — worth checking.` });
     }
     return tips;
-  }, [totals, flaggedCount, flaggedSavings, profile.emergencyFund, ccAnnualCost, extraCalc, extraPayment, selectedDebt, comfortableTarget]);
+  }, [totals, flaggedCount, flaggedSavings, profile.emergencyFund, profile.pension.contribution, ccAnnualCost, extraCalc, extraPayment, selectedDebt, comfortableTarget]);
 
   const forecast = useMemo(() => runForecast(profile, totals, horizonYears, allocationPct), [profile, totals, horizonYears, allocationPct]);
   const forecastBaseline = useMemo(() => runForecast(profile, totals, horizonYears, 0), [profile, totals, horizonYears]);
@@ -1440,7 +1467,7 @@ export default function App() {
 
         .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 20px; padding: 22px; box-shadow: 0 1px 2px rgba(15,30,25,0.03), 0 10px 24px -12px rgba(15,30,25,0.10); }
 
-        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 24px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; overflow: hidden; }
+        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 24px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
         .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
         .wmg-hero-label strong { font-weight: 800; }
@@ -1455,9 +1482,21 @@ export default function App() {
         .wmg-chip-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--paper-dim); white-space: nowrap; }
         .wmg-chip-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
 
-        .wmg-coach-single { display: flex; align-items: flex-start; gap: 10px; background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 65%); border: none; }
-        .wmg-coach-single p { font-size: 13.5px; line-height: 1.55; font-weight: 500; }
+        .wmg-coach-single { display: flex; align-items: flex-start; gap: 10px; background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 65%); border: none; text-align: left; width: 100%; font-family: inherit; }
+        .wmg-coach-single p { font-size: 13.5px; line-height: 1.55; font-weight: 500; margin: 0; }
         .wmg-coach-single .wmg-coach-dot { margin-top: 5px; }
+        .wmg-insight-card { display: flex; align-items: flex-start; gap: 12px; text-align: left; width: 100%; font-family: inherit; border: none; cursor: pointer; margin-bottom: 10px; }
+        .wmg-insight-card p { font-size: 13.5px; line-height: 1.55; font-weight: 500; margin: 0; color: var(--paper); flex: 1; }
+        .wmg-insight-rust { background: linear-gradient(135deg, var(--rust-soft), #FFFFFF 70%); }
+        .wmg-insight-gold { background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 70%); }
+        .wmg-insight-sage { background: linear-gradient(135deg, var(--sage-soft), #FFFFFF 70%); }
+        .wmg-insight-icon-badge { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+        .wmg-insight-icon-badge.tone-rust { background: var(--rust); color: #FFFFFF; }
+        .wmg-insight-icon-badge.tone-gold { background: var(--gold); color: #FFFFFF; }
+        .wmg-insight-icon-badge.tone-sage { background: var(--sage); color: #FFFFFF; }
+        .wmg-coach-clickable { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+        .wmg-coach-clickable:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -6px rgba(15,30,25,0.2); }
+        .wmg-coach-chevron { margin-left: auto; color: var(--paper-dim); font-size: 15px; align-self: center; flex-shrink: 0; }
         .wmg-coach-more { display: block; margin: 8px auto 0; background: transparent; border: none; color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 6px 10px; }
         .wmg-coach-more:hover { text-decoration: underline; }
 
@@ -1502,6 +1541,14 @@ export default function App() {
         .wmg-swatch { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
         .wmg-flow-legend-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; margin-left: 4px; color: var(--paper-dim); }
 
+        .wmg-category-chart-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+        .wmg-category-legend { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 9px; }
+        .wmg-category-legend-item { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+        .wmg-category-legend-name { flex: 1; font-weight: 500; }
+        .wmg-category-legend-pct { color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; width: 32px; text-align: right; }
+        .wmg-category-legend-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; width: 60px; text-align: right; }
+        @media (max-width: 560px) { .wmg-category-chart-row { flex-direction: column; align-items: stretch; } .wmg-category-legend { width: 100%; } }
+
         .wmg-horizon { position: relative; height: 5px; background: var(--hair); border-radius: 3px; margin: 44px 10px 26px; }
         .wmg-horizon-point { position: absolute; top: -7px; width: 19px; height: 19px; border-radius: 50%; border: 3px solid var(--ink-2); }
         .wmg-horizon-label { position: absolute; top: -44px; font-size: 10.5px; white-space: nowrap; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-align: center; transform: translateX(-50%); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1542,6 +1589,9 @@ export default function App() {
         .wmg-coach-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 12px; color: var(--paper); }
         .wmg-coach-tip { display: flex; gap: 10px; padding: 11px 0; border-top: 1px solid rgba(151,114,31,0.14); font-size: 13.5px; line-height: 1.5; }
         .wmg-coach-tip:first-of-type { border-top: none; }
+        .wmg-coach-tip-clickable { background: transparent; border: none; text-align: left; width: 100%; font-family: inherit; cursor: pointer; padding-left: 22px; padding-right: 22px; }
+        .wmg-coach-tip-clickable:hover { background: var(--ink-3); }
+        .wmg-coach-tip-clickable:first-of-type { border-top: none; }
         .wmg-coach-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
         .dot-gold { background: var(--gold); }
         .dot-sage { background: var(--sage); }
@@ -1551,6 +1601,9 @@ export default function App() {
         .wmg-infotip-wrap { position: relative; display: inline-block; margin-left: 5px; }
         .wmg-infotip-btn { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--paper-dim); background: transparent; color: var(--paper-dim); font-size: 9px; font-family: 'Plus Jakarta Sans', sans-serif; font-style: italic; font-weight: 700; line-height: 1; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
         .wmg-infotip-btn:hover, .wmg-infotip-btn:focus { border-color: var(--brand); color: var(--brand); outline: none; }
+        .wmg-infotip-btn-light { border-color: rgba(255,255,255,0.6); color: rgba(255,255,255,0.9); }
+        .wmg-infotip-btn-light:hover, .wmg-infotip-btn-light:focus { border-color: #FFFFFF; color: #FFFFFF; }
+        .wmg-hero-score-wrap { display: flex; align-items: center; gap: 4px; }
         .wmg-infotip-bubble { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: var(--paper); color: var(--ink); font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: normal; line-height: 1.5; padding: 10px 12px; border-radius: 10px; box-shadow: 0 8px 20px rgba(23,35,31,0.25); }
         .wmg-infotip-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--paper); }
         .wmg-field { margin-bottom: 12px; }
@@ -1838,6 +1891,7 @@ export default function App() {
                 flowSegments={flowSegments}
                 flowTotal={flowTotal}
                 coachTips={coachTips}
+                onNavigate={setTab}
               />
             )}
 
@@ -1931,11 +1985,13 @@ export default function App() {
 
 /* ============================== tabs ============================== */
 
-function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips }) {
+function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, onNavigate }) {
   const [showAllTips, setShowAllTips] = useState(false);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
+  const scoreExplainer =
+    "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const chips = [
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—" },
@@ -1964,7 +2020,10 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
             <div className="wmg-hero-net-val">{gbp(Math.round(animatedNetWorth))}</div>
             <div className="wmg-hero-net-sub">What you own, minus what you owe</div>
           </div>
-          <div className={`wmg-hero-score-badge tone-${scoreTone}`}>{Math.round(animatedScore)}/100</div>
+          <div className="wmg-hero-score-wrap">
+            <div className={`wmg-hero-score-badge tone-${scoreTone}`}>{Math.round(animatedScore)}/100</div>
+            <InfoTip text={scoreExplainer} light />
+          </div>
         </div>
       </div>
 
@@ -2002,38 +2061,50 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
 
       <div className="wmg-section-title">Your coach</div>
       {coachTips.length === 0 ? (
-        <Card className="wmg-coach-single">
-          <span className="wmg-coach-dot dot-sage" />
+        <Card className="wmg-insight-card wmg-insight-sage">
+          <span className="wmg-insight-icon-badge tone-sage">✓</span>
           <p>Everything's in decent shape. Keep going.</p>
         </Card>
       ) : (
         <>
-          <Card className="wmg-coach-single">
-            <span className={`wmg-coach-dot dot-${coachTips[0].tone}`} />
-            <p>{coachTips[0].text}</p>
-          </Card>
-          {coachTips.length > 1 && !showAllTips && (
+          {coachTips.slice(0, 3).map((tip, i) => (
+            <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={i} onClick={() => onNavigate?.(tip.tab)}>
+              <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
+              <p>{tip.text}</p>
+              <span className="wmg-coach-chevron">→</span>
+            </button>
+          ))}
+          {coachTips.length > 3 && !showAllTips && (
             <button className="wmg-coach-more" onClick={() => setShowAllTips(true)}>
-              + {coachTips.length - 1} more {coachTips.length - 1 === 1 ? "tip" : "tips"}
+              + {coachTips.length - 3} more {coachTips.length - 3 === 1 ? "insight" : "insights"}
             </button>
           )}
-          {showAllTips && (
-            <Card style={{ marginTop: 8 }}>
-              {coachTips.slice(1).map((tip, i) => (
-                <div className="wmg-coach-tip" key={i}>
-                  <span className={`wmg-coach-dot dot-${tip.tone}`} />
-                  <span>{tip.text}</span>
-                </div>
-              ))}
-            </Card>
-          )}
+          {showAllTips &&
+            coachTips.slice(3).map((tip, i) => (
+              <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={`more-${i}`} onClick={() => onNavigate?.(tip.tab)}>
+                <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
+                <p>{tip.text}</p>
+                <span className="wmg-coach-chevron">→</span>
+              </button>
+            ))}
         </>
       )}
     </>
   );
 }
 
+const CATEGORY_COLORS = ["#0F6B5C", "#FF6B4A", "#B7924B", "#5B6473", "#7C5CBF", "#2E86AB", "#C1594A", "#3D8F72", "#A64D79", "#8B95A3"];
+
 function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
+  const categoryChartData = useMemo(() => {
+    const rows = profile.expenseCategories
+      .map((cat) => ({ name: cat.name, value: cat.items.reduce((s, i) => s + Number(i.amount || 0), 0) }))
+      .filter((r) => r.value > 0);
+    if (totals.subsTotal > 0) rows.push({ name: "Subscriptions", value: totals.subsTotal });
+    return rows.sort((a, b) => b.value - a.value);
+  }, [profile.expenseCategories, totals.subsTotal]);
+  const categoryChartTotal = categoryChartData.reduce((s, r) => s + r.value, 0) || 1;
+
   return (
     <>
       <div className="wmg-section-title">Income</div>
@@ -2048,6 +2119,38 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
           </div>
         </div>
       </Card>
+
+      {categoryChartData.length > 0 && (
+        <>
+          <div className="wmg-section-title">Where it actually goes</div>
+          <Card>
+            <div className="wmg-category-chart-row">
+              <div style={{ width: 160, height: 160, flexShrink: 0 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={categoryChartData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2} strokeWidth={0}>
+                      {categoryChartData.map((entry, i) => (
+                        <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CategoryTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="wmg-category-legend">
+                {categoryChartData.map((row, i) => (
+                  <div className="wmg-category-legend-item" key={row.name}>
+                    <span className="wmg-swatch" style={{ background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
+                    <span className="wmg-category-legend-name">{row.name}</span>
+                    <span className="wmg-category-legend-pct">{Math.round((row.value / categoryChartTotal) * 100)}%</span>
+                    <span className="wmg-category-legend-val">{gbp(row.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </>
+      )}
 
       <div className="wmg-section-title">Expenditure, by category</div>
       <div className="wmg-section-desc">Add every category and line item that applies to your household. Mark each category essential or lifestyle — this drives your score and cash flow.</div>
