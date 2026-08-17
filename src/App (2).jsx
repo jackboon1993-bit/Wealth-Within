@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { getData, setData, deleteData } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
+import { submitFeedback } from "./lib/feedback";
 import {
   LineChart,
   ComposedChart,
@@ -31,6 +32,37 @@ const gbp = (n, decimals = 0) => {
 };
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+function daysSince(dateStr) {
+  if (!dateStr) return 0;
+  const then = new Date(dateStr).getTime();
+  if (Number.isNaN(then)) return 0;
+  return Math.max(0, Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24)));
+}
+
+function daysAgoISO(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString();
+}
+
+/* Projects a balance forward from the date it was last confirmed, using
+   ordinary scheduled amortisation only (no extra payments) — this is
+   deliberately a plain, honest estimate, not a promise. */
+function estimateBalanceToday(balance, annualRatePct, payment, lastConfirmedAt) {
+  const months = daysSince(lastConfirmedAt) / 30.4375;
+  if (months <= 0 || !isFinite(balance)) return balance;
+  const monthlyRate = annualRatePct / 100 / 12;
+  let bal = balance;
+  const fullMonths = Math.floor(months);
+  for (let i = 0; i < fullMonths; i++) {
+    if (bal <= 0) break;
+    const interest = bal * monthlyRate;
+    const principal = Math.max(0, Math.min(payment - interest, bal));
+    bal = Math.max(0, bal - principal);
+  }
+  return bal;
+}
 
 function monthsToPayoff(balance, annualRatePct, payment) {
   const r = annualRatePct / 100 / 12;
@@ -72,12 +104,20 @@ const defaultProfile = {
   income: 5800,
   homeValue: 337000,
   homeValueGrowth: 2,
-  mortgage: { balance: 210000, rate: 4.5, payment: 1150, allowOverpayment: true, overpaymentCapPct: 10 },
+  mortgage: {
+    balance: 210000,
+    rate: 4.5,
+    payment: 1150,
+    allowOverpayment: true,
+    overpaymentCapPct: 10,
+    originalBalance: 210000,
+    lastConfirmedAt: daysAgoISO(20),
+  },
   loans: [
-    { id: nextId(), name: "Car loan", balance: 21000, rate: 7.9, payment: 300 },
-    { id: nextId(), name: "Personal loan", balance: 18800, rate: 9.9, payment: 290 },
+    { id: nextId(), name: "Car loan", balance: 21000, rate: 7.9, payment: 300, originalBalance: 24000, lastConfirmedAt: daysAgoISO(48) },
+    { id: nextId(), name: "Personal loan", balance: 18800, rate: 9.9, payment: 290, originalBalance: 18800, lastConfirmedAt: daysAgoISO(6) },
   ],
-  cards: [{ id: nextId(), name: "Credit card", balance: 3200, rate: 22.9, payment: 150 }],
+  cards: [{ id: nextId(), name: "Credit card", balance: 3200, rate: 22.9, payment: 150, originalBalance: 4500, lastConfirmedAt: daysAgoISO(12) }],
   expenseCategories: [
     {
       id: nextId(),
@@ -201,6 +241,17 @@ function mergeWithDefaults(saved) {
   arrayKeys.forEach((k) => {
     merged[k] = Array.isArray(saved[k]) ? saved[k] : defaultProfile[k];
   });
+
+  // backfill balance-tracking fields for debts saved before this feature existed
+  const backfillDebt = (d) => ({
+    ...d,
+    originalBalance: d.originalBalance ?? d.balance,
+    lastConfirmedAt: d.lastConfirmedAt ?? new Date().toISOString(),
+  });
+  merged.loans = merged.loans.map(backfillDebt);
+  merged.cards = merged.cards.map(backfillDebt);
+  merged.mortgage = backfillDebt(merged.mortgage);
+
   return merged;
 }
 
@@ -222,12 +273,16 @@ function estimateUKIncomeTax(grossAnnual) {
 
 function runForecast(profile, totals, horizonYears, allocationPct, growthOffsetPct = 0) {
   const months = horizonYears * 12;
-  const debts = [...profile.loans, ...profile.cards].map((d) => ({ ...d, isMortgage: false }));
+  const debts = [...profile.loans, ...profile.cards].map((d) => ({
+    ...d,
+    balance: estimateBalanceToday(d.balance, d.rate, d.payment, d.lastConfirmedAt),
+    isMortgage: false,
+  }));
   const mortgageRate = profile.mortgage.rate;
   const mortgagePayment = profile.mortgage.payment;
   const mortgageOverpaymentAllowed = profile.mortgage.allowOverpayment ?? true;
   const mortgageCapPct = (profile.mortgage.overpaymentCapPct ?? 10) / 100;
-  const mortgageEntry = { id: "mortgage", name: "Mortgage", balance: profile.mortgage.balance, rate: mortgageRate, payment: mortgagePayment, isMortgage: true };
+  const mortgageEntry = { id: "mortgage", name: "Mortgage", balance: estimateBalanceToday(profile.mortgage.balance, mortgageRate, mortgagePayment, profile.mortgage.lastConfirmedAt), rate: mortgageRate, payment: mortgagePayment, isMortgage: true };
   const allEntries = [...debts, mortgageEntry];
   const avalanchePool = mortgageOverpaymentAllowed ? allEntries : debts;
   let homeValue = profile.homeValue;
@@ -536,10 +591,36 @@ function Gauge({ score, variant = "light" }) {
   );
 }
 
-function Field({ label, children }) {
+function InfoTip({ text }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="wmg-infotip-wrap">
+      <button
+        type="button"
+        className="wmg-infotip-btn"
+        aria-label="More information"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+      >
+        i
+      </button>
+      {open && (
+        <span className="wmg-infotip-bubble" role="tooltip">
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Field({ label, hint, children }) {
   return (
     <div className="wmg-field">
-      <label className="wmg-field-label">{label}</label>
+      <label className="wmg-field-label">
+        {label}
+        {hint && <InfoTip text={hint} />}
+      </label>
       {children}
     </div>
   );
@@ -920,8 +1001,8 @@ export default function App() {
 
   const allDebts = useMemo(
     () => [
-      ...profile.loans.map((l) => ({ ...l, kind: "Loan" })),
-      ...profile.cards.map((c) => ({ ...c, kind: "Credit card" })),
+      ...profile.loans.map((l) => ({ ...l, kind: "Loan", confirmedBalance: l.balance, balance: estimateBalanceToday(l.balance, l.rate, l.payment, l.lastConfirmedAt) })),
+      ...profile.cards.map((c) => ({ ...c, kind: "Credit card", confirmedBalance: c.balance, balance: estimateBalanceToday(c.balance, c.rate, c.payment, c.lastConfirmedAt) })),
     ],
     [profile.loans, profile.cards]
   );
@@ -933,9 +1014,9 @@ export default function App() {
     const essentialCatTotal = sumCat(essentialCats);
     const lifestyleCatTotal = sumCat(lifestyleCats);
 
-    const loansBalance = profile.loans.reduce((s, l) => s + Number(l.balance || 0), 0);
+    const loansBalance = profile.loans.reduce((s, l) => s + estimateBalanceToday(Number(l.balance || 0), l.rate, l.payment, l.lastConfirmedAt), 0);
     const loansPayment = profile.loans.reduce((s, l) => s + Number(l.payment || 0), 0);
-    const cardsBalance = profile.cards.reduce((s, c) => s + Number(c.balance || 0), 0);
+    const cardsBalance = profile.cards.reduce((s, c) => s + estimateBalanceToday(Number(c.balance || 0), c.rate, c.payment, c.lastConfirmedAt), 0);
     const cardsPayment = profile.cards.reduce((s, c) => s + Number(c.payment || 0), 0);
 
     const activeSubs = profile.subscriptions.filter((s) => !s.cancelled);
@@ -947,7 +1028,13 @@ export default function App() {
     const income = Number(profile.income || 0);
     const available = income - essential - debtPayments - lifestyle;
 
-    const homeEquity = Number(profile.homeValue || 0) - Number(profile.mortgage.balance || 0);
+    const mortgageBalanceToday = estimateBalanceToday(
+      Number(profile.mortgage.balance || 0),
+      profile.mortgage.rate,
+      profile.mortgage.payment,
+      profile.mortgage.lastConfirmedAt
+    );
+    const homeEquity = Number(profile.homeValue || 0) - mortgageBalanceToday;
     const totalDebt = loansBalance + cardsBalance;
     const netWorth =
       homeEquity +
@@ -970,6 +1057,7 @@ export default function App() {
       income,
       available,
       homeEquity,
+      mortgageBalanceToday,
       totalDebt,
       netWorth,
     };
@@ -996,8 +1084,8 @@ export default function App() {
   const gap = comfortableTarget - totals.available;
 
   const mortgageMonths = useMemo(
-    () => monthsToPayoff(profile.mortgage.balance, profile.mortgage.rate, profile.mortgage.payment),
-    [profile.mortgage]
+    () => monthsToPayoff(totals.mortgageBalanceToday, profile.mortgage.rate, profile.mortgage.payment),
+    [totals.mortgageBalanceToday, profile.mortgage]
   );
 
   const debtFreeMonths = useMemo(() => {
@@ -1025,7 +1113,7 @@ export default function App() {
   );
   const flaggedCount = profile.subscriptions.filter((s) => s.flagged && !s.cancelled).length;
 
-  const ccAnnualCost = totals.cardsBalance > 0 ? profile.cards.reduce((sum, c) => sum + (c.balance * c.rate) / 100, 0) : 0;
+  const ccAnnualCost = totals.cardsBalance > 0 ? profile.cards.reduce((sum, c) => sum + (estimateBalanceToday(c.balance, c.rate, c.payment, c.lastConfirmedAt) * c.rate) / 100, 0) : 0;
 
   const coachTips = useMemo(() => {
     const tips = [];
@@ -1125,6 +1213,15 @@ export default function App() {
   const updateArrayItem = (arrKey) => (id, field, value) => {
     setProfile((p) => ({ ...p, [arrKey]: p[arrKey].map((it) => (it.id === id ? { ...it, [field]: value } : it)) }));
   };
+  const confirmBalance = (arrKey) => (id, newBalance) => {
+    setProfile((p) => ({
+      ...p,
+      [arrKey]: p[arrKey].map((it) => (it.id === id ? { ...it, balance: newBalance, lastConfirmedAt: new Date().toISOString() } : it)),
+    }));
+  };
+  const confirmMortgageBalance = (newBalance) => {
+    setProfile((p) => ({ ...p, mortgage: { ...p.mortgage, balance: newBalance, lastConfirmedAt: new Date().toISOString() } }));
+  };
   const addArrayItem = (arrKey, blank) => () =>
     setProfile((p) => ({ ...p, [arrKey]: [...p[arrKey], { id: nextId(), ...blank }] }));
   const addBulkItems = (arrKey, rows) =>
@@ -1212,6 +1309,23 @@ export default function App() {
 
   const animatedTopbarNetWorth = useCountUp(totals.netWorth);
   const animatedTopbarAvailable = useCountUp(totals.available);
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState("general");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState("idle"); // idle | sending | sent | error
+
+  const submitFeedbackNow = async () => {
+    if (!feedbackMessage.trim()) return;
+    setFeedbackStatus("sending");
+    try {
+      await submitFeedback({ category: feedbackCategory, message: feedbackMessage });
+      setFeedbackStatus("sent");
+      setFeedbackMessage("");
+    } catch (err) {
+      setFeedbackStatus("error");
+    }
+  };
 
   /* ================================ render ================================ */
 
@@ -1333,6 +1447,7 @@ export default function App() {
         .wmg-hero-main-row { display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; }
         .wmg-hero-net-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 27px; font-weight: 800; }
+        .wmg-hero-net-sub { font-size: 10.5px; opacity: 0.75; margin-top: 2px; }
         .wmg-hero-score-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 800; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,0.2); }
 
         .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 8px; padding: 2px 2px 8px; }
@@ -1374,6 +1489,9 @@ export default function App() {
         @media (max-width: 560px) { .wmg-networth-card { grid-column: span 2; } }
 
         .wmg-flow-bar { display: flex; width: 100%; height: 38px; border-radius: 12px; overflow: hidden; }
+        .wmg-flow-income-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+        .wmg-flow-income-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--paper-dim); }
+        .wmg-flow-income-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; color: var(--paper); }
         .wmg-flow-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; transition: width .3s ease; }
         .bg-slate { background: var(--slate-fill); color: #17231F; }
         .bg-rust { background: var(--rust-fill); color: #17231F; }
@@ -1430,6 +1548,11 @@ export default function App() {
         .dot-rust { background: var(--rust); }
 
         .wmg-field-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 6px; display: block; }
+        .wmg-infotip-wrap { position: relative; display: inline-block; margin-left: 5px; }
+        .wmg-infotip-btn { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--paper-dim); background: transparent; color: var(--paper-dim); font-size: 9px; font-family: 'Plus Jakarta Sans', sans-serif; font-style: italic; font-weight: 700; line-height: 1; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
+        .wmg-infotip-btn:hover, .wmg-infotip-btn:focus { border-color: var(--brand); color: var(--brand); outline: none; }
+        .wmg-infotip-bubble { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: var(--paper); color: var(--ink); font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: normal; line-height: 1.5; padding: 10px 12px; border-radius: 10px; box-shadow: 0 8px 20px rgba(23,35,31,0.25); }
+        .wmg-infotip-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--paper); }
         .wmg-field { margin-bottom: 12px; }
         .wmg-input { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 10px; padding: 10px 11px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
         .wmg-input:focus, .wmg-select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
@@ -1460,6 +1583,17 @@ export default function App() {
         .wmg-goal-numbers { display: flex; gap: 20px; flex-wrap: wrap; margin: 12px 0; }
         .wmg-goal-plan { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--hair); font-size: 13px; line-height: 1.6; }
         .wmg-goal-plan-highlight { color: var(--brand); font-weight: 700; }
+
+        .wmg-debt-card { margin-bottom: 14px; }
+        .wmg-debt-card-top { display: flex; align-items: center; gap: 16px; }
+        .wmg-debt-ring { position: relative; width: 76px; height: 76px; flex-shrink: 0; }
+        .wmg-debt-ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 800; color: var(--brand); }
+        .wmg-debt-card-info { flex: 1; min-width: 0; }
+        .wmg-debt-card-balance { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
+        .wmg-debt-card-balance-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 800; color: var(--paper); }
+        .wmg-debt-card-edit { background: var(--ink-3); border: 1px solid var(--hair); color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px; cursor: pointer; flex-shrink: 0; }
+        .wmg-debt-card-edit:hover { background: var(--brand-soft); border-color: var(--brand); }
+        .wmg-debt-nudge { margin-top: 14px; padding: 12px 14px; background: var(--gold-soft); border-radius: 14px; font-size: 12.5px; color: var(--paper); line-height: 1.5; }
         .wmg-inline-input { width: 90px; }
 
         .wmg-pension-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
@@ -1503,6 +1637,13 @@ export default function App() {
         .wmg-celebration { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 50; background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #FFFFFF; padding: 13px 22px 13px 16px; border-radius: 999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; box-shadow: 0 14px 32px -10px rgba(10,70,56,0.5); display: flex; align-items: center; gap: 10px; max-width: 90vw; animation: wmg-celebration-in 0.5s cubic-bezier(0.34,1.56,0.64,1); }
         .wmg-celebration-icon { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #FFFFFF; }
         @keyframes wmg-celebration-in { from { transform: translate(-50%, -24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+        .wmg-feedback-modal { width: 100%; max-width: 380px; background: #FFFFFF; border-radius: 22px; padding: 26px 24px; margin: 16px; box-shadow: 0 20px 44px -14px rgba(15,30,25,0.4); }
+        .wmg-feedback-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+        .wmg-feedback-sub { font-size: 13px; color: var(--paper-dim); line-height: 1.55; margin-bottom: 16px; }
+        .wmg-feedback-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .wmg-feedback-cat { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11.5px; font-weight: 700; border: 1px solid var(--hair); background: transparent; color: var(--paper-dim); padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+        .wmg-feedback-cat.active { background: var(--brand); border-color: var(--brand); color: #FFFFFF; }
       `}</style>
 
       {storageStatus !== "loading" && !profile.onboarded ? (
@@ -1557,6 +1698,66 @@ export default function App() {
               </div>
             </div>
           )}
+          {feedbackOpen && (
+            <div className="wmg-more-sheet-backdrop" style={{ alignItems: "center" }} onClick={() => setFeedbackOpen(false)}>
+              <div className="wmg-feedback-modal" onClick={(e) => e.stopPropagation()}>
+                {feedbackStatus === "sent" ? (
+                  <>
+                    <div className="wmg-feedback-title">Thanks — genuinely.</div>
+                    <p className="wmg-feedback-sub">That's gone straight to me, not into the void. Appreciate you taking the time.</p>
+                    <button className="wmg-onboard-next" style={{ width: "100%" }} onClick={() => setFeedbackOpen(false)}>
+                      Close
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="wmg-feedback-title">Send feedback</div>
+                    <p className="wmg-feedback-sub">What's not working, what's missing, or would you pay for this? Doesn't need to be polite.</p>
+                    <div className="wmg-feedback-cats">
+                      {[
+                        { key: "bug", label: "Something's broken" },
+                        { key: "idea", label: "Feature idea" },
+                        { key: "would_pay", label: "Would I pay for this?" },
+                        { key: "general", label: "General" },
+                      ].map((c) => (
+                        <button
+                          key={c.key}
+                          className={`wmg-feedback-cat ${feedbackCategory === c.key ? "active" : ""}`}
+                          onClick={() => setFeedbackCategory(c.key)}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      className="wmg-input wmg-textarea"
+                      placeholder="Tell me what you think..."
+                      value={feedbackMessage}
+                      onChange={(e) => setFeedbackMessage(e.target.value)}
+                    />
+                    {feedbackStatus === "error" && (
+                      <div className="wmg-sub" style={{ color: "var(--rust)", marginTop: 6 }}>
+                        Couldn't send that — check your connection and try again.
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                      <button className="wmg-reset-btn" onClick={() => setFeedbackOpen(false)}>
+                        Cancel
+                      </button>
+                      <button
+                        className="wmg-onboard-next"
+                        style={{ flex: 1 }}
+                        disabled={feedbackStatus === "sending" || !feedbackMessage.trim()}
+                        onClick={submitFeedbackNow}
+                      >
+                        {feedbackStatus === "sending" ? "Sending…" : "Send"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
           <div className="wmg-sidebar-foot">
             <div className="wmg-sync-row">
               <span className={`wmg-sync-dot status-${storageStatus}`} />
@@ -1576,6 +1777,16 @@ export default function App() {
               {" · "}
               <a href="/terms.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Terms</a>
             </p>
+            <button
+              className="wmg-reset-btn"
+              style={{ marginBottom: 8, borderColor: "var(--brand)", color: "var(--brand)" }}
+              onClick={() => {
+                setFeedbackOpen(true);
+                setFeedbackStatus("idle");
+              }}
+            >
+              Send feedback
+            </button>
             {confirmingReset ? (
               <div style={{ display: "flex", gap: 6 }}>
                 <button className="wmg-reset-btn danger" onClick={resetData}>Yes, reset</button>
@@ -1651,8 +1862,11 @@ export default function App() {
             {tab === "debts" && (
               <DebtsTab
                 profile={profile}
+                totals={totals}
                 setField={setField}
                 updateArrayItem={updateArrayItem}
+                confirmBalance={confirmBalance}
+                confirmMortgageBalance={confirmMortgageBalance}
                 addArrayItem={addArrayItem}
                 removeArrayItem={removeArrayItem}
                 allDebts={allDebts}
@@ -1726,7 +1940,7 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
   const chips = [
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—" },
     { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—" },
-    { label: "Disposable / mo", value: gbp(totals.available) },
+    { label: "Available / mo", value: gbp(totals.available) },
     { label: "Debt", value: gbp(totals.totalDebt) },
     { label: "Home equity", value: gbp(totals.homeEquity) },
     { label: "Savings", value: gbp(profile.savings.balance) },
@@ -1748,6 +1962,7 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
           <div>
             <div className="wmg-hero-net-label">Net worth</div>
             <div className="wmg-hero-net-val">{gbp(Math.round(animatedNetWorth))}</div>
+            <div className="wmg-hero-net-sub">What you own, minus what you owe</div>
           </div>
           <div className={`wmg-hero-score-badge tone-${scoreTone}`}>{Math.round(animatedScore)}/100</div>
         </div>
@@ -1764,6 +1979,10 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
 
       <div className="wmg-section-title">This month</div>
       <Card>
+        <div className="wmg-flow-income-row">
+          <div className="wmg-flow-income-label">Income</div>
+          <div className="wmg-flow-income-val">{gbp(totals.income)}</div>
+        </div>
         <div className="wmg-flow-bar">
           {flowSegments.map((seg) => (
             <div key={seg.key} className={`wmg-flow-seg bg-${seg.tone}`} style={{ width: `${(seg.value / flowTotal) * 100}%` }}>
@@ -1772,13 +1991,9 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
           ))}
         </div>
         <div className="wmg-flow-legend">
-          <div className="wmg-flow-legend-item">
-            <span className="wmg-swatch" style={{ background: "var(--paper-dim)" }} />
-            Income <span className="wmg-flow-legend-val">{gbp(totals.income)}</span>
-          </div>
           {flowSegments.map((seg) => (
             <div className="wmg-flow-legend-item" key={seg.key}>
-              <span className="wmg-swatch" style={{ background: `var(--${seg.tone})` }} />
+              <span className="wmg-swatch" style={{ background: `var(--${seg.tone}-fill)` }} />
               {seg.label} <span className="wmg-flow-legend-val">{gbp(seg.value)}</span>
             </div>
           ))}
@@ -1911,10 +2126,21 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
                   value={s.amount}
                   onChange={(e) => updateArrayItem("subscriptions")(s.id, "amount", Number(e.target.value))}
                 />
-                <button className={`wmg-toggle-btn ${s.cancelled ? "is-cancelled" : ""}`} onClick={() => toggleSub(s.id)}>
-                  {s.cancelled ? "Restored" : "Cancel"}
+                <button
+                  className={`wmg-toggle-btn ${s.cancelled ? "is-cancelled" : ""}`}
+                  onClick={() => toggleSub(s.id)}
+                  title={s.cancelled ? "Bring this back into your monthly total" : "Stops counting it in your total — doesn't cancel it with the actual provider, and you can bring it back anytime"}
+                >
+                  {s.cancelled ? "Restore" : "Mark cancelled"}
                 </button>
-                <button className="wmg-icon-btn" onClick={() => removeArrayItem("subscriptions")(s.id)} aria-label="Remove">✕</button>
+                <button
+                  className="wmg-icon-btn"
+                  onClick={() => removeArrayItem("subscriptions")(s.id)}
+                  aria-label="Remove"
+                  title="Delete this row completely — use this if you added it by mistake, not for cancelling a subscription you actually have"
+                >
+                  ✕
+                </button>
               </div>
             </div>
           ))}
@@ -1931,10 +2157,121 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
   );
 }
 
-function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems }) {
+function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
+  const [editing, setEditing] = useState(false);
+  const [draftBalance, setDraftBalance] = useState(debt.balance);
+  const estimatedToday = estimateBalanceToday(debt.balance, debt.rate, debt.payment, debt.lastConfirmedAt);
+  const original = debt.originalBalance || debt.balance || 1;
+  const progress = clamp(1 - estimatedToday / original, 0, 1);
+  const days = daysSince(debt.lastConfirmedAt);
+  const needsCheck = days >= 30;
+  const changed = Math.abs(estimatedToday - debt.balance) > 1;
+  const circumference = 2 * Math.PI * 30;
+
+  const finishConfirm = () => {
+    onConfirm(draftBalance);
+    setEditing(false);
+  };
+
+  return (
+    <Card className="wmg-debt-card">
+      <div className="wmg-debt-card-top">
+        <div className="wmg-debt-ring">
+          <svg width="76" height="76" viewBox="0 0 76 76">
+            <circle cx="38" cy="38" r="30" stroke="var(--hair)" strokeWidth="7" fill="none" />
+            <circle
+              cx="38"
+              cy="38"
+              r="30"
+              stroke="var(--brand)"
+              strokeWidth="7"
+              fill="none"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - progress)}
+              strokeLinecap="round"
+              transform="rotate(-90 38 38)"
+            />
+          </svg>
+          <div className="wmg-debt-ring-label">{Math.round(progress * 100)}%</div>
+        </div>
+        <div className="wmg-debt-card-info">
+          <input className="wmg-goal-name-input" value={debt.name} onChange={(e) => onEdit("name", e.target.value)} />
+          <div className="wmg-debt-card-balance">
+            {editing ? (
+              <>
+                <input
+                  className="wmg-input wmg-inline-input"
+                  type="number"
+                  autoFocus
+                  value={draftBalance}
+                  onChange={(e) => setDraftBalance(Number(e.target.value))}
+                  onKeyDown={(e) => e.key === "Enter" && finishConfirm()}
+                />
+                <button className="wmg-debt-card-edit" onClick={finishConfirm}>Save</button>
+              </>
+            ) : (
+              <>
+                <span className="wmg-debt-card-balance-val">{gbp(estimatedToday)}</span>
+                <button
+                  className="wmg-debt-card-edit"
+                  onClick={() => {
+                    setDraftBalance(Math.round(estimatedToday));
+                    setEditing(true);
+                  }}
+                >
+                  Edit
+                </button>
+              </>
+            )}
+          </div>
+          <div className="wmg-sub">
+            {changed ? "Estimated today \u2014 confirmed " : "Confirmed "}
+            {gbp(debt.balance)} {days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"} ago`}
+          </div>
+        </div>
+        <button className="wmg-icon-btn" onClick={onRemove} aria-label="Remove">✕</button>
+      </div>
+
+      <div className="wmg-two-col" style={{ marginTop: 12 }}>
+        <Field label="Rate %" hint="The interest rate this debt charges each year — sometimes called APR. You'll find it on your credit agreement, statement, or the provider's app.">
+          <input className="wmg-input" type="number" step="0.1" value={debt.rate} onChange={(e) => onEdit("rate", Number(e.target.value))} />
+        </Field>
+        <Field label="Monthly payment">
+          <input className="wmg-input" type="number" value={debt.payment} onChange={(e) => onEdit("payment", Number(e.target.value))} />
+        </Field>
+      </div>
+
+      {needsCheck && !editing && (
+        <div className="wmg-debt-nudge">
+          It's been {days} days since you confirmed this — still about {gbp(Math.round(estimatedToday))}?
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="wmg-onboard-next" style={{ padding: "8px 16px", fontSize: 12.5, flex: "none" }} onClick={() => onConfirm(estimatedToday)}>
+              Yes, still about right
+            </button>
+            <button
+              className="wmg-reset-btn"
+              onClick={() => {
+                setDraftBalance(Math.round(estimatedToday));
+                setEditing(true);
+              }}
+            >
+              It's changed
+            </button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems }) {
   const selectedDebt = allDebts.find((d) => d.id === selectedDebtId) || allDebts[0];
   const [celebration, setCelebration] = useState(null);
   const celebrationTimer = useRef(null);
+  const [editingMortgage, setEditingMortgage] = useState(false);
+  const [mortgageDraft, setMortgageDraft] = useState(profile.mortgage.balance);
+  const mortgageDaysSince = daysSince(profile.mortgage.lastConfirmedAt);
+  const mortgageChanged = Math.abs((totals?.mortgageBalanceToday ?? profile.mortgage.balance) - profile.mortgage.balance) > 1;
 
   const makeCelebratingChange = (arrKey, list) => (id, field, value) => {
     if (field === "balance" && Number(value) <= 0) {
@@ -1963,9 +2300,57 @@ function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArra
       <div className="wmg-section-title">Mortgage</div>
       <Card>
         <div className="wmg-three-col">
-          <Field label="Balance outstanding">
-            <input className="wmg-input" type="number" value={profile.mortgage.balance} onChange={(e) => setField(["mortgage", "balance"])(Number(e.target.value))} />
-          </Field>
+          <div>
+            <label className="wmg-field-label">Balance outstanding</label>
+            {editingMortgage ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  autoFocus
+                  value={mortgageDraft}
+                  onChange={(e) => setMortgageDraft(Number(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      confirmMortgageBalance(mortgageDraft);
+                      setEditingMortgage(false);
+                    }
+                  }}
+                />
+                <button
+                  className="wmg-debt-card-edit"
+                  onClick={() => {
+                    confirmMortgageBalance(mortgageDraft);
+                    setEditingMortgage(false);
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  value={profile.mortgage.balance}
+                  onChange={(e) => confirmMortgageBalance(Number(e.target.value))}
+                />
+                <button
+                  className="wmg-debt-card-edit"
+                  onClick={() => {
+                    setMortgageDraft(Math.round(totals?.mortgageBalanceToday ?? profile.mortgage.balance));
+                    setEditingMortgage(true);
+                  }}
+                >
+                  Confirm
+                </button>
+              </div>
+            )}
+            <div className="wmg-sub" style={{ marginTop: 4 }}>
+              {mortgageChanged ? `Estimated today: ${gbp(totals?.mortgageBalanceToday ?? profile.mortgage.balance)} — ` : ""}
+              confirmed {gbp(profile.mortgage.balance)} {mortgageDaysSince === 0 ? "today" : `${mortgageDaysSince} day${mortgageDaysSince === 1 ? "" : "s"} ago`}
+            </div>
+          </div>
           <Field label="Interest rate (%)">
             <input className="wmg-input" type="number" step="0.1" value={profile.mortgage.rate} onChange={(e) => setField(["mortgage", "rate"])(Number(e.target.value))} />
           </Field>
@@ -1995,7 +2380,10 @@ function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArra
             Let the Cash Flow Forecast put spare surplus toward the mortgage too, not just loans and cards
           </label>
           {profile.mortgage.allowOverpayment && (
-            <Field label="Penalty-free overpayment allowance (% of balance/year)">
+            <Field
+              label="Penalty-free overpayment allowance (% of balance/year)"
+              hint="Most mortgages let you pay extra off the balance up to a limit each year — usually 10% — without being charged a fee. Check your mortgage documents or ask your lender for your actual limit."
+            >
               <input
                 className="wmg-input"
                 type="number"
@@ -2012,40 +2400,52 @@ function DebtsTab({ profile, setField, updateArrayItem, addArrayItem, removeArra
       <QuickImport onAdd={addBulkItems} />
 
       <div className="wmg-section-title">Loans</div>
-      <Card>
-        <ArrayEditor
-          title="Loans"
-          items={profile.loans}
-          fields={[
-            { key: "name", label: "Name" },
-            { key: "balance", label: "Balance", type: "number" },
-            { key: "rate", label: "Rate %", type: "number" },
-            { key: "payment", label: "Payment", type: "number" },
-          ]}
-          onChange={makeCelebratingChange("loans", profile.loans)}
-          onAdd={addArrayItem("loans", { name: "New loan", balance: 0, rate: 0, payment: 0 })}
-          onRemove={removeArrayItem("loans")}
-          addLabel="Add loan"
+      {profile.loans.map((loan) => (
+        <DebtCard
+          key={loan.id}
+          debt={loan}
+          onEdit={(field, value) => updateArrayItem("loans")(loan.id, field, value)}
+          onConfirm={(newBalance) => {
+            if (Number(newBalance) <= 0 && Number(loan.balance) > 0) {
+              setCelebration(loan.name);
+              if (celebrationTimer.current) window.clearTimeout(celebrationTimer.current);
+              celebrationTimer.current = window.setTimeout(() => setCelebration(null), 5000);
+            }
+            confirmBalance("loans")(loan.id, newBalance);
+          }}
+          onRemove={() => removeArrayItem("loans")(loan.id)}
         />
-      </Card>
+      ))}
+      <button
+        className="wmg-add-btn"
+        onClick={addArrayItem("loans", { name: "New loan", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() })}
+      >
+        + Add loan
+      </button>
 
       <div className="wmg-section-title">Credit cards</div>
-      <Card>
-        <ArrayEditor
-          title="Credit cards"
-          items={profile.cards}
-          fields={[
-            { key: "name", label: "Name" },
-            { key: "balance", label: "Balance", type: "number" },
-            { key: "rate", label: "Rate %", type: "number" },
-            { key: "payment", label: "Payment", type: "number" },
-          ]}
-          onChange={makeCelebratingChange("cards", profile.cards)}
-          onAdd={addArrayItem("cards", { name: "New card", balance: 0, rate: 0, payment: 0 })}
-          onRemove={removeArrayItem("cards")}
-          addLabel="Add credit card"
+      {profile.cards.map((card) => (
+        <DebtCard
+          key={card.id}
+          debt={card}
+          onEdit={(field, value) => updateArrayItem("cards")(card.id, field, value)}
+          onConfirm={(newBalance) => {
+            if (Number(newBalance) <= 0 && Number(card.balance) > 0) {
+              setCelebration(card.name);
+              if (celebrationTimer.current) window.clearTimeout(celebrationTimer.current);
+              celebrationTimer.current = window.setTimeout(() => setCelebration(null), 5000);
+            }
+            confirmBalance("cards")(card.id, newBalance);
+          }}
+          onRemove={() => removeArrayItem("cards")(card.id)}
         />
-      </Card>
+      ))}
+      <button
+        className="wmg-add-btn"
+        onClick={addArrayItem("cards", { name: "New card", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() })}
+      >
+        + Add credit card
+      </button>
 
       <div className="wmg-section-title">Debt-free calculator</div>
       <Card>
@@ -2168,7 +2568,10 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
           <Field label="Total monthly contribution (you + employer)">
             <input className="wmg-input" type="number" value={profile.pension.contribution} onChange={(e) => setField(["pension", "contribution"])(Number(e.target.value))} />
           </Field>
-          <Field label="Drawdown rate at retirement (%)">
+          <Field
+            label="Drawdown rate at retirement (%)"
+            hint="How much of your pot you plan to take out each year once retired. 4% is a commonly used starting point — take out much more and there's a real risk of running out; take out less and it lasts longer but gives you less to live on."
+          >
             <input className="wmg-input" type="number" step="0.1" value={profile.pension.drawdownRate} onChange={(e) => setField(["pension", "drawdownRate"])(Number(e.target.value))} />
           </Field>
         </div>
@@ -2188,7 +2591,10 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
           <Field label="Low growth scenario (%/yr)">
             <input className="wmg-input" type="number" step="0.1" value={profile.pension.growthLow} onChange={(e) => setField(["pension", "growthLow"])(Number(e.target.value))} />
           </Field>
-          <Field label="Medium growth scenario (%/yr)">
+          <Field
+            label="Medium growth scenario (%/yr)"
+            hint="How much your pension investments might grow each year on average, after fees. Nobody can know this in advance — that's exactly why there's a low and high scenario alongside this one, rather than a single confident number."
+          >
             <input className="wmg-input" type="number" step="0.1" value={profile.pension.growthMedium} onChange={(e) => setField(["pension", "growthMedium"])(Number(e.target.value))} />
           </Field>
           <Field label="High growth scenario (%/yr)">
@@ -2373,7 +2779,10 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
           <Field label="Assumed annual inflation (%)">
             <input className="wmg-input" type="number" step="0.1" value={profile.assumptions.inflation} onChange={(e) => setField(["assumptions", "inflation"])(Number(e.target.value))} />
           </Field>
-          <Field label="Growth uncertainty (± percentage points)">
+          <Field
+            label="Growth uncertainty (± percentage points)"
+            hint="Controls the shaded band around the net worth line in the chart below — how far off your actual results might be from the growth rates you've set elsewhere, in either direction."
+          >
             <input className="wmg-input" type="number" step="0.5" min="0" value={profile.assumptions.growthUncertaintyPct} onChange={(e) => setField(["assumptions", "growthUncertaintyPct"])(Number(e.target.value))} />
           </Field>
         </div>
