@@ -1187,6 +1187,7 @@ const NAV = [
   { key: "debts", label: "Debts & Mortgage", icon: "debts" },
   { key: "goals", label: "Savings & Goals", icon: "goals" },
   { key: "pension", label: "Pension & Retirement", icon: "pension" },
+  { key: "pension-reader", label: "Pension Reader", icon: "reader" },
   { key: "forecast", label: "Cash Flow Forecast", icon: "forecast" },
   { key: "education", label: "Education", icon: "education" },
 ];
@@ -1230,6 +1231,15 @@ function NavIcon({ name }) {
       return (
         <svg {...common}>
           <path d="M12 3 4.5 6v6c0 5 3.2 8.3 7.5 9.9 4.3-1.6 7.5-4.9 7.5-9.9V6L12 3z" />
+        </svg>
+      );
+    case "reader":
+      return (
+        <svg {...common}>
+          <path d="M14.5 3H7a1.5 1.5 0 0 0-1.5 1.5v15A1.5 1.5 0 0 0 7 21h10a1.5 1.5 0 0 0 1.5-1.5V8.5L14.5 3z" />
+          <path d="M14 3v5.5h5.5" />
+          <path d="M8.5 13h7" />
+          <path d="M8.5 16.5h4.5" />
         </svg>
       );
     case "forecast":
@@ -2028,6 +2038,23 @@ export default function App() {
         .wmg-onboard-next { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 30px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; }
         .wmg-onboard-next:hover { background: var(--brand-2); }
 
+        .wmg-btn-primary { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 22px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+        .wmg-btn-primary:hover { background: var(--brand-2); }
+        .wmg-btn-primary:disabled { background: var(--hair); color: var(--paper-dim); cursor: not-allowed; }
+
+        .wmg-reader-dropzone { border: 2px dashed var(--hair); border-radius: 18px; padding: 32px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+        .wmg-reader-dropzone:hover { border-color: var(--brand-2); background: var(--brand-soft); }
+        .wmg-reader-input { display: none; }
+        .wmg-reader-dropzone-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--paper); margin-bottom: 4px; }
+        .wmg-reader-dropzone-sub { font-size: 12px; color: var(--paper-dim); }
+        .wmg-reader-filename { display: flex; align-items: center; justify-content: center; gap: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--brand-2); }
+        .wmg-reader-error { color: var(--rust); font-size: 12.5px; margin-top: 12px; text-align: center; }
+        .wmg-reader-analyze { width: 100%; margin-top: 16px; }
+        .wmg-reader-doc-type { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; color: var(--paper); }
+        .wmg-reader-summary-card p { font-size: 13.5px; line-height: 1.6; color: var(--paper); }
+        .wmg-reader-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; margin-bottom: 12px; }
+        .wmg-reader-applied { text-align: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; color: var(--sage); padding: 12px; }
+
         .wmg-wizard-card { width: 100%; max-width: 460px; background: var(--ink-2); border-radius: 24px; padding: 30px 26px 26px; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); max-height: 88vh; overflow-y: auto; }
         .wmg-wizard-progress { margin-bottom: 22px; }
         .wmg-wizard-progress-track { height: 5px; border-radius: 999px; background: var(--ink-3); overflow: hidden; }
@@ -2310,6 +2337,16 @@ export default function App() {
 
             {tab === "pension" && (
               <PensionTab profile={profile} setField={setField} pensionScenarios={pensionScenarios} pensionYearsToRetire={pensionYearsToRetire} />
+            )}
+
+            {tab === "pension-reader" && (
+              <PensionReaderTab
+                onUseInPension={(result) => {
+                  if (result.currentValue != null) setField(["pension", "balance"])(result.currentValue);
+                  if (result.monthlyContribution != null) setField(["pension", "contribution"])(result.monthlyContribution);
+                  if (result.retirementAge != null) setField(["pension", "retirementAge"])(result.retirementAge);
+                }}
+              />
             )}
 
             {tab === "forecast" && (
@@ -3564,6 +3601,184 @@ function AccordionItem({ title, body, isOpen, onToggle }) {
     </div>
   );
 }
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function PensionReaderTab({ onUseInPension }) {
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("idle"); // idle | reading | done | error
+  const [result, setResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [applied, setApplied] = useState(false);
+  const inputRef = useRef(null);
+
+  const pickFile = (f) => {
+    if (!f) return;
+    const isPdf = f.type === "application/pdf";
+    const isImage = f.type.startsWith("image/");
+    if (!isPdf && !isImage) {
+      setStatus("error");
+      setErrorMsg("Please choose a PDF or a photo (JPG/PNG).");
+      return;
+    }
+    setFile(f);
+    setStatus("idle");
+    setResult(null);
+    setApplied(false);
+  };
+
+  const analyze = async () => {
+    if (!file) return;
+    setStatus("reading");
+    setErrorMsg("");
+    try {
+      const base64 = await fileToBase64(file);
+      const fileKind = file.type === "application/pdf" ? "pdf" : "image";
+      const resp = await fetch("/api/analyze-pension", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileBase64: base64, mediaType: file.type, fileKind }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Something went wrong.");
+      if (data.couldNotRead) {
+        setStatus("error");
+        setErrorMsg(data.summary || "Couldn't read this document. Try a clearer photo or the original PDF.");
+        return;
+      }
+      setResult(data);
+      setStatus("done");
+    } catch (e) {
+      setStatus("error");
+      setErrorMsg(e.message || "Something went wrong reading the document.");
+    }
+  };
+
+  const reset = () => {
+    setFile(null);
+    setStatus("idle");
+    setResult(null);
+    setErrorMsg("");
+    setApplied(false);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const useInPension = () => {
+    if (!result) return;
+    onUseInPension(result);
+    setApplied(true);
+  };
+
+  return (
+    <>
+      <div className="wmg-section-title">Pension document reader</div>
+      <div className="wmg-section-desc">
+        Upload a pension statement — a PDF, or a photo if it's on paper — and this reads it and explains it in plain
+        English. Nothing is saved unless you choose to use the numbers in your Pension tab.
+      </div>
+
+      {status !== "done" && (
+        <Card>
+          <div
+            className="wmg-reader-dropzone"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              pickFile(e.dataTransfer.files?.[0]);
+            }}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf,image/*"
+              className="wmg-reader-input"
+              onChange={(e) => pickFile(e.target.files?.[0])}
+            />
+            {file ? (
+              <div className="wmg-reader-filename">
+                <i className="ti ti-file-check" aria-hidden="true" /> {file.name}
+              </div>
+            ) : (
+              <>
+                <div className="wmg-reader-dropzone-title">Tap to choose a file, or drag one here</div>
+                <div className="wmg-reader-dropzone-sub">PDF, JPG or PNG</div>
+              </>
+            )}
+          </div>
+
+          {status === "error" && <div className="wmg-reader-error">{errorMsg}</div>}
+
+          <button className="wmg-btn-primary wmg-reader-analyze" disabled={!file || status === "reading"} onClick={analyze}>
+            {status === "reading" ? "Reading your document…" : "Read this document"}
+          </button>
+        </Card>
+      )}
+
+      {status === "done" && result && (
+        <>
+          <Card className="wmg-reader-summary-card">
+            <div className="wmg-reader-doc-type">{result.documentType}{result.provider ? ` — ${result.provider}` : ""}</div>
+            {result.asOfDate && <div className="wmg-sub" style={{ marginBottom: 12 }}>As of {result.asOfDate}</div>}
+            <p style={{ marginTop: result.asOfDate ? 0 : 8 }}>{result.summary}</p>
+          </Card>
+
+          <div className="wmg-chip-row">
+            {result.currentValue != null && (
+              <div className="wmg-chip"><div className="wmg-chip-label">Current value</div><div className="wmg-chip-value">{gbp(result.currentValue)}</div></div>
+            )}
+            {result.monthlyContribution != null && (
+              <div className="wmg-chip"><div className="wmg-chip-label">Monthly contribution</div><div className="wmg-chip-value">{gbp(result.monthlyContribution)}</div></div>
+            )}
+            {result.annualFeePercent != null && (
+              <div className="wmg-chip"><div className="wmg-chip-label">Annual fee</div><div className="wmg-chip-value">{result.annualFeePercent}%</div></div>
+            )}
+            {result.projectedValue != null && (
+              <div className="wmg-chip"><div className="wmg-chip-label">Projected value</div><div className="wmg-chip-value">{gbp(result.projectedValue)}</div></div>
+            )}
+            {result.projectedIncome != null && (
+              <div className="wmg-chip">
+                <div className="wmg-chip-label">Projected income ({result.projectedIncomeFrequency || "—"})</div>
+                <div className="wmg-chip-value">{gbp(result.projectedIncome)}</div>
+              </div>
+            )}
+            {result.retirementAge != null && (
+              <div className="wmg-chip"><div className="wmg-chip-label">Assumed retirement age</div><div className="wmg-chip-value">{result.retirementAge}</div></div>
+            )}
+          </div>
+
+          <Card className={`wmg-insight-card wmg-insight-${result.verdict.tone === "good" ? "sage" : result.verdict.tone === "caution" ? "rust" : "gold"}`}>
+            <span className={`wmg-insight-icon-badge tone-${result.verdict.tone === "good" ? "sage" : result.verdict.tone === "caution" ? "rust" : "gold"}`}>
+              {result.verdict.tone === "good" ? "✓" : result.verdict.tone === "caution" ? "!" : "i"}
+            </span>
+            <p>{result.verdict.text}</p>
+          </Card>
+
+          <div className="wmg-reader-actions">
+            {onUseInPension && result.currentValue != null && !applied && (
+              <button className="wmg-btn-primary" onClick={useInPension}>Use these numbers in my Pension tab</button>
+            )}
+            {applied && <div className="wmg-reader-applied">✓ Added to your Pension tab</div>}
+            <button className="wmg-onboard-skip" onClick={reset}>Read another document</button>
+          </div>
+        </>
+      )}
+
+      <div className="wmg-footnote" style={{ marginTop: 20 }}>
+        This reads the document you upload using AI and does its best to extract accurate figures, but it can make
+        mistakes — always check important numbers against the original document. This isn't financial advice.
+      </div>
+    </>
+  );
+}
+
 
 function EducationTab() {
   const [openId, setOpenId] = useState(null);
