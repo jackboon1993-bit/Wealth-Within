@@ -464,6 +464,42 @@ function Card({ children, className = "", style = {} }) {
   );
 }
 
+/* Concentric growth rings, echoing tree-ring growth — the app's signature
+   visual. `progress` is 0–1 on the outer ring; the inner two rings are
+   decorative context (fixed, softly filled) so the shape never reads as
+   empty even when progress is low. */
+function GrowthRing({ progress, size = 84, tone = "brand", children }) {
+  const r1 = size * 0.447;
+  const r2 = size * 0.355;
+  const r3 = size * 0.263;
+  const circumference = 2 * Math.PI * r1;
+  const clamped = Math.max(0, Math.min(1, isFinite(progress) ? progress : 0));
+  const offset = circumference * (1 - clamped);
+  const strokeColor = tone === "brand" ? "var(--brand-2)" : `var(--${tone})`;
+  return (
+    <div className="wmg-growth-ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={r1} fill="none" stroke="var(--hair)" strokeWidth={size * 0.079} />
+        <circle cx={size / 2} cy={size / 2} r={r2} fill="none" stroke="var(--hair)" strokeWidth={size * 0.066} opacity="0.7" />
+        <circle cx={size / 2} cy={size / 2} r={r3} fill="none" stroke="var(--hair)" strokeWidth={size * 0.053} opacity="0.5" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r1}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={size * 0.079}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      {children && <div className="wmg-growth-ring-inner" style={{ width: size, height: size }}>{children}</div>}
+    </div>
+  );
+}
+
 function StatIcon({ name }) {
   const common = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round", strokeLinejoin: "round" };
   switch (name) {
@@ -548,7 +584,7 @@ function Gauge({ score, variant = "light" }) {
   const isHero = variant === "hero";
   const trackColor = isHero ? "rgba(255,255,255,0.28)" : "#EDE7DA";
   const needleColor = isHero ? "#FFFFFF" : "#142420";
-  const hubFill = isHero ? "#FF8A65" : "#0F6B5C";
+  const hubFill = isHero ? "#FF8A65" : "#1F5D46";
   const hubStroke = isHero ? "#0B5A48" : "#FFFFFF";
   const gradId = isHero ? "gaugeGradHero" : "gaugeGrad";
 
@@ -566,7 +602,7 @@ function Gauge({ score, variant = "light" }) {
             <>
               <stop offset="0%" stopColor="#D6483A" />
               <stop offset="50%" stopColor="#9A752B" />
-              <stop offset="100%" stopColor="#0F6B5C" />
+              <stop offset="100%" stopColor="#1F5D46" />
             </>
           )}
         </linearGradient>
@@ -734,53 +770,342 @@ function QuickImport({ onAdd }) {
   );
 }
 
-const ONBOARDING_SLIDES = [
-  {
-    icon: "overview",
-    title: "Everything, in one place",
-    body: "Income, debts, savings, pension — see your whole financial picture together, instead of piecing it together from five different apps.",
-  },
-  {
-    icon: "forecast",
-    title: "Know exactly where you stand",
-    body: "A plain-English answer to \"am I doing okay?\", plus a financial score, a debt-free date, and a forecast of where you're headed — updated the moment you change a number.",
-  },
-  {
-    icon: "goals",
-    title: "We've filled in example numbers",
-    body: "So you can see how it all works before entering your own. Nothing here is connected to your bank — everything is typed in by you, and stays private to your account.",
-  },
-];
+/* ============================ setup wizard ============================ */
 
-function Onboarding({ onFinish }) {
-  const [step, setStep] = useState(0);
-  const slide = ONBOARDING_SLIDES[step];
-  const isLast = step === ONBOARDING_SLIDES.length - 1;
+const WIZARD_DATA_STEPS = ["income", "debts", "savings", "pension"];
+const WIZARD_STEPS = ["welcome", ...WIZARD_DATA_STEPS, "done"];
+
+const blankLoan = () => ({ id: nextId(), name: "", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() });
+const blankGoal = () => ({ id: nextId(), name: "", target: 0, current: 0, monthlyContribution: 0, desiredMonths: null });
+
+function WizardListEditor({ items, setItems, fields, addLabel, emptyLabel }) {
+  return (
+    <div className="wmg-wizard-list">
+      {items.length === 0 && <div className="wmg-wizard-list-empty">{emptyLabel}</div>}
+      {items.map((item) => (
+        <div className="wmg-wizard-list-row" key={item.id}>
+          {fields.map((f) => (
+            <input
+              key={f.key}
+              className="wmg-input"
+              type={f.type || "text"}
+              inputMode={f.type === "number" ? "decimal" : undefined}
+              value={item[f.key]}
+              placeholder={f.label}
+              onChange={(e) => {
+                const v = f.type === "number" ? Number(e.target.value) : e.target.value;
+                setItems((list) => list.map((it) => (it.id === item.id ? { ...it, [f.key]: v } : it)));
+              }}
+              style={{ flex: f.key === "name" ? 2 : 1 }}
+            />
+          ))}
+          <button
+            type="button"
+            className="wmg-wizard-list-remove"
+            aria-label={`Remove ${item.name || "item"}`}
+            onClick={() => setItems((list) => list.filter((it) => it.id !== item.id))}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button type="button" className="wmg-wizard-list-add" onClick={() => setItems((list) => [...list, fields.factory()])}>
+        + {addLabel}
+      </button>
+    </div>
+  );
+}
+
+function SetupWizard({ onFinish }) {
+  const [stepIdx, setStepIdx] = useState(0);
+  const step = WIZARD_STEPS[stepIdx];
+  const dataStepPos = WIZARD_DATA_STEPS.indexOf(step); // -1 on welcome/done
+
+  const [income, setIncome] = useState(0);
+
+  const [hasMortgage, setHasMortgage] = useState(false);
+  const [mortgage, setMortgage] = useState({ balance: 0, rate: 4.5, payment: 0 });
+  const [loans, setLoans] = useState([]);
+  const [cards, setCards] = useState([]);
+
+  const [savingsBalance, setSavingsBalance] = useState(0);
+  const [emergencyFund, setEmergencyFund] = useState({ balance: 0, target: 0 });
+  const [goals, setGoals] = useState([]);
+
+  const [pension, setPension] = useState({ balance: 0, contribution: 0, currentAge: 30, retirementAge: 67 });
+  const [statePensionIncluded, setStatePensionIncluded] = useState(true);
+
+  const goNext = () => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1));
+  const goBack = () => setStepIdx((i) => Math.max(0, i - 1));
+
+  const finishWithData = () => {
+    onFinish((p) => ({
+      ...p,
+      income,
+      mortgage: hasMortgage
+        ? { ...p.mortgage, balance: mortgage.balance, rate: mortgage.rate, payment: mortgage.payment, originalBalance: mortgage.balance, lastConfirmedAt: new Date().toISOString() }
+        : { ...p.mortgage, balance: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() },
+      loans,
+      cards,
+      savings: { ...p.savings, balance: savingsBalance },
+      emergencyFund,
+      goals,
+      pension: { ...p.pension, ...pension },
+      statePension: { ...p.statePension, included: statePensionIncluded },
+      onboarded: true,
+    }));
+  };
+
+  const skipAll = () => onFinish((p) => ({ ...p, onboarded: true }));
 
   return (
     <div className="wmg-onboard">
-      <div className="wmg-onboard-card">
-        <div className="wmg-onboard-icon">
-          <NavIcon name={slide.icon} />
-        </div>
-        <div className="wmg-onboard-dots">
-          {ONBOARDING_SLIDES.map((_, i) => (
-            <span key={i} className={`wmg-onboard-dot ${i === step ? "on" : ""}`} />
-          ))}
-        </div>
-        <h2 className="wmg-onboard-title">{slide.title}</h2>
-        <p className="wmg-onboard-body">{slide.body}</p>
+      <div className="wmg-wizard-card">
+        {dataStepPos >= 0 && (
+          <div className="wmg-wizard-progress">
+            <div className="wmg-wizard-progress-track">
+              <div
+                className="wmg-wizard-progress-fill"
+                style={{ width: `${((dataStepPos + 1) / WIZARD_DATA_STEPS.length) * 100}%` }}
+              />
+            </div>
+            <div className="wmg-wizard-progress-label">
+              Step {dataStepPos + 1} of {WIZARD_DATA_STEPS.length}
+            </div>
+          </div>
+        )}
+
+        {step === "welcome" && (
+          <div className="wmg-wizard-step">
+            <div className="wmg-onboard-icon">
+              <NavIcon name="overview" />
+            </div>
+            <h2 className="wmg-onboard-title">Let's set up your picture</h2>
+            <p className="wmg-onboard-body">
+              A few quick questions about your income, debts, savings and pension — so your
+              dashboard reflects your real numbers from the start, not example data. It takes
+              about two minutes, and you can skip at any point.
+            </p>
+          </div>
+        )}
+
+        {step === "income" && (
+          <div className="wmg-wizard-step">
+            <h2 className="wmg-wizard-step-title">Your income</h2>
+            <p className="wmg-wizard-step-sub">Take-home pay, after tax, from all sources.</p>
+            <Field label="Monthly income">
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                value={income}
+                onChange={(e) => setIncome(Number(e.target.value))}
+                placeholder="e.g. 3200"
+              />
+            </Field>
+          </div>
+        )}
+
+        {step === "debts" && (
+          <div className="wmg-wizard-step">
+            <h2 className="wmg-wizard-step-title">Debts & mortgage</h2>
+            <p className="wmg-wizard-step-sub">Add anything you're paying off — leave blank if none apply.</p>
+
+            <label className="wmg-wizard-toggle">
+              <input type="checkbox" checked={hasMortgage} onChange={(e) => setHasMortgage(e.target.checked)} />
+              I have a mortgage
+            </label>
+            {hasMortgage && (
+              <div className="wmg-wizard-list-row" style={{ marginBottom: 16 }}>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Balance"
+                  value={mortgage.balance}
+                  onChange={(e) => setMortgage((m) => ({ ...m, balance: Number(e.target.value) }))}
+                />
+                <input
+                  className="wmg-input"
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Rate %"
+                  value={mortgage.rate}
+                  onChange={(e) => setMortgage((m) => ({ ...m, rate: Number(e.target.value) }))}
+                />
+                <input
+                  className="wmg-input"
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Monthly payment"
+                  value={mortgage.payment}
+                  onChange={(e) => setMortgage((m) => ({ ...m, payment: Number(e.target.value) }))}
+                />
+              </div>
+            )}
+
+            <WizardListEditor
+              items={loans}
+              setItems={setLoans}
+              addLabel="Add a loan"
+              emptyLabel="No loans added"
+              fields={Object.assign(
+                [
+                  { key: "name", label: "Name" },
+                  { key: "balance", label: "Balance", type: "number" },
+                  { key: "rate", label: "Rate %", type: "number" },
+                  { key: "payment", label: "Monthly payment", type: "number" },
+                ],
+                { factory: blankLoan }
+              )}
+            />
+            <WizardListEditor
+              items={cards}
+              setItems={setCards}
+              addLabel="Add a credit card"
+              emptyLabel="No credit cards added"
+              fields={Object.assign(
+                [
+                  { key: "name", label: "Name" },
+                  { key: "balance", label: "Balance", type: "number" },
+                  { key: "rate", label: "Rate %", type: "number" },
+                  { key: "payment", label: "Monthly payment", type: "number" },
+                ],
+                { factory: blankLoan }
+              )}
+            />
+          </div>
+        )}
+
+        {step === "savings" && (
+          <div className="wmg-wizard-step">
+            <h2 className="wmg-wizard-step-title">Savings & goals</h2>
+            <p className="wmg-wizard-step-sub">What you've already got saved, plus anything you're saving towards.</p>
+
+            <Field label="Savings balance">
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                value={savingsBalance}
+                onChange={(e) => setSavingsBalance(Number(e.target.value))}
+                placeholder="e.g. 4000"
+              />
+            </Field>
+            <div className="wmg-wizard-list-row" style={{ marginBottom: 16 }}>
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                placeholder="Emergency fund balance"
+                value={emergencyFund.balance}
+                onChange={(e) => setEmergencyFund((f) => ({ ...f, balance: Number(e.target.value) }))}
+              />
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                placeholder="Emergency fund target"
+                value={emergencyFund.target}
+                onChange={(e) => setEmergencyFund((f) => ({ ...f, target: Number(e.target.value) }))}
+              />
+            </div>
+
+            <WizardListEditor
+              items={goals}
+              setItems={setGoals}
+              addLabel="Add a goal"
+              emptyLabel="No goals added"
+              fields={Object.assign(
+                [
+                  { key: "name", label: "Goal name" },
+                  { key: "target", label: "Target", type: "number" },
+                  { key: "current", label: "Saved so far", type: "number" },
+                  { key: "monthlyContribution", label: "Monthly", type: "number" },
+                ],
+                { factory: blankGoal }
+              )}
+            />
+          </div>
+        )}
+
+        {step === "pension" && (
+          <div className="wmg-wizard-step">
+            <h2 className="wmg-wizard-step-title">Pension</h2>
+            <p className="wmg-wizard-step-sub">Workplace or personal pension, plus your State Pension.</p>
+
+            <div className="wmg-wizard-list-row" style={{ marginBottom: 12 }}>
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                placeholder="Pension balance"
+                value={pension.balance}
+                onChange={(e) => setPension((p) => ({ ...p, balance: Number(e.target.value) }))}
+              />
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                placeholder="Monthly contribution"
+                value={pension.contribution}
+                onChange={(e) => setPension((p) => ({ ...p, contribution: Number(e.target.value) }))}
+              />
+            </div>
+            <div className="wmg-wizard-list-row" style={{ marginBottom: 16 }}>
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                placeholder="Current age"
+                value={pension.currentAge}
+                onChange={(e) => setPension((p) => ({ ...p, currentAge: Number(e.target.value) }))}
+              />
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                placeholder="Retirement age"
+                value={pension.retirementAge}
+                onChange={(e) => setPension((p) => ({ ...p, retirementAge: Number(e.target.value) }))}
+              />
+            </div>
+            <label className="wmg-wizard-toggle">
+              <input type="checkbox" checked={statePensionIncluded} onChange={(e) => setStatePensionIncluded(e.target.checked)} />
+              Include my State Pension in the forecast
+            </label>
+          </div>
+        )}
+
+        {step === "done" && (
+          <div className="wmg-wizard-step">
+            <div className="wmg-onboard-icon">
+              <NavIcon name="forecast" />
+            </div>
+            <h2 className="wmg-onboard-title">You're all set</h2>
+            <p className="wmg-onboard-body">
+              Your dashboard is ready with your numbers. You can edit any of this at any time from
+              its tab — nothing here is final.
+            </p>
+          </div>
+        )}
+
         <div className="wmg-onboard-actions">
-          {!isLast && (
-            <button className="wmg-onboard-skip" onClick={onFinish}>
-              Skip
+          {step !== "done" && (
+            <button className="wmg-onboard-skip" onClick={skipAll}>
+              Skip for now
+            </button>
+          )}
+          {dataStepPos > 0 && (
+            <button className="wmg-wizard-back" onClick={goBack}>
+              Back
             </button>
           )}
           <button
             className="wmg-onboard-next"
-            onClick={() => (isLast ? onFinish() : setStep((s) => s + 1))}
+            onClick={() => (step === "done" ? finishWithData() : goNext())}
           >
-            {isLast ? "Get started" : "Next"}
+            {step === "welcome" ? "Get started" : step === "done" ? "Go to my dashboard" : "Next"}
           </button>
         </div>
       </div>
@@ -1332,7 +1657,6 @@ export default function App() {
     return forecastBaseline.debtFreeMonth - forecast.debtFreeMonth;
   }, [forecastBaseline, forecast]);
 
-  const finishOnboarding = () => setProfile((p) => ({ ...p, onboarded: true }));
 
   const animatedTopbarNetWorth = useCountUp(totals.netWorth);
   const animatedTopbarAvailable = useCountUp(totals.available);
@@ -1362,26 +1686,26 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .wmg-root {
-          --ink: #F5F2EA;
-          --ink-2: #FFFFFF;
-          --ink-3: #F1EDE3;
-          --paper: #17231F;
-          --paper-dim: #667069;
-          --brand: #0F6B5C;
-          --brand-2: #14876F;
-          --brand-deep: #0A4638;
-          --brand-soft: #DCEFE8;
-          --coral: #FF6B4A;
-          --coral-soft: #FFE1D6;
+          --ink: #F6F1E4;
+          --ink-2: #FEFCF6;
+          --ink-3: #EDE6D2;
+          --paper: #1F3A2E;
+          --paper-dim: #6B7C6F;
+          --brand: #1F5D46;
+          --brand-2: #3E7A5C;
+          --brand-deep: #14442F;
+          --brand-soft: #E3EFE6;
+          --coral: #FF8A65;
+          --coral-soft: #FFDFCE;
           --gold: #97721F;
           --gold-soft: #F3E7C9;
-          --sage: #1E8F5F;
-          --sage-soft: #D9F1E2;
+          --sage: #3E8F63;
+          --sage-soft: #DCF0E2;
           --rust: #D6483A;
           --rust-soft: #FBE2DE;
           --slate: #5B6473;
           --slate-soft: #E9E7DE;
-          --hair: #E7E1D3;
+          --hair: #E3DAC2;
           --gold-fill: #E8C878;
           --sage-fill: #7FC4A0;
           --rust-fill: #E8917F;
@@ -1400,7 +1724,7 @@ export default function App() {
         .wmg-app { display: flex; min-height: 100vh; align-items: flex-start; }
         @media (max-width: 880px) { .wmg-app { flex-direction: column; } }
 
-        .wmg-sidebar { width: 240px; flex-shrink: 0; padding: 26px 16px; border-right: 1px solid var(--hair); position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; background: #FFFFFF; }
+        .wmg-sidebar { width: 240px; flex-shrink: 0; padding: 26px 16px; border-right: 1px solid var(--hair); position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; background: var(--ink-2); }
         @media (max-width: 880px) {
           .wmg-sidebar { width: auto; height: auto; position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); top: auto; border: 1px solid var(--hair); border-radius: 22px; padding: 6px; box-shadow: 0 12px 28px -8px rgba(15,30,25,0.18); z-index: 20; }
         }
@@ -1413,14 +1737,14 @@ export default function App() {
 
         .wmg-nav { display: flex; flex-direction: column; gap: 3px; }
         @media (max-width: 880px) { .wmg-nav { flex-direction: row; gap: 2px; justify-content: space-around; } }
-        .wmg-nav-item { display: flex; align-items: center; gap: 11px; text-align: left; background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; padding: 9px 12px; cursor: pointer; border-radius: 12px; white-space: nowrap; transition: color .15s ease, background .15s ease; }
-        .wmg-nav-icon-badge { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 10px; background: var(--ink-3); color: var(--paper-dim); flex-shrink: 0; transition: background .15s ease, color .15s ease; }
+        .wmg-nav-item { display: flex; align-items: center; gap: 11px; text-align: left; background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; padding: 9px 12px; cursor: pointer; border-radius: 18px; white-space: nowrap; transition: color .15s ease, background .15s ease; }
+        .wmg-nav-icon-badge { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 16px; background: var(--ink-3); color: var(--paper-dim); flex-shrink: 0; transition: background .15s ease, color .15s ease; }
         .wmg-nav-item:hover { color: var(--paper); background: var(--ink-3); }
         .wmg-nav-item.active { color: var(--paper); background: var(--brand-soft); font-weight: 700; }
         .wmg-nav-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
         .wmg-nav-more { display: none; }
         @media (max-width: 880px) {
-          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 7px 4px; border-radius: 12px; min-width: 56px; flex: 1; }
+          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 7px 4px; border-radius: 18px; min-width: 56px; flex: 1; }
           .wmg-nav-item span:last-child { font-size: 9px; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; }
           .wmg-nav-item.active { background: transparent; }
           .wmg-nav-icon-badge { width: 32px; height: 32px; }
@@ -1429,9 +1753,9 @@ export default function App() {
         }
 
         .wmg-more-sheet-backdrop { position: fixed; inset: 0; background: rgba(23,35,31,0.4); z-index: 40; display: flex; align-items: flex-end; }
-        .wmg-more-sheet { width: 100%; background: #FFFFFF; border-radius: 22px 22px 0 0; padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 30px rgba(23,35,31,0.2); }
+        .wmg-more-sheet { width: 100%; background: var(--ink-2); border-radius: 22px 22px 0 0; padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 30px rgba(23,35,31,0.2); }
         .wmg-more-sheet-handle { width: 36px; height: 4px; border-radius: 3px; background: var(--hair); margin: 6px auto 14px; }
-        .wmg-more-sheet-item { display: flex; align-items: center; gap: 14px; width: 100%; background: transparent; border: none; padding: 10px 6px; border-radius: 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 600; color: var(--paper); text-align: left; cursor: pointer; }
+        .wmg-more-sheet-item { display: flex; align-items: center; gap: 14px; width: 100%; background: transparent; border: none; padding: 10px 6px; border-radius: 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 600; color: var(--paper); text-align: left; cursor: pointer; }
         .wmg-more-sheet-item.active { background: var(--brand-soft); }
         .wmg-more-sheet-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
         @media (min-width: 881px) { .wmg-more-sheet-backdrop { display: none; } }
@@ -1465,20 +1789,37 @@ export default function App() {
         .wmg-content { padding: 24px 32px 0; }
         @media (max-width: 880px) { .wmg-content { padding: 4px 18px 0; } }
 
-        .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 20px; padding: 22px; box-shadow: 0 1px 2px rgba(15,30,25,0.03), 0 10px 24px -12px rgba(15,30,25,0.10); }
+        .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 23px; padding: 22px; box-shadow: 0 1px 2px rgba(15,30,25,0.03), 0 10px 24px -12px rgba(15,30,25,0.10); }
 
-        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 24px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; }
+        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
         .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
         .wmg-hero-label strong { font-weight: 800; }
         .wmg-hero-main-row { display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
-        .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; }
+        .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
         .wmg-hero-net-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 27px; font-weight: 800; }
         .wmg-hero-net-sub { font-size: 10.5px; opacity: 0.75; margin-top: 2px; }
         .wmg-hero-score-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 800; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,0.2); }
 
+        .wmg-hero-organic { background: var(--ink-3); color: var(--paper); box-shadow: none; border: 1px solid var(--hair); overflow: hidden; }
+        .wmg-hero-organic::after { top: -70px; right: -90px; width: 260px; height: 260px; background: radial-gradient(circle, var(--coral-soft), transparent 70%); opacity: 0.6; }
+        .wmg-hero-organic::before { content: ""; position: absolute; bottom: -90px; left: -70px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, var(--brand-soft), transparent 72%); pointer-events: none; }
+        .wmg-hero-organic .wmg-hero-label { color: var(--paper); opacity: 0.85; margin-bottom: 0; margin-top: 18px; }
+        .wmg-hero-ring-row { display: flex; align-items: center; gap: 18px; position: relative; z-index: 1; }
+        .wmg-hero-ring-side { flex: 1; min-width: 0; }
+        .wmg-hero-organic .wmg-hero-net-label { color: var(--paper-dim); opacity: 1; }
+        .wmg-hero-organic .wmg-hero-net-val { color: var(--paper); }
+        .wmg-hero-organic .wmg-hero-net-sub { color: var(--paper-dim); opacity: 1; }
+        .wmg-growth-ring { position: relative; flex-shrink: 0; }
+        .wmg-growth-ring svg circle { transition: stroke-dashoffset 0.8s cubic-bezier(0.34,1,0.4,1); }
+        .wmg-growth-ring-inner { position: absolute; top: 0; left: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .wmg-hero-ring-score { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; color: var(--paper); line-height: 1; }
+        .wmg-hero-ring-score-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); font-weight: 700; margin-top: 2px; }
+
+        .wmg-root { background-image: radial-gradient(circle at 8% 4%, var(--brand-soft) 0%, transparent 34%), radial-gradient(circle at 96% 22%, var(--coral-soft) 0%, transparent 28%), radial-gradient(circle at 50% 100%, var(--gold-soft) 0%, transparent 30%); background-attachment: fixed; background-repeat: no-repeat; }
+
         .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 8px; padding: 2px 2px 8px; }
-        .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 14px; padding: 10px 14px; min-width: 92px; }
+        .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 19px; padding: 10px 14px; min-width: 92px; }
         .wmg-chip-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--paper-dim); white-space: nowrap; }
         .wmg-chip-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
 
@@ -1510,7 +1851,7 @@ export default function App() {
         @media (max-width: 560px) { .wmg-nw-grid { grid-template-columns: repeat(2, 1fr); } }
         .wmg-stat { padding: 18px 18px; position: relative; }
         .wmg-stat .wmg-eyebrow { color: var(--paper-dim); margin-bottom: 6px; font-size: 10.5px; font-weight: 600; }
-        .wmg-stat-icon-badge { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; margin-bottom: 12px; }
+        .wmg-stat-icon-badge { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 16px; margin-bottom: 12px; }
         .wmg-stat-icon-badge.tone-gold { background: var(--gold-soft); color: var(--gold); }
         .wmg-stat-icon-badge.tone-sage { background: var(--sage-soft); color: var(--sage); }
         .wmg-stat-icon-badge.tone-rust { background: var(--rust-soft); color: var(--rust); }
@@ -1527,7 +1868,7 @@ export default function App() {
         .wmg-networth-card { grid-column: span 2; background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 70%); }
         @media (max-width: 560px) { .wmg-networth-card { grid-column: span 2; } }
 
-        .wmg-flow-bar { display: flex; width: 100%; height: 38px; border-radius: 12px; overflow: hidden; }
+        .wmg-flow-bar { display: flex; width: 100%; height: 38px; border-radius: 18px; overflow: hidden; }
         .wmg-flow-income-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
         .wmg-flow-income-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--paper-dim); }
         .wmg-flow-income-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; color: var(--paper); }
@@ -1559,7 +1900,7 @@ export default function App() {
         .wmg-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
         @media (max-width: 780px) { .wmg-three-col { grid-template-columns: 1fr; } }
 
-        .wmg-select { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 10px; padding: 10px 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
+        .wmg-select { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 16px; padding: 10px 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
         .wmg-slider-row { display: flex; align-items: center; gap: 14px; }
         .wmg-slider { flex: 1; accent-color: var(--brand); }
         .wmg-slider-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--brand); min-width: 60px; text-align: right; }
@@ -1575,13 +1916,13 @@ export default function App() {
         .wmg-progress-fill.tone-sage { background: linear-gradient(90deg, var(--brand), var(--sage)); }
 
         .wmg-sub-list { display: flex; flex-direction: column; gap: 8px; }
-        .wmg-sub-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--ink-3); border-radius: 14px; }
+        .wmg-sub-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--ink-3); border-radius: 19px; }
         .wmg-sub-row.cancelled { opacity: 0.4; }
         .wmg-sub-left { display: flex; align-items: center; gap: 10px; }
         .wmg-sub-name { font-size: 13.5px; font-weight: 500; }
         .wmg-flag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--coral-text); background: var(--coral-soft); border-radius: 999px; padding: 3px 9px; }
         .wmg-sub-amount { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; }
-        .wmg-toggle-btn { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; font-weight: 700; border: 1px solid var(--hair); background: #FFFFFF; color: var(--paper); padding: 6px 12px; border-radius: 999px; cursor: pointer; margin-left: 14px; }
+        .wmg-toggle-btn { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 10.5px; font-weight: 700; border: 1px solid var(--hair); background: var(--ink-2); color: var(--paper); padding: 6px 12px; border-radius: 999px; cursor: pointer; margin-left: 14px; }
         .wmg-toggle-btn.is-cancelled { border-color: var(--sage); color: var(--sage); }
         .wmg-subs-total { display: flex; justify-content: space-between; margin-top: 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; color: var(--paper-dim); font-weight: 600; }
 
@@ -1604,10 +1945,10 @@ export default function App() {
         .wmg-infotip-btn-light { border-color: rgba(255,255,255,0.6); color: rgba(255,255,255,0.9); }
         .wmg-infotip-btn-light:hover, .wmg-infotip-btn-light:focus { border-color: #FFFFFF; color: #FFFFFF; }
         .wmg-hero-score-wrap { display: flex; align-items: center; gap: 4px; }
-        .wmg-infotip-bubble { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: var(--paper); color: var(--ink); font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: normal; line-height: 1.5; padding: 10px 12px; border-radius: 10px; box-shadow: 0 8px 20px rgba(23,35,31,0.25); }
+        .wmg-infotip-bubble { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: var(--paper); color: var(--ink); font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: normal; line-height: 1.5; padding: 10px 12px; border-radius: 16px; box-shadow: 0 8px 20px rgba(23,35,31,0.25); }
         .wmg-infotip-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--paper); }
         .wmg-field { margin-bottom: 12px; }
-        .wmg-input { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 10px; padding: 10px 11px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
+        .wmg-input { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 16px; padding: 10px 11px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
         .wmg-input:focus, .wmg-select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
         .wmg-textarea { min-height: 92px; resize: vertical; line-height: 1.6; }
         .wmg-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1615,8 +1956,8 @@ export default function App() {
         .wmg-array-editor { margin-bottom: 6px; }
         .wmg-array-title { font-size: 11.5px; color: var(--paper-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif;}
         .wmg-array-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-        .wmg-icon-btn { background: var(--rust-soft); border: none; color: var(--rust); border-radius: 9px; width: 34px; height: 34px; cursor: pointer; flex-shrink: 0; font-weight: 700; }
-        .wmg-add-btn { background: transparent; border: 1.5px dashed var(--hair); color: var(--paper-dim); border-radius: 12px; padding: 10px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; width: 100%; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .wmg-icon-btn { background: var(--rust-soft); border: none; color: var(--rust); border-radius: 15px; width: 34px; height: 34px; cursor: pointer; flex-shrink: 0; font-weight: 700; }
+        .wmg-add-btn { background: transparent; border: 1.5px dashed var(--hair); color: var(--paper-dim); border-radius: 18px; padding: 10px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; width: 100%; font-family: 'Plus Jakarta Sans', sans-serif; }
         .wmg-add-btn:hover { border-color: var(--brand); color: var(--brand); }
 
         .wmg-cat-card { margin-bottom: 14px; }
@@ -1646,7 +1987,7 @@ export default function App() {
         .wmg-debt-card-balance-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 800; color: var(--paper); }
         .wmg-debt-card-edit { background: var(--ink-3); border: 1px solid var(--hair); color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11.5px; font-weight: 700; padding: 6px 12px; border-radius: 999px; cursor: pointer; flex-shrink: 0; }
         .wmg-debt-card-edit:hover { background: var(--brand-soft); border-color: var(--brand); }
-        .wmg-debt-nudge { margin-top: 14px; padding: 12px 14px; background: var(--gold-soft); border-radius: 14px; font-size: 12.5px; color: var(--paper); line-height: 1.5; }
+        .wmg-debt-nudge { margin-top: 14px; padding: 12px 14px; background: var(--gold-soft); border-radius: 19px; font-size: 12.5px; color: var(--paper); line-height: 1.5; }
         .wmg-inline-input { width: 90px; }
 
         .wmg-pension-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
@@ -1655,7 +1996,7 @@ export default function App() {
         .wmg-pension-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; margin-bottom: 4px; }
         .wmg-pension-income { font-size: 12px; color: var(--paper-dim); }
 
-        .wmg-tooltip { background: #FFFFFF; border: 1px solid var(--hair); border-radius: 12px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 24px rgba(15,30,25,0.12); }
+        .wmg-tooltip { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 18px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 24px rgba(15,30,25,0.12); }
         .wmg-tooltip-label { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--paper-dim); margin-bottom: 6px; font-size: 11px; font-weight: 600; }
         .wmg-tooltip-row { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
         .wmg-tooltip-name { color: var(--paper-dim); }
@@ -1674,8 +2015,8 @@ export default function App() {
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
 
         .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 55%, #1AA187 100%); }
-        .wmg-onboard-card { width: 100%; max-width: 360px; background: #FFFFFF; border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); }
-        .wmg-onboard-icon { width: 56px; height: 56px; border-radius: 16px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+        .wmg-onboard-card { width: 100%; max-width: 360px; background: var(--ink-2); border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); }
+        .wmg-onboard-icon { width: 56px; height: 56px; border-radius: 21px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
         .wmg-onboard-icon svg { width: 26px; height: 26px; }
         .wmg-onboard-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 20px; }
         .wmg-onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hair); transition: all .2s ease; }
@@ -1687,11 +2028,33 @@ export default function App() {
         .wmg-onboard-next { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 30px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; }
         .wmg-onboard-next:hover { background: var(--brand-2); }
 
+        .wmg-wizard-card { width: 100%; max-width: 460px; background: var(--ink-2); border-radius: 24px; padding: 30px 26px 26px; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); max-height: 88vh; overflow-y: auto; }
+        .wmg-wizard-progress { margin-bottom: 22px; }
+        .wmg-wizard-progress-track { height: 5px; border-radius: 999px; background: var(--ink-3); overflow: hidden; }
+        .wmg-wizard-progress-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand-2)); border-radius: 999px; transition: width .25s ease; }
+        .wmg-wizard-progress-label { font-size: 10.5px; font-weight: 700; color: var(--paper-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 7px; }
+        .wmg-wizard-step { text-align: left; }
+        .wmg-wizard-step .wmg-onboard-icon { margin: 0 auto 18px; }
+        .wmg-wizard-step .wmg-onboard-title, .wmg-wizard-step .wmg-onboard-body { text-align: center; }
+        .wmg-wizard-step-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 4px; color: var(--paper); }
+        .wmg-wizard-step-sub { font-size: 12.5px; line-height: 1.5; color: var(--paper-dim); margin-bottom: 18px; }
+        .wmg-wizard-toggle { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; color: var(--paper); margin-bottom: 16px; cursor: pointer; }
+        .wmg-wizard-toggle input { width: 16px; height: 16px; accent-color: var(--brand); }
+        .wmg-wizard-list { margin-bottom: 6px; }
+        .wmg-wizard-list-empty { font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; }
+        .wmg-wizard-list-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+        .wmg-wizard-list-remove { flex-shrink: 0; width: 26px; height: 26px; border-radius: 14px; border: 1px solid var(--hair); background: transparent; color: var(--paper-dim); font-size: 16px; line-height: 1; cursor: pointer; }
+        .wmg-wizard-list-remove:hover { background: var(--rust-soft); color: var(--rust); border-color: var(--rust-soft); }
+        .wmg-wizard-list-add { background: var(--ink-3); border: 1px dashed var(--hair); color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; font-weight: 700; border-radius: 16px; padding: 9px; width: 100%; cursor: pointer; margin-bottom: 18px; }
+        .wmg-wizard-list-add:hover { background: var(--brand-soft); }
+        .wmg-wizard-back { background: transparent; border: 1px solid var(--hair); color: var(--paper); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 13px 20px; cursor: pointer; }
+        @media (max-width: 480px) { .wmg-onboard { padding: 14px; } .wmg-wizard-card { padding: 24px 18px 20px; } .wmg-onboard-actions { flex-wrap: wrap; } }
+
         .wmg-celebration { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 50; background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #FFFFFF; padding: 13px 22px 13px 16px; border-radius: 999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; box-shadow: 0 14px 32px -10px rgba(10,70,56,0.5); display: flex; align-items: center; gap: 10px; max-width: 90vw; animation: wmg-celebration-in 0.5s cubic-bezier(0.34,1.56,0.64,1); }
         .wmg-celebration-icon { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #FFFFFF; }
         @keyframes wmg-celebration-in { from { transform: translate(-50%, -24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 
-        .wmg-feedback-modal { width: 100%; max-width: 380px; background: #FFFFFF; border-radius: 22px; padding: 26px 24px; margin: 16px; box-shadow: 0 20px 44px -14px rgba(15,30,25,0.4); }
+        .wmg-feedback-modal { width: 100%; max-width: 380px; background: var(--ink-2); border-radius: 22px; padding: 26px 24px; margin: 16px; box-shadow: 0 20px 44px -14px rgba(15,30,25,0.4); }
         .wmg-feedback-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 6px; }
         .wmg-feedback-sub { font-size: 13px; color: var(--paper-dim); line-height: 1.55; margin-bottom: 16px; }
         .wmg-feedback-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
@@ -1700,7 +2063,7 @@ export default function App() {
       `}</style>
 
       {storageStatus !== "loading" && !profile.onboarded ? (
-        <Onboarding onFinish={finishOnboarding} />
+        <SetupWizard onFinish={setProfile} />
       ) : (
       <div className="wmg-app">
         {/* sidebar */}
@@ -2006,24 +2369,26 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
 
   return (
     <>
-      <div className="wmg-hero wmg-hero-compact">
+      <div className="wmg-hero wmg-hero-organic">
+        <div className="wmg-hero-ring-row">
+          <GrowthRing progress={score / 100} size={92} tone={scoreTone}>
+            <div className="wmg-hero-ring-score">{Math.round(animatedScore)}</div>
+            <div className="wmg-hero-ring-score-label">score</div>
+          </GrowthRing>
+          <div className="wmg-hero-ring-side">
+            <div className="wmg-hero-net-label">
+              Net worth <InfoTip text={scoreExplainer} light />
+            </div>
+            <div className="wmg-hero-net-val">{gbp(Math.round(animatedNetWorth))}</div>
+            <div className="wmg-hero-net-sub">What you own, minus what you owe</div>
+          </div>
+        </div>
         <div className="wmg-hero-label">
           {gap > 0 ? (
             <>You're <strong>{gbp(Math.round(gap))}/month</strong> away from being financially comfortable.</>
           ) : (
             <>You're <strong>{gbp(Math.round(-gap))}/month</strong> past "comfortable." Put the surplus to work.</>
           )}
-        </div>
-        <div className="wmg-hero-main-row">
-          <div>
-            <div className="wmg-hero-net-label">Net worth</div>
-            <div className="wmg-hero-net-val">{gbp(Math.round(animatedNetWorth))}</div>
-            <div className="wmg-hero-net-sub">What you own, minus what you owe</div>
-          </div>
-          <div className="wmg-hero-score-wrap">
-            <div className={`wmg-hero-score-badge tone-${scoreTone}`}>{Math.round(animatedScore)}/100</div>
-            <InfoTip text={scoreExplainer} light />
-          </div>
         </div>
       </div>
 
@@ -2093,7 +2458,7 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
   );
 }
 
-const CATEGORY_COLORS = ["#0F6B5C", "#FF6B4A", "#B7924B", "#5B6473", "#7C5CBF", "#2E86AB", "#C1594A", "#3D8F72", "#A64D79", "#8B95A3"];
+const CATEGORY_COLORS = ["#1F5D46", "#FF8A65", "#B7924B", "#5B6473", "#7C5CBF", "#2E86AB", "#C1594A", "#3D8F72", "#A64D79", "#8B95A3"];
 
 function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
   const categoryChartData = useMemo(() => {
@@ -2279,24 +2644,9 @@ function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
   return (
     <Card className="wmg-debt-card">
       <div className="wmg-debt-card-top">
-        <div className="wmg-debt-ring">
-          <svg width="76" height="76" viewBox="0 0 76 76">
-            <circle cx="38" cy="38" r="30" stroke="var(--hair)" strokeWidth="7" fill="none" />
-            <circle
-              cx="38"
-              cy="38"
-              r="30"
-              stroke="var(--brand)"
-              strokeWidth="7"
-              fill="none"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - progress)}
-              strokeLinecap="round"
-              transform="rotate(-90 38 38)"
-            />
-          </svg>
+        <GrowthRing progress={progress} size={76} tone="brand">
           <div className="wmg-debt-ring-label">{Math.round(progress * 100)}%</div>
-        </div>
+        </GrowthRing>
         <div className="wmg-debt-card-info">
           <input className="wmg-goal-name-input" value={debt.name} onChange={(e) => onEdit("name", e.target.value)} />
           <div className="wmg-debt-card-balance">
@@ -2779,12 +3129,12 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
             <LineChart data={pensionScenarios.series} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="#E2E5EA" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E2E5EA" />
-              <YAxis tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E2E5EA" width={54} />
+              <CartesianGrid stroke="#E3DAC2" vertical={false} />
+              <XAxis dataKey="year" tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E3DAC2" />
+              <YAxis tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E3DAC2" width={54} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
-              <Line type="monotone" dataKey="high" name="High" stroke="#227A56" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="high" name="High" stroke="#3E8F63" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="medium" name="Medium" stroke="#9A752B" strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey="low" name="Low" stroke="#B23B2E" strokeWidth={2} dot={false} />
             </LineChart>
@@ -2825,7 +3175,7 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
     };
   });
 
-  const SCENARIO_COLORS = ["#0F6B5C", "#FF6B4A", "#97721F", "#1E8F5F", "#D6483A", "#5B6473"];
+  const SCENARIO_COLORS = ["#1F5D46", "#FF8A65", "#97721F", "#3E8F63", "#D6483A", "#5B6473"];
   const scenarioForecasts = useMemo(
     () => profile.scenarios.map((s) => ({ ...s, result: runForecast(profile, totals, horizonYears, s.allocationPct, 0) })),
     [profile, totals, horizonYears]
@@ -2893,26 +3243,26 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
         <div style={{ width: "100%", height: 320, marginTop: 10 }}>
           <ResponsiveContainer>
             <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="#E2E5EA" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E2E5EA" />
-              <YAxis tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E2E5EA" width={54} />
+              <CartesianGrid stroke="#E3DAC2" vertical={false} />
+              <XAxis dataKey="year" tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E3DAC2" />
+              <YAxis tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E3DAC2" width={54} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
               {forecast.resolvedLifeEvents?.map((e) => (
                 <ReferenceLine
                   key={e.id}
                   x={Math.round((e.month / 12) * 10) / 10}
-                  stroke={e.type === "expense" ? "#D6483A" : "#1E8F5F"}
+                  stroke={e.type === "expense" ? "#D6483A" : "#3E8F63"}
                   strokeDasharray="3 3"
-                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D6483A" : "#1E8F5F" }}
+                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D6483A" : "#3E8F63" }}
                 />
               ))}
               <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#0F6B5C" fillOpacity={0.15} isAnimationActive={false} />
-              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#0F6B5C" strokeWidth={2.5} dot={false} />
+              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#1F5D46" fillOpacity={0.15} isAnimationActive={false} />
+              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#1F5D46" strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#B23B2E" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#227A56" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="#626B7A" strokeWidth={2} dot={false} strokeDasharray="4 3" />
+              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#3E8F63" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="#6B7C6F" strokeWidth={2} dot={false} strokeDasharray="4 3" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -2991,9 +3341,9 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
           <div style={{ width: "100%", height: 260, marginBottom: 16 }}>
             <ResponsiveContainer>
               <LineChart data={scenarioChartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="#E2E5EA" vertical={false} />
-                <XAxis dataKey="year" tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E2E5EA" />
-                <YAxis tick={{ fill: "#626B7A", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E2E5EA" width={54} />
+                <CartesianGrid stroke="#E3DAC2" vertical={false} />
+                <XAxis dataKey="year" tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E3DAC2" />
+                <YAxis tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E3DAC2" width={54} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
                 {scenarioForecasts.map((s, idx) => (
