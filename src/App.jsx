@@ -1828,6 +1828,29 @@ export default function App() {
 
         .wmg-root { background-image: radial-gradient(circle at 8% 4%, var(--brand-soft) 0%, transparent 34%), radial-gradient(circle at 96% 22%, var(--coral-soft) 0%, transparent 28%), radial-gradient(circle at 50% 100%, var(--gold-soft) 0%, transparent 30%); background-attachment: fixed; background-repeat: no-repeat; }
 
+        .wmg-mosaic-top { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .wmg-mosaic-hero { background: var(--brand); border-radius: 22px; padding: 18px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; min-height: 132px; position: relative; overflow: hidden; }
+        .wmg-mosaic-hero::after { content: ""; position: absolute; top: -50px; right: -50px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%); pointer-events: none; }
+        .wmg-mosaic-hero-label { font-size: 11px; opacity: 0.75; position: relative; z-index: 1; }
+        .wmg-mosaic-hero-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; line-height: 1.1; position: relative; z-index: 1; }
+        .wmg-mosaic-hero-sub { font-size: 11px; opacity: 0.8; margin-top: 4px; position: relative; z-index: 1; }
+        .wmg-mosaic-side { display: flex; flex-direction: column; gap: 10px; }
+        .wmg-mosaic-score-tile { position: relative; background: var(--ink-3); border: none; border-radius: 18px; padding: 10px 12px; flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: inherit; text-align: left; }
+        .wmg-mosaic-score-tile:hover { background: var(--brand-soft); }
+        .wmg-mosaic-score-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; color: var(--paper); line-height: 1; }
+        .wmg-mosaic-score-label { font-size: 10px; color: var(--paper-dim); margin-top: 2px; }
+        .wmg-mosaic-score-bubble { bottom: auto; top: calc(100% + 8px); left: 0; transform: none; width: 240px; }
+        .wmg-mosaic-score-bubble::after { top: auto; bottom: 100%; left: 24px; transform: none; border-top-color: transparent; border-bottom-color: var(--paper); }
+        .wmg-mosaic-tile { background: var(--ink-3); border-radius: 18px; padding: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .wmg-mosaic-tile-coral { background: var(--coral-soft); }
+        .wmg-mosaic-tile-label { font-size: 10px; color: var(--paper-dim); margin-bottom: 2px; }
+        .wmg-mosaic-tile-coral .wmg-mosaic-tile-label { color: var(--coral-text); opacity: 0.8; }
+        .wmg-mosaic-tile-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--paper); }
+        .wmg-mosaic-quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+        .wmg-mosaic-quick-tile { background: var(--ink-3); border-radius: 16px; padding: 12px 8px; text-align: center; color: var(--brand-2); }
+        .wmg-mosaic-quick-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--paper); margin-top: 5px; }
+        .wmg-mosaic-quick-label { font-size: 9.5px; color: var(--paper-dim); margin-top: 1px; }
+
         .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 8px; padding: 2px 2px 8px; }
         .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 19px; padding: 10px 14px; min-width: 92px; }
         .wmg-chip-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--paper-dim); white-space: nowrap; }
@@ -2387,46 +2410,71 @@ export default function App() {
 
 function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, onNavigate }) {
   const [showAllTips, setShowAllTips] = useState(false);
+  const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
   const scoreExplainer =
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
+  const quickTiles = [
+    { label: "Available", value: gbp(totals.available), icon: "networth" },
+    { label: "Debt", value: gbp(totals.totalDebt), icon: "debt" },
+    { label: "Savings", value: gbp(profile.savings.balance), icon: "savings" },
+  ];
+
   const chips = [
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—" },
     { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—" },
-    { label: "Available / mo", value: gbp(totals.available) },
-    { label: "Debt", value: gbp(totals.totalDebt) },
     { label: "Home equity", value: gbp(totals.homeEquity) },
-    { label: "Savings", value: gbp(profile.savings.balance) },
     { label: "Pension", value: gbp(profile.pension.balance) },
     { label: "Investments", value: gbp(profile.investments.balance) },
   ];
 
   return (
     <>
-      <div className="wmg-hero wmg-hero-organic">
-        <div className="wmg-hero-ring-row">
-          <GrowthRing progress={score / 100} size={92} tone={scoreTone}>
-            <div className="wmg-hero-ring-score">{Math.round(animatedScore)}</div>
-            <div className="wmg-hero-ring-score-label">score</div>
-          </GrowthRing>
-          <div className="wmg-hero-ring-side">
-            <div className="wmg-hero-net-label">
-              Net worth <InfoTip text={scoreExplainer} light />
+      <div className="wmg-mosaic-top">
+        <div className="wmg-mosaic-hero">
+          <div className="wmg-mosaic-hero-label">Net worth</div>
+          <div>
+            <div className="wmg-mosaic-hero-val">{gbp(Math.round(animatedNetWorth))}</div>
+            <div className="wmg-mosaic-hero-sub">
+              {gap > 0 ? (
+                <>{gbp(Math.round(gap))}/mo from "comfortable"</>
+              ) : (
+                <>{gbp(Math.round(-gap))}/mo past "comfortable"</>
+              )}
             </div>
-            <div className="wmg-hero-net-val">{gbp(Math.round(animatedNetWorth))}</div>
-            <div className="wmg-hero-net-sub">What you own, minus what you owe</div>
           </div>
         </div>
-        <div className="wmg-hero-label">
-          {gap > 0 ? (
-            <>You're <strong>{gbp(Math.round(gap))}/month</strong> away from being financially comfortable.</>
-          ) : (
-            <>You're <strong>{gbp(Math.round(-gap))}/month</strong> past "comfortable." Put the surplus to work.</>
-          )}
+        <div className="wmg-mosaic-side">
+          <button type="button" className="wmg-mosaic-score-tile" onClick={() => setScoreInfoOpen((o) => !o)} onBlur={() => setScoreInfoOpen(false)} aria-expanded={scoreInfoOpen}>
+            <GrowthRing progress={score / 100} size={34} tone={scoreTone} />
+            <div>
+              <div className="wmg-mosaic-score-val">{Math.round(animatedScore)}</div>
+              <div className="wmg-mosaic-score-label">score</div>
+            </div>
+            {scoreInfoOpen && (
+              <span className="wmg-infotip-bubble wmg-mosaic-score-bubble" role="tooltip">
+                {scoreExplainer}
+              </span>
+            )}
+          </button>
+          <div className="wmg-mosaic-tile wmg-mosaic-tile-coral">
+            <div className="wmg-mosaic-tile-label">Debt-free</div>
+            <div className="wmg-mosaic-tile-val">{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</div>
+          </div>
         </div>
+      </div>
+
+      <div className="wmg-mosaic-quick-row">
+        {quickTiles.map((t) => (
+          <div className="wmg-mosaic-quick-tile" key={t.label}>
+            <StatIcon name={t.icon} />
+            <div className="wmg-mosaic-quick-val">{t.value}</div>
+            <div className="wmg-mosaic-quick-label">{t.label}</div>
+          </div>
+        ))}
       </div>
 
       <div className="wmg-chip-row">
