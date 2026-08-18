@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { getData, setData, deleteData } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
+import { startBankConnection, completeBankConnection, disconnectBank, getBankConnection } from "./lib/bank";
 import {
   LineChart,
   ComposedChart,
@@ -1184,6 +1185,7 @@ function ChartTooltip({ active, payload, label }) {
 const NAV = [
   { key: "overview", label: "Overview", icon: "overview" },
   { key: "income", label: "Income & Spending", icon: "income" },
+  { key: "bank", label: "Connect Bank", icon: "bank" },
   { key: "debts", label: "Debts & Mortgage", icon: "debts" },
   { key: "goals", label: "Savings & Goals", icon: "goals" },
   { key: "pension", label: "Pension & Retirement", icon: "pension" },
@@ -1242,6 +1244,14 @@ function NavIcon({ name }) {
           <path d="M8.5 16.5h4.5" />
         </svg>
       );
+    case "bank":
+      return (
+        <svg {...common}>
+          <path d="M3 10 12 4l9 6" />
+          <path d="M4.5 10v9M9 10v9M15 10v9M19.5 10v9" />
+          <path d="M3 19.5h18" />
+        </svg>
+      );
     case "forecast":
       return (
         <svg {...common}>
@@ -1295,6 +1305,14 @@ export default function App() {
   const [storageStatus, setStorageStatus] = useState("loading"); // loading | ready | unavailable | saving | saved | error
   const hasLoaded = useRef(false);
   const saveTimer = useRef(null);
+
+  // if we've just been redirected back from a bank's consent flow, jump
+  // straight to the bank tab so it can finish confirming the connection
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("bank_callback=1")) {
+      setTab("bank");
+    }
+  }, []);
 
   // load any previously saved household data once, on mount
   useEffect(() => {
@@ -1835,12 +1853,15 @@ export default function App() {
         .wmg-mosaic-hero-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; line-height: 1.1; position: relative; z-index: 1; }
         .wmg-mosaic-hero-sub { font-size: 11px; opacity: 0.8; margin-top: 4px; position: relative; z-index: 1; }
         .wmg-mosaic-side { display: flex; flex-direction: column; gap: 10px; }
-        .wmg-mosaic-score-tile { position: relative; background: var(--ink-3); border: none; border-radius: 18px; padding: 10px 12px; flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: inherit; text-align: left; }
+        .wmg-mosaic-score-tile { position: relative; background: var(--ink-3); border: none; border-radius: 18px; padding: 10px 12px; flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
         .wmg-mosaic-score-tile:hover { background: var(--brand-soft); }
+        .wmg-score-explainer-card { margin-bottom: 10px; }
+        .wmg-score-explainer-head { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 800; color: var(--paper); margin-bottom: 8px; }
+        .wmg-score-explainer-close { background: transparent; border: none; color: var(--paper-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
+        .wmg-score-explainer-close:hover { color: var(--paper); }
+        .wmg-score-explainer-card p { font-size: 12.5px; line-height: 1.6; color: var(--paper); margin: 0; }
         .wmg-mosaic-score-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; color: var(--paper); line-height: 1; }
         .wmg-mosaic-score-label { font-size: 10px; color: var(--paper-dim); margin-top: 2px; }
-        .wmg-mosaic-score-bubble { bottom: auto; top: calc(100% + 8px); left: 0; transform: none; width: 240px; }
-        .wmg-mosaic-score-bubble::after { top: auto; bottom: 100%; left: 24px; transform: none; border-top-color: transparent; border-bottom-color: var(--paper); }
         .wmg-mosaic-tile { background: var(--ink-3); border-radius: 18px; padding: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
         .wmg-mosaic-tile-coral { background: var(--coral-soft); }
         .wmg-mosaic-tile-label { font-size: 10px; color: var(--paper-dim); margin-bottom: 2px; }
@@ -2064,6 +2085,15 @@ export default function App() {
         .wmg-btn-primary { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 22px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; }
         .wmg-btn-primary:hover { background: var(--brand-2); }
         .wmg-btn-primary:disabled { background: var(--hair); color: var(--paper-dim); cursor: not-allowed; }
+
+        .wmg-bank-connected-row { display: flex; align-items: center; gap: 12px; }
+        .wmg-bank-connected-icon { width: 44px; height: 44px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-2); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .wmg-bank-connected-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 800; color: var(--paper); }
+        .wmg-bank-list { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+        .wmg-bank-list-item { display: flex; align-items: center; gap: 10px; width: 100%; background: transparent; border: none; border-radius: 14px; padding: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 600; color: var(--paper); text-align: left; cursor: pointer; }
+        .wmg-bank-list-item:hover { background: var(--ink-3); }
+        .wmg-bank-list-item:disabled { opacity: 0.6; cursor: not-allowed; }
+        .wmg-bank-list-logo { width: 26px; height: 26px; border-radius: 7px; object-fit: contain; flex-shrink: 0; }
 
         .wmg-reader-dropzone { border: 2px dashed var(--hair); border-radius: 18px; padding: 32px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
         .wmg-reader-dropzone:hover { border-color: var(--brand-2); background: var(--brand-soft); }
@@ -2326,6 +2356,8 @@ export default function App() {
               />
             )}
 
+            {tab === "bank" && <BankTab />}
+
             {tab === "debts" && (
               <DebtsTab
                 profile={profile}
@@ -2448,17 +2480,12 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
           </div>
         </div>
         <div className="wmg-mosaic-side">
-          <button type="button" className="wmg-mosaic-score-tile" onClick={() => setScoreInfoOpen((o) => !o)} onBlur={() => setScoreInfoOpen(false)} aria-expanded={scoreInfoOpen}>
+          <button type="button" className="wmg-mosaic-score-tile" onClick={() => setScoreInfoOpen((o) => !o)} aria-expanded={scoreInfoOpen}>
             <GrowthRing progress={score / 100} size={34} tone={scoreTone} />
             <div>
               <div className="wmg-mosaic-score-val">{Math.round(animatedScore)}</div>
               <div className="wmg-mosaic-score-label">score</div>
             </div>
-            {scoreInfoOpen && (
-              <span className="wmg-infotip-bubble wmg-mosaic-score-bubble" role="tooltip">
-                {scoreExplainer}
-              </span>
-            )}
           </button>
           <div className="wmg-mosaic-tile wmg-mosaic-tile-coral">
             <div className="wmg-mosaic-tile-label">Debt-free</div>
@@ -2466,6 +2493,16 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
           </div>
         </div>
       </div>
+
+      {scoreInfoOpen && (
+        <Card className="wmg-score-explainer-card">
+          <div className="wmg-score-explainer-head">
+            <span>How your score is worked out</span>
+            <button type="button" className="wmg-score-explainer-close" onClick={() => setScoreInfoOpen(false)} aria-label="Close">×</button>
+          </div>
+          <p>{scoreExplainer}</p>
+        </Card>
+      )}
 
       <div className="wmg-mosaic-quick-row">
         {quickTiles.map((t) => (
@@ -3658,6 +3695,144 @@ function fileToBase64(file) {
     reader.readAsDataURL(file);
   });
 }
+
+function BankTab() {
+  // loading: checking for an existing connection on mount
+  // idle: nothing connected yet
+  // connecting: redirecting out to the bank's hosted consent page
+  // confirming: just back from the bank, confirming the connection worked
+  // connected: linked and ready
+  // error: something went wrong
+  const [phase, setPhase] = useState("loading");
+  const [connection, setConnection] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function init() {
+      const justReturned = window.location.search.includes("bank_callback=1");
+      if (justReturned) {
+        setPhase("confirming");
+        try {
+          const result = await completeBankConnection();
+          if (cancelled) return;
+          const url = new URL(window.location.href);
+          url.searchParams.delete("bank_callback");
+          window.history.replaceState({}, "", url.pathname + url.search);
+          if (result.linked) {
+            const conn = await getBankConnection();
+            setConnection(conn);
+            setPhase("connected");
+          } else {
+            setErrorMsg(result.message || "The connection wasn't completed.");
+            setPhase("error");
+          }
+        } catch (e) {
+          if (!cancelled) {
+            setErrorMsg(e.message || "Something went wrong confirming the connection.");
+            setPhase("error");
+          }
+        }
+        return;
+      }
+
+      try {
+        const conn = await getBankConnection();
+        if (cancelled) return;
+        if (conn && conn.status === "linked") {
+          setConnection(conn);
+          setPhase("connected");
+        } else {
+          setPhase("idle");
+        }
+      } catch (e) {
+        if (!cancelled) setPhase("idle");
+      }
+    }
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const connect = async () => {
+    setPhase("connecting");
+    setErrorMsg("");
+    try {
+      const { hostedUrl } = await startBankConnection();
+      window.location.href = hostedUrl;
+    } catch (e) {
+      setErrorMsg(e.message || "Could not start the connection.");
+      setPhase("error");
+    }
+  };
+
+  const disconnect = async () => {
+    setPhase("confirming");
+    try {
+      await disconnectBank();
+      setConnection(null);
+      setPhase("idle");
+    } catch (e) {
+      setErrorMsg(e.message || "Could not disconnect.");
+      setPhase("connected");
+    }
+  };
+
+  return (
+    <>
+      <div className="wmg-section-title">Connect your bank</div>
+      <div className="wmg-section-desc">
+        Link a bank account to automatically see where your money actually goes, alongside the numbers you enter
+        yourself. This uses Yapily, an FCA-regulated Open Banking provider — Wealth Within never sees or stores your
+        banking login details. You can disconnect at any time.
+      </div>
+
+      {phase === "loading" && <Card>Checking for an existing connection…</Card>}
+
+      {(phase === "confirming" || phase === "connecting") && (
+        <Card>{phase === "connecting" ? "Taking you to your bank…" : "Confirming your connection…"}</Card>
+      )}
+
+      {phase === "connected" && connection && (
+        <Card>
+          <div className="wmg-bank-connected-row">
+            <div className="wmg-bank-connected-icon">
+              <i className="ti ti-building-bank" aria-hidden="true" />
+            </div>
+            <div>
+              <div className="wmg-bank-connected-name">{connection.institution_name || "Your bank"}</div>
+              <div className="wmg-sub">Connected</div>
+            </div>
+          </div>
+          <button className="wmg-onboard-skip" style={{ marginTop: 16 }} onClick={disconnect}>
+            Disconnect
+          </button>
+        </Card>
+      )}
+
+      {phase === "idle" && (
+        <Card>
+          <p style={{ marginBottom: 16 }}>No bank connected yet.</p>
+          <button className="wmg-btn-primary" onClick={connect}>Connect a bank</button>
+        </Card>
+      )}
+
+      {phase === "error" && (
+        <Card>
+          <p style={{ marginBottom: 16, color: "var(--rust)" }}>{errorMsg}</p>
+          <button className="wmg-btn-primary" onClick={() => setPhase("idle")}>Try again</button>
+        </Card>
+      )}
+
+      <div className="wmg-footnote" style={{ marginTop: 20 }}>
+        This is an early version of bank linking — it confirms the connection but doesn't pull in transactions yet.
+        That's coming next.
+      </div>
+    </>
+  );
+}
+
 
 function PensionReaderTab({ onUseInPension }) {
   const [file, setFile] = useState(null);
