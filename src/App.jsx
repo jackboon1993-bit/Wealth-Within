@@ -598,7 +598,7 @@ function Gauge({ score, variant = "light" }) {
   const isHero = variant === "hero";
   const trackColor = isHero ? "rgba(255,255,255,0.28)" : "#EDE7DA";
   const needleColor = isHero ? "#FFFFFF" : "#142420";
-  const hubFill = isHero ? "#FF8A65" : "#1F5D46";
+  const hubFill = isHero ? "#FF9166" : "#8B5CF6";
   const hubStroke = isHero ? "#0B5A48" : "#FFFFFF";
   const gradId = isHero ? "gaugeGradHero" : "gaugeGrad";
 
@@ -608,15 +608,15 @@ function Gauge({ score, variant = "light" }) {
         <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
           {isHero ? (
             <>
-              <stop offset="0%" stopColor="#FF8A65" />
+              <stop offset="0%" stopColor="#FF9166" />
               <stop offset="50%" stopColor="#FFD9A0" />
               <stop offset="100%" stopColor="#BFF7E3" />
             </>
           ) : (
             <>
               <stop offset="0%" stopColor="#D6483A" />
-              <stop offset="50%" stopColor="#9A752B" />
-              <stop offset="100%" stopColor="#1F5D46" />
+              <stop offset="50%" stopColor="#FFCE6B" />
+              <stop offset="100%" stopColor="#8B5CF6" />
             </>
           )}
         </linearGradient>
@@ -883,6 +883,7 @@ function SetupWizard({ onFinish }) {
   const dataStepPos = WIZARD_DATA_STEPS.indexOf(step); // -1 on welcome/done
 
   const [income, setIncome] = useState(0);
+  const [spendingEstimate, setSpendingEstimate] = useState(0);
 
   const [hasMortgage, setHasMortgage] = useState(false);
   const [mortgage, setMortgage] = useState({ balance: 0, rate: 4.5, payment: 0 });
@@ -905,6 +906,24 @@ function SetupWizard({ onFinish }) {
     onFinish((p) => ({
       ...p,
       income,
+      expenseCategories:
+        spendingEstimate > 0
+          ? [
+              {
+                id: nextId(),
+                name: "Getting started",
+                type: "essential",
+                items: [
+                  {
+                    id: nextId(),
+                    name: "Estimated spending (from setup)",
+                    amount: spendingEstimate,
+                    isOnboardingEstimate: true,
+                  },
+                ],
+              },
+            ]
+          : p.expenseCategories,
       mortgage: hasMortgage
         ? { ...p.mortgage, balance: mortgage.balance, rate: mortgage.rate, payment: mortgage.payment, originalBalance: mortgage.balance, lastConfirmedAt: new Date().toISOString() }
         : { ...p.mortgage, balance: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() },
@@ -957,7 +976,7 @@ function SetupWizard({ onFinish }) {
 
         {step === "income" && (
           <div className="wmg-wizard-step">
-            <h2 className="wmg-wizard-step-title">Your income</h2>
+            <h2 className="wmg-wizard-step-title">Income & spending</h2>
             <p className="wmg-wizard-step-sub">Take-home pay, after tax, from all sources.</p>
             <Field label="Monthly income">
               <input
@@ -967,6 +986,19 @@ function SetupWizard({ onFinish }) {
                 value={income}
                 onChange={(e) => setIncome(Number(e.target.value))}
                 placeholder="e.g. 3200"
+              />
+            </Field>
+            <Field
+              label="Approximate monthly spending"
+              hint="Normal household and lifestyle costs — rent, bills, food, travel, subscriptions and so on. Don't include mortgage or debt repayments, those come next. An estimate is fine — you can add the full breakdown later."
+            >
+              <input
+                className="wmg-input"
+                type="number"
+                inputMode="decimal"
+                value={spendingEstimate}
+                onChange={(e) => setSpendingEstimate(Number(e.target.value))}
+                placeholder="e.g. 1600"
               />
             </Field>
           </div>
@@ -1401,7 +1433,7 @@ function BrandMark({ size = 34 }) {
       </defs>
       <rect width="34" height="34" rx="10" fill="url(#brandMarkGrad)" />
       <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="26" cy="10" r="1.9" fill="#FF8A65" />
+      <circle cx="26" cy="10" r="1.9" fill="#FF9166" />
     </svg>
   );
 }
@@ -1888,34 +1920,34 @@ export default function App() {
   return (
     <div className="wmg-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .wmg-root {
-          --ink: #F6F1E4;
-          --ink-2: #FEFCF6;
-          --ink-3: #EDE6D2;
-          --paper: #1F3A2E;
-          --paper-dim: #6B7C6F;
-          --brand: #1F5D46;
-          --brand-2: #3E7A5C;
-          --brand-deep: #14442F;
-          --brand-soft: #E3EFE6;
-          --coral: #FF8A65;
-          --coral-soft: #FFDFCE;
-          --gold: #97721F;
-          --gold-soft: #F3E7C9;
-          --sage: #3E8F63;
-          --sage-soft: #DCF0E2;
-          --rust: #D6483A;
-          --rust-soft: #FBE2DE;
-          --slate: #5B6473;
-          --slate-soft: #E9E7DE;
-          --hair: #E3DAC2;
-          --gold-fill: #E8C878;
-          --sage-fill: #7FC4A0;
-          --rust-fill: #E8917F;
-          --slate-fill: #97A0AA;
-          --coral-text: #B23A1A;
+          --ink: #1A1A3D;
+          --ink-2: #21214A;
+          --ink-3: #2A2A5C;
+          --paper: #F3F1FF;
+          --paper-dim: #9C97C4;
+          --brand: #8B5CF6;
+          --brand-2: #FF6FA5;
+          --brand-deep: #6C4CE0;
+          --brand-soft: #322C63;
+          --coral: #FF9166;
+          --coral-soft: #3D2A22;
+          --gold: #FFCE6B;
+          --gold-soft: #3D3320;
+          --sage: #4FD1C5;
+          --sage-soft: #1F3A38;
+          --rust: #FF5C7A;
+          --rust-soft: #3D2030;
+          --slate: #A6A3D6;
+          --slate-soft: #2A2A5C;
+          --hair: #363068;
+          --gold-fill: #FFCE6B;
+          --sage-fill: #4FD1C5;
+          --rust-fill: #FF8FA6;
+          --slate-fill: #A6A3D6;
+          --coral-text: #FFB899;
           background: var(--ink);
           color: var(--paper);
           font-family: 'Plus Jakarta Sans', sans-serif;
@@ -1924,7 +1956,7 @@ export default function App() {
         }
         .wmg-root * { box-sizing: border-box; }
         .wmg-mono { font-family: 'Plus Jakarta Sans', sans-serif; font-variant-numeric: tabular-nums; }
-        .wmg-serif { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; letter-spacing: -0.01em; }
+        .wmg-serif { font-family: 'Baloo 2', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
 
         .wmg-app { display: flex; min-height: 100vh; align-items: flex-start; }
         @media (max-width: 880px) { .wmg-app { flex-direction: column; } }
@@ -1940,19 +1972,27 @@ export default function App() {
         .wmg-brand-tagline { font-size: 10.5px; color: var(--paper-dim); margin-top: 2px; letter-spacing: 0.01em; }
         @media (max-width: 880px) { .wmg-brand-block { display: none; } }
 
-        .wmg-nav { display: flex; flex-direction: column; gap: 3px; }
-        @media (max-width: 880px) { .wmg-nav { flex-direction: row; gap: 2px; justify-content: space-around; } }
-        .wmg-nav-item { display: flex; align-items: center; gap: 11px; text-align: left; background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; padding: 9px 12px; cursor: pointer; border-radius: 18px; white-space: nowrap; transition: color .15s ease, background .15s ease; }
-        .wmg-nav-icon-badge { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 16px; background: var(--ink-3); color: var(--paper-dim); flex-shrink: 0; transition: background .15s ease, color .15s ease; }
+        .wmg-nav { display: flex; flex-direction: column; gap: 6px; }
+        @media (max-width: 880px) { .wmg-nav { flex-direction: row; gap: 2px; justify-content: space-around; align-items: flex-end; } }
+        .wmg-nav-item { display: flex; align-items: center; gap: 11px; text-align: left; background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; padding: 6px 10px; cursor: pointer; border-radius: 999px; white-space: nowrap; transition: color .15s ease, background .15s ease; }
+        .wmg-nav-icon-badge { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: var(--ink-3); color: var(--paper-dim); flex-shrink: 0; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
         .wmg-nav-item:hover { color: var(--paper); background: var(--ink-3); }
-        .wmg-nav-item.active { color: var(--paper); background: var(--brand-soft); font-weight: 700; }
-        .wmg-nav-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
+        .wmg-nav-item.active { color: var(--paper); background: transparent; font-weight: 700; }
+        .wmg-nav-item.active .wmg-nav-icon-badge { background: linear-gradient(135deg, #A78BFA, #7C4DFF); color: #FFFFFF; box-shadow: 0 6px 18px rgba(124,77,255,0.45); }
+        .wmg-nav-item.active:nth-of-type(2) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF9166, #FF6B4A); box-shadow: 0 6px 18px rgba(255,107,74,0.4); }
+        .wmg-nav-item.active:nth-of-type(3) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF7AB0, #FF3D81); box-shadow: 0 6px 18px rgba(255,61,129,0.4); }
+        .wmg-nav-item.active:nth-of-type(4) .wmg-nav-icon-badge { background: linear-gradient(135deg, #4FD1C5, #17A398); box-shadow: 0 6px 18px rgba(23,163,152,0.4); }
+        .wmg-nav-item.active:nth-of-type(5) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FFCE6B, #FFA400); box-shadow: 0 6px 18px rgba(255,164,0,0.4); }
+        .wmg-nav-item.active:nth-of-type(6) .wmg-nav-icon-badge { background: linear-gradient(135deg, #A78BFA, #7C4DFF); box-shadow: 0 6px 18px rgba(124,77,255,0.45); }
+        .wmg-nav-item.active:nth-of-type(7) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF9166, #FF6B4A); box-shadow: 0 6px 18px rgba(255,107,74,0.4); }
+        .wmg-nav-item.active:nth-of-type(8) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF7AB0, #FF3D81); box-shadow: 0 6px 18px rgba(255,61,129,0.4); }
         .wmg-nav-more { display: none; }
         @media (max-width: 880px) {
-          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 7px 4px; border-radius: 18px; min-width: 56px; flex: 1; }
+          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 4px; border-radius: 18px; min-width: 56px; flex: 1; }
           .wmg-nav-item span:last-child { font-size: 9px; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; }
           .wmg-nav-item.active { background: transparent; }
-          .wmg-nav-icon-badge { width: 32px; height: 32px; }
+          .wmg-nav-icon-badge { width: 34px; height: 34px; }
+          .wmg-nav-item:first-child .wmg-nav-icon-badge { width: 50px; height: 50px; margin-top: -22px; border: 4px solid var(--ink-2); background: linear-gradient(135deg, #A78BFA, #7C4DFF); color: #FFFFFF; box-shadow: 0 8px 20px rgba(124,77,255,0.5); }
           .wmg-nav-item-overflow { display: none; }
           .wmg-nav-more { display: flex; }
         }
@@ -2004,7 +2044,7 @@ export default function App() {
         .wmg-hero-label strong { font-weight: 800; }
         .wmg-hero-main-row { display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
-        .wmg-hero-net-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 27px; font-weight: 800; }
+        .wmg-hero-net-val { font-family: 'Baloo 2', sans-serif; font-size: 27px; font-weight: 700; }
         .wmg-hero-net-sub { font-size: 10.5px; opacity: 0.75; margin-top: 2px; }
         .wmg-hero-score-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 800; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,0.2); }
 
@@ -2026,10 +2066,10 @@ export default function App() {
         .wmg-root { background-image: radial-gradient(circle at 8% 4%, var(--brand-soft) 0%, transparent 34%), radial-gradient(circle at 96% 22%, var(--coral-soft) 0%, transparent 28%), radial-gradient(circle at 50% 100%, var(--gold-soft) 0%, transparent 30%); background-attachment: fixed; background-repeat: no-repeat; }
 
         .wmg-mosaic-top { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .wmg-mosaic-hero { background: var(--brand); border-radius: 22px; padding: 18px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; min-height: 132px; position: relative; overflow: hidden; }
+        .wmg-mosaic-hero { background: linear-gradient(150deg, #FF6FA5 0%, #8B5CF6 55%, #6C4CE0 100%); border-radius: 24px; padding: 18px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; min-height: 132px; position: relative; overflow: hidden; }
         .wmg-mosaic-hero::after { content: ""; position: absolute; top: -50px; right: -50px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%); pointer-events: none; }
         .wmg-mosaic-hero-label { font-size: 11px; opacity: 0.75; position: relative; z-index: 1; }
-        .wmg-mosaic-hero-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; line-height: 1.1; position: relative; z-index: 1; }
+        .wmg-mosaic-hero-val { font-family: 'Baloo 2', sans-serif; font-size: 26px; font-weight: 700; line-height: 1.1; position: relative; z-index: 1; }
         .wmg-mosaic-hero-sub { font-size: 11px; opacity: 0.8; margin-top: 4px; position: relative; z-index: 1; }
         .wmg-mosaic-side { display: flex; flex-direction: column; gap: 10px; }
         .wmg-mosaic-score-tile { position: relative; background: var(--ink-3); border: none; border-radius: 18px; padding: 10px 12px; flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
@@ -2056,14 +2096,14 @@ export default function App() {
         .wmg-chip-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--paper-dim); white-space: nowrap; }
         .wmg-chip-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
 
-        .wmg-coach-single { display: flex; align-items: flex-start; gap: 10px; background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 65%); border: none; text-align: left; width: 100%; font-family: inherit; }
+        .wmg-coach-single { display: flex; align-items: flex-start; gap: 10px; background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 65%); border: none; text-align: left; width: 100%; font-family: inherit; }
         .wmg-coach-single p { font-size: 13.5px; line-height: 1.55; font-weight: 500; margin: 0; }
         .wmg-coach-single .wmg-coach-dot { margin-top: 5px; }
         .wmg-insight-card { display: flex; align-items: flex-start; gap: 12px; text-align: left; width: 100%; font-family: inherit; border: none; cursor: pointer; margin-bottom: 10px; }
         .wmg-insight-card p { font-size: 13.5px; line-height: 1.55; font-weight: 500; margin: 0; color: var(--paper); flex: 1; }
-        .wmg-insight-rust { background: linear-gradient(135deg, var(--rust-soft), #FFFFFF 70%); }
-        .wmg-insight-gold { background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 70%); }
-        .wmg-insight-sage { background: linear-gradient(135deg, var(--sage-soft), #FFFFFF 70%); }
+        .wmg-insight-rust { background: linear-gradient(135deg, var(--rust-soft), var(--ink-2) 70%); }
+        .wmg-insight-gold { background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 70%); }
+        .wmg-insight-sage { background: linear-gradient(135deg, var(--sage-soft), var(--ink-2) 70%); }
         .wmg-insight-icon-badge { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
         .wmg-insight-icon-badge.tone-rust { background: var(--rust); color: #FFFFFF; }
         .wmg-insight-icon-badge.tone-gold { background: var(--gold); color: #FFFFFF; }
@@ -2159,7 +2199,7 @@ export default function App() {
         .wmg-toggle-btn.is-cancelled { border-color: var(--sage); color: var(--sage); }
         .wmg-subs-total { display: flex; justify-content: space-between; margin-top: 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; color: var(--paper-dim); font-weight: 600; }
 
-        .wmg-coach { border: none; background: linear-gradient(135deg, var(--gold-soft), #FFFFFF 60%); }
+        .wmg-coach { border: none; background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 60%); }
         .wmg-coach-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 12px; color: var(--paper); }
         .wmg-coach-tip { display: flex; gap: 10px; padding: 11px 0; border-top: 1px solid rgba(151,114,31,0.14); font-size: 13.5px; line-height: 1.5; }
         .wmg-coach-tip:first-of-type { border-top: none; }
@@ -2842,9 +2882,17 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
   );
 }
 
-const CATEGORY_COLORS = ["#1F5D46", "#FF8A65", "#B7924B", "#5B6473", "#7C5CBF", "#2E86AB", "#C1594A", "#3D8F72", "#A64D79", "#8B95A3"];
+const CATEGORY_COLORS = ["#8B5CF6", "#FF9166", "#FFCE6B", "#A6A3D6", "#FF6FA5", "#4FD1C5", "#FF5C7A", "#6C4CE0", "#FF8FA6", "#9C97C4"];
 
 function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
+  const onboardingEstimateItem = useMemo(() => {
+    for (const cat of profile.expenseCategories) {
+      const item = cat.items.find((i) => i.isOnboardingEstimate);
+      if (item) return item;
+    }
+    return null;
+  }, [profile.expenseCategories]);
+
   const categoryChartData = useMemo(() => {
     const rows = profile.expenseCategories
       .map((cat) => ({ name: cat.name, value: cat.items.reduce((s, i) => s + Number(i.amount || 0), 0) }))
@@ -2905,6 +2953,18 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
 
       <div className="wmg-section-title">Expenditure, by category</div>
       <div className="wmg-section-desc">Add every category and line item that applies to your household. Mark each category essential or lifestyle — this drives your score and cash flow.</div>
+      {onboardingEstimateItem && (
+        <Card style={{ border: "1px dashed var(--gold)", background: "var(--gold-soft)" }}>
+          <div className="wmg-eyebrow" style={{ marginBottom: 4 }}>Improve your spending picture</div>
+          <div className="wmg-sub" style={{ color: "var(--paper)", fontWeight: 600, marginBottom: 4 }}>
+            You estimated {gbp(onboardingEstimateItem.amount)} of monthly spending during setup.
+          </div>
+          <div className="wmg-sub">
+            Add your regular household and lifestyle costs below to make your forecasts more
+            accurate — this replaces the single estimate with a proper breakdown.
+          </div>
+        </Card>
+      )}
       {profile.expenseCategories.map((cat) => {
         const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
         return (
@@ -3515,14 +3575,14 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
             <LineChart data={pensionScenarios.series} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="#E3DAC2" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E3DAC2" />
-              <YAxis tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E3DAC2" width={54} />
+              <CartesianGrid stroke="#363068" vertical={false} />
+              <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
+              <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
-              <Line type="monotone" dataKey="high" name="High" stroke="#3E8F63" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="medium" name="Medium" stroke="#9A752B" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="low" name="Low" stroke="#B23B2E" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="high" name="High" stroke="#4FD1C5" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="medium" name="Medium" stroke="#FFCE6B" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="low" name="Low" stroke="#FF5C7A" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -3561,7 +3621,7 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
     };
   });
 
-  const SCENARIO_COLORS = ["#1F5D46", "#FF8A65", "#97721F", "#3E8F63", "#D6483A", "#5B6473"];
+  const SCENARIO_COLORS = ["#8B5CF6", "#FF9166", "#FFCE6B", "#4FD1C5", "#FF5C7A", "#A6A3D6"];
   const scenarioForecasts = useMemo(
     () => profile.scenarios.map((s) => ({ ...s, result: runForecast(profile, totals, horizonYears, s.allocationPct, 0) })),
     [profile, totals, horizonYears]
@@ -3629,26 +3689,26 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
         <div style={{ width: "100%", height: 320, marginTop: 10 }}>
           <ResponsiveContainer>
             <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="#E3DAC2" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E3DAC2" />
-              <YAxis tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E3DAC2" width={54} />
+              <CartesianGrid stroke="#363068" vertical={false} />
+              <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
+              <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
               {forecast.resolvedLifeEvents?.map((e) => (
                 <ReferenceLine
                   key={e.id}
                   x={Math.round((e.month / 12) * 10) / 10}
-                  stroke={e.type === "expense" ? "#D6483A" : "#3E8F63"}
+                  stroke={e.type === "expense" ? "#D6483A" : "#4FD1C5"}
                   strokeDasharray="3 3"
-                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D6483A" : "#3E8F63" }}
+                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D6483A" : "#4FD1C5" }}
                 />
               ))}
               <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#1F5D46" fillOpacity={0.15} isAnimationActive={false} />
-              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#1F5D46" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#B23B2E" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#3E8F63" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="#6B7C6F" strokeWidth={2} dot={false} strokeDasharray="4 3" />
+              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#8B5CF6" fillOpacity={0.15} isAnimationActive={false} />
+              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8B5CF6" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#FF5C7A" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#4FD1C5" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="#9C97C4" strokeWidth={2} dot={false} strokeDasharray="4 3" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -3730,9 +3790,9 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
           <div style={{ width: "100%", height: 260, marginBottom: 16 }}>
             <ResponsiveContainer>
               <LineChart data={scenarioChartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="#E3DAC2" vertical={false} />
-                <XAxis dataKey="year" tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#E3DAC2" />
-                <YAxis tick={{ fill: "#6B7C6F", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#E3DAC2" width={54} />
+                <CartesianGrid stroke="#363068" vertical={false} />
+                <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
+                <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
                 {scenarioForecasts.map((s, idx) => (
