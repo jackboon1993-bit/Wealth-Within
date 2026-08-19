@@ -35,6 +35,19 @@ const gbp = (n, decimals = 0) => {
   );
 };
 
+/* For forward-looking, assumption-based figures (forecasts, projections) —
+   deliberately rounds off false precision. A number generated from growth
+   and inflation guesses shouldn't be presented down to the exact pound, as
+   that implies a confidence the underlying maths doesn't have. Prefixes
+   with ≈ so it visually reads as an estimate, not a fact. */
+const gbpApprox = (n) => {
+  if (n === null || n === undefined || !isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  const roundTo = abs >= 100000 ? 5000 : abs >= 10000 ? 1000 : abs >= 1000 ? 100 : 10;
+  const rounded = Math.round(n / roundTo) * roundTo;
+  return "≈ " + gbp(rounded);
+};
+
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
 function daysSince(dateStr) {
@@ -2189,6 +2202,7 @@ export default function App() {
         .wmg-tag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 9px; border-radius: 999px; color: var(--paper-dim); background: var(--ink-3); }
         .wmg-tag.essential { background: var(--slate-soft); color: var(--slate); }
         .wmg-tag.lifestyle { background: var(--coral-soft); color: var(--coral-text); }
+        .wmg-tag.assumed { background: var(--gold-soft, #F2E7C7); color: var(--gold, #97721F); }
 
         .wmg-goal-card { margin-bottom: 14px; }
         .wmg-goal-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
@@ -3452,9 +3466,13 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
         </label>
       </Card>
 
-      <div className="wmg-section-title">Projected pot at retirement</div>
+      <div className="wmg-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        Projected pot at retirement
+        <span className="wmg-tag assumed">Assumed</span>
+      </div>
       <div className="wmg-section-desc">
-        Same contributions, three growth assumptions — because nobody can promise you a return. Figures in brackets are
+        Same contributions, three growth assumptions — because nobody can promise you a return. Figures are rounded,
+        since a number built on a growth-rate guess shouldn't be shown down to the exact pound. Figures in brackets are
         in today's money, discounted at {profile.assumptions?.inflation ?? 2.5}%/yr inflation (set on the Cash Flow
         Forecast tab). Monthly income assumes a 25% tax-free lump sum on drawdown and estimates UK income tax on the
         rest, using today's tax bands — it's a floor, not a forecast, and ignores any other income you might have.
@@ -3467,8 +3485,8 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
         ].map((s) => (
           <Card key={s.key}>
             <div className="wmg-pension-scenario-name" style={{ color: `var(--${s.tone})` }}>{s.label} · {s.rate}%/yr</div>
-            <div className="wmg-pension-value">{gbp(pensionScenarios.fv[s.key])}</div>
-            <div className="wmg-sub" style={{ marginTop: -2, marginBottom: 8 }}>≈ {gbp(pensionScenarios.real[s.key])} in today's money</div>
+            <div className="wmg-pension-value">{gbpApprox(pensionScenarios.fv[s.key])}</div>
+            <div className="wmg-sub" style={{ marginTop: -2, marginBottom: 8 }}>{gbpApprox(pensionScenarios.real[s.key])} in today's money</div>
             <div className="wmg-pension-income">
               {gbp(pensionScenarios.grossMonthlyIncome[s.key])}/month gross at a {profile.pension.drawdownRate}% drawdown rate
               <br />≈ {gbp(pensionScenarios.netMonthlyIncome[s.key])}/month after estimated tax, pension alone
@@ -3637,11 +3655,14 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
 
         <div className="wmg-forecast-summary">
           <div>
-            <div className="wmg-calc-item-label">Net worth in {horizonYears} years{realTerms ? " (today's money)" : ""}</div>
-            <div className="wmg-calc-item-val" style={{ color: "var(--brand)" }}>{last ? gbp(last[key("netWorth")]) : "—"}</div>
+            <div className="wmg-calc-item-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              Net worth in {horizonYears} years{realTerms ? " (today's money)" : ""}
+              <span className="wmg-tag assumed">Assumed</span>
+            </div>
+            <div className="wmg-calc-item-val" style={{ color: "var(--brand)" }}>{last ? gbpApprox(last[key("netWorth")]) : "—"}</div>
             {lastLow && lastHigh && (
               <div className="wmg-sub" style={{ marginTop: 2 }}>
-                Likely range: {gbp(lastLow[key("netWorth")])} – {gbp(lastHigh[key("netWorth")])}
+                Likely range: {gbpApprox(lastLow[key("netWorth")])} – {gbpApprox(lastHigh[key("netWorth")])}
               </div>
             )}
           </div>
