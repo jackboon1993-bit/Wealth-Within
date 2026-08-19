@@ -2024,7 +2024,7 @@ export default function App() {
         .wmg-main { flex: 1; min-width: 0; padding: 0 0 70px; }
         @media (max-width: 880px) { .wmg-main { padding-bottom: 112px; } }
 
-        .wmg-topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 32px; background: rgba(245,242,234,0.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--hair); flex-wrap: wrap; }
+        .wmg-topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 32px; background: rgba(26,26,61,0.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--hair); flex-wrap: wrap; }
         @media (max-width: 880px) { .wmg-topbar { position: relative; padding: 16px 18px; background: transparent; backdrop-filter: none; border-bottom: none; } }
         .wmg-topbar-left { display: flex; align-items: center; gap: 10px; }
         .wmg-topbar-brand { display: none; }
@@ -2071,12 +2071,12 @@ export default function App() {
 
         .wmg-root { background-image: radial-gradient(circle at 8% 4%, var(--brand-soft) 0%, transparent 34%), radial-gradient(circle at 96% 22%, var(--coral-soft) 0%, transparent 28%), radial-gradient(circle at 50% 100%, var(--gold-soft) 0%, transparent 30%); background-attachment: fixed; background-repeat: no-repeat; }
 
-        .wmg-mosaic-top { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .wmg-mosaic-top { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; margin-bottom: 8px; }
         .wmg-mosaic-hero { background: linear-gradient(150deg, #FF6FA5 0%, #8B5CF6 55%, #6C4CE0 100%); border-radius: 24px; padding: 18px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; min-height: 132px; position: relative; overflow: hidden; }
         .wmg-mosaic-hero::after { content: ""; position: absolute; top: -50px; right: -50px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%); pointer-events: none; }
-        .wmg-mosaic-hero-label { font-size: 11px; opacity: 0.75; position: relative; z-index: 1; }
-        .wmg-mosaic-hero-val { font-family: 'Baloo 2', sans-serif; font-size: 26px; font-weight: 700; line-height: 1.1; position: relative; z-index: 1; }
-        .wmg-mosaic-hero-sub { font-size: 11px; opacity: 0.8; margin-top: 4px; position: relative; z-index: 1; }
+        .wmg-mosaic-hero-label { font-size: 12.5px; opacity: 0.8; position: relative; z-index: 1; }
+        .wmg-mosaic-hero-val { font-family: 'Baloo 2', sans-serif; font-size: 27px; font-weight: 700; line-height: 1.1; position: relative; z-index: 1; }
+        .wmg-mosaic-hero-sub { font-size: 12.5px; opacity: 0.85; margin-top: 4px; position: relative; z-index: 1; }
         .wmg-mosaic-side { display: flex; flex-direction: column; gap: 10px; }
         .wmg-mosaic-score-tile { position: relative; background: var(--ink-3); border: none; border-radius: 18px; padding: 10px 12px; flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
         .wmg-mosaic-score-tile:hover { background: var(--brand-soft); }
@@ -2085,32 +2085,32 @@ export default function App() {
         .wmg-score-explainer-close { background: transparent; border: none; color: var(--paper-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
         .wmg-score-explainer-close:hover { color: var(--paper); }
         .wmg-score-explainer-card p { font-size: 12.5px; line-height: 1.6; color: var(--paper); margin: 0; }
-        .wmg-mosaic-score-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; color: var(--paper); line-height: 1; }
-        .wmg-mosaic-score-label { font-size: 10px; color: var(--paper-dim); margin-top: 2px; }
-        .wmg-mosaic-tile { background: var(--ink-3); border-radius: 18px; padding: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .wmg-mosaic-score-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; color: var(--paper); line-height: 1; }
+        .wmg-mosaic-score-label { font-size: 11.5px; color: var(--paper-dim); margin-top: 2px; }
+        .wmg-mosaic-tile { background: var(--ink-3); border-radius: 18px; padding: 10px 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
         .wmg-mosaic-tile-coral { background: var(--coral-soft); }
-        .wmg-mosaic-tile-label { font-size: 10px; color: var(--paper-dim); margin-bottom: 2px; }
+        .wmg-mosaic-tile-label { font-size: 11.5px; color: var(--paper-dim); margin-bottom: 2px; }
         .wmg-mosaic-tile-coral .wmg-mosaic-tile-label { color: var(--coral-text); opacity: 0.8; }
-        .wmg-mosaic-tile-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--paper); }
-        .wmg-badge-row { display: flex; justify-content: space-around; gap: 8px; margin-bottom: 20px; }
+        .wmg-mosaic-tile-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; color: var(--paper); }
+        .wmg-badge-row { display: flex; justify-content: space-around; gap: 8px; margin-bottom: 14px; }
         .wmg-badge-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-        .wmg-badge-circle { width: 74px; height: 74px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 13px; color: #FFFFFF; }
+        .wmg-badge-circle { width: 76px; height: 76px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; color: #FFFFFF; }
         .wmg-badge-circle.tone-brand { background: linear-gradient(150deg, #A78BFA, #7C4DFF); box-shadow: 0 8px 18px rgba(124,77,255,0.35); }
         .wmg-badge-circle.tone-coral { background: linear-gradient(150deg, #FF9166, #FF6B4A); box-shadow: 0 8px 18px rgba(255,107,74,0.3); }
         .wmg-badge-circle.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); box-shadow: 0 8px 18px rgba(23,163,152,0.3); }
         .wmg-badge-circle.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); box-shadow: 0 8px 18px rgba(255,164,0,0.3); }
-        .wmg-badge-label { font-size: 11px; color: var(--paper-dim); font-weight: 600; }
+        .wmg-badge-label { font-size: 12.5px; color: var(--paper-dim); font-weight: 600; }
 
-        .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 8px; padding: 2px 2px 8px; }
-        .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 19px; padding: 10px 14px; min-width: 92px; }
-        .wmg-chip-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--paper-dim); white-space: nowrap; }
-        .wmg-chip-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
+        .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 6px; padding: 2px 2px 6px; }
+        .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 19px; padding: 9px 13px; min-width: 92px; }
+        .wmg-chip-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--paper-dim); white-space: nowrap; }
+        .wmg-chip-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; margin-top: 3px; white-space: nowrap; }
 
         .wmg-coach-single { display: flex; align-items: flex-start; gap: 10px; background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 65%); border: none; text-align: left; width: 100%; font-family: inherit; }
         .wmg-coach-single p { font-size: 13.5px; line-height: 1.55; font-weight: 500; margin: 0; }
         .wmg-coach-single .wmg-coach-dot { margin-top: 5px; }
-        .wmg-insight-card { display: flex; align-items: flex-start; gap: 12px; text-align: left; width: 100%; font-family: inherit; border: none; cursor: pointer; margin-bottom: 10px; }
-        .wmg-insight-card p { font-size: 13.5px; line-height: 1.55; font-weight: 500; margin: 0; color: var(--paper); flex: 1; }
+        .wmg-insight-card { display: flex; align-items: flex-start; gap: 12px; text-align: left; width: 100%; font-family: inherit; border: none; cursor: pointer; margin-bottom: 8px; }
+        .wmg-insight-card p { font-size: 14.5px; line-height: 1.5; font-weight: 500; margin: 0; color: var(--paper); flex: 1; }
         .wmg-insight-rust { background: linear-gradient(135deg, var(--rust-soft), var(--ink-2) 70%); }
         .wmg-insight-gold { background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 70%); }
         .wmg-insight-sage { background: linear-gradient(135deg, var(--sage-soft), var(--ink-2) 70%); }
@@ -2124,10 +2124,10 @@ export default function App() {
         .wmg-coach-more { display: block; margin: 8px auto 0; background: transparent; border: none; color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 6px 10px; }
         .wmg-coach-more:hover { text-decoration: underline; }
 
-        .wmg-section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--paper); margin: 30px 0 12px; display: flex; align-items: center; gap: 10px; }
+        .wmg-section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15.5px; font-weight: 800; letter-spacing: -0.01em; color: var(--paper); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; }
         .wmg-section-title:first-child { margin-top: 0; }
         .wmg-section-title::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brand); flex-shrink: 0; }
-        .wmg-section-desc { font-size: 12.5px; color: var(--paper-dim); margin: -6px 0 14px; max-width: 60ch; }
+        .wmg-section-desc { font-size: 13px; color: var(--paper-dim); margin: -4px 0 12px; max-width: 60ch; }
 
         .wmg-nw-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
         @media (max-width: 900px) { .wmg-nw-grid { grid-template-columns: repeat(3, 1fr); } }
@@ -2153,15 +2153,15 @@ export default function App() {
 
         .wmg-flow-bar { display: flex; width: 100%; height: 38px; border-radius: 18px; overflow: hidden; }
         .wmg-flow-income-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-        .wmg-flow-income-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--paper-dim); }
+        .wmg-flow-income-label { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--paper-dim); }
         .wmg-flow-income-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; color: var(--paper); }
         .wmg-flow-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; transition: width .3s ease; }
         .bg-slate { background: var(--slate-fill); color: #17231F; }
         .bg-rust { background: var(--rust-fill); color: #17231F; }
         .bg-gold { background: var(--gold-fill); color: #17231F; }
         .bg-sage { background: var(--sage-fill); color: #17231F; }
-        .wmg-flow-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 16px; }
-        .wmg-flow-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; }
+        .wmg-flow-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+        .wmg-flow-legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
         .wmg-swatch { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
         .wmg-flow-legend-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; margin-left: 4px; color: var(--paper-dim); }
 
@@ -2874,20 +2874,20 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
         </Card>
       ) : (
         <>
-          {coachTips.slice(0, 3).map((tip, i) => (
+          {coachTips.slice(0, 2).map((tip, i) => (
             <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={i} onClick={() => onNavigate?.(tip.tab)}>
               <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
               <p>{tip.text}</p>
               <span className="wmg-coach-chevron">→</span>
             </button>
           ))}
-          {coachTips.length > 3 && !showAllTips && (
+          {coachTips.length > 2 && !showAllTips && (
             <button className="wmg-coach-more" onClick={() => setShowAllTips(true)}>
-              + {coachTips.length - 3} more {coachTips.length - 3 === 1 ? "insight" : "insights"}
+              + {coachTips.length - 2} more {coachTips.length - 2 === 1 ? "insight" : "insights"}
             </button>
           )}
           {showAllTips &&
-            coachTips.slice(3).map((tip, i) => (
+            coachTips.slice(2).map((tip, i) => (
               <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={`more-${i}`} onClick={() => onNavigate?.(tip.tab)}>
                 <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
                 <p>{tip.text}</p>
