@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useId } from "react";
 import { getData, setData, deleteData } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
@@ -478,31 +478,41 @@ function Card({ children, className = "", style = {} }) {
   );
 }
 
-/* Concentric growth rings, echoing tree-ring growth — the app's signature
-   visual. `progress` is 0–1 on the outer ring; the inner two rings are
-   decorative context (fixed, softly filled) so the shape never reads as
-   empty even when progress is low. */
+/* Quest-style gradient progress ring — a single thick gradient stroke over a
+   soft track, matching the Overview badge-circle palette. `progress` is 0–1. */
+const RING_GRADIENTS = {
+  brand: ["#A78BFA", "#7C4DFF"],
+  coral: ["#FF9166", "#FF6B4A"],
+  sage: ["#4FD1C5", "#17A398"],
+  gold: ["#FFCE6B", "#FFA400"],
+  rust: ["#FF7AB0", "#FF3D81"],
+};
 function GrowthRing({ progress, size = 84, tone = "brand", children }) {
-  const r1 = size * 0.447;
-  const r2 = size * 0.355;
-  const r3 = size * 0.263;
-  const circumference = 2 * Math.PI * r1;
+  const uid = useId();
+  const strokeWidth = size * 0.13;
+  const r = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(1, isFinite(progress) ? progress : 0));
   const offset = circumference * (1 - clamped);
-  const strokeColor = tone === "brand" ? "var(--brand-2)" : `var(--${tone})`;
+  const [from, to] = RING_GRADIENTS[tone] || RING_GRADIENTS.brand;
+  const gradId = `wmg-ring-grad-${uid}`;
   return (
     <div className="wmg-growth-ring" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={r1} fill="none" stroke="var(--hair)" strokeWidth={size * 0.079} />
-        <circle cx={size / 2} cy={size / 2} r={r2} fill="none" stroke="var(--hair)" strokeWidth={size * 0.066} opacity="0.7" />
-        <circle cx={size / 2} cy={size / 2} r={r3} fill="none" stroke="var(--hair)" strokeWidth={size * 0.053} opacity="0.5" />
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={from} />
+            <stop offset="100%" stopColor={to} />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ink-3)" strokeWidth={strokeWidth} />
         <circle
           cx={size / 2}
           cy={size / 2}
-          r={r1}
+          r={r}
           fill="none"
-          stroke={strokeColor}
-          strokeWidth={size * 0.079}
+          stroke={`url(#${gradId})`}
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
@@ -1463,14 +1473,10 @@ function Mascot({ tab }) {
         </div>
       )}
       <button type="button" className="wmg-mascot-face" onClick={() => setOpen((o) => !o)} aria-label="What does this app do?" aria-expanded={open}>
-        <svg width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="17.5" fill="none" stroke="var(--hair)" strokeWidth="3" />
-          <circle cx="20" cy="20" r="13" fill="none" stroke="var(--hair)" strokeWidth="2.5" opacity="0.7" />
-          <circle cx="20" cy="20" r="9.5" fill="var(--ink-3)" stroke="var(--brand-2)" strokeWidth="2" />
-          <circle cx="17" cy="19" r="1.4" fill="var(--paper)" />
-          <circle cx="23" cy="19" r="1.4" fill="var(--paper)" />
-          <path d="M16.5 22.5c1.2 1.2 5.8 1.2 7 0" stroke="var(--paper)" strokeWidth="1.4" strokeLinecap="round" fill="none" />
-          <circle cx="20" cy="20" r="17.5" fill="none" stroke="var(--coral)" strokeWidth="3" strokeLinecap="round" strokeDasharray="8 101" transform="rotate(-90 20 20)" />
+        <svg width="26" height="26" viewBox="0 0 26 26">
+          <circle cx="9" cy="12" r="1.9" fill="#FFFFFF" />
+          <circle cx="17" cy="12" r="1.9" fill="#FFFFFF" />
+          <path d="M7.5 16.5c2 2.2 9 2.2 11 0" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" fill="none" />
         </svg>
       </button>
     </div>
@@ -1963,7 +1969,7 @@ export default function App() {
 
         .wmg-sidebar { width: 240px; flex-shrink: 0; padding: 26px 16px; border-right: 1px solid var(--hair); position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; background: var(--ink-2); }
         @media (max-width: 880px) {
-          .wmg-sidebar { width: auto; height: auto; position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); top: auto; border: 1px solid var(--hair); border-radius: 22px; padding: 6px; box-shadow: 0 12px 28px -8px rgba(15,30,25,0.18); z-index: 20; }
+          .wmg-sidebar { width: auto; height: auto; position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); top: auto; border: 1px solid var(--hair); border-radius: 22px; padding: 6px; box-shadow: 0 12px 28px -8px rgba(15,15,45,0.18); z-index: 20; }
         }
 
         .wmg-brand-block { display: flex; align-items: center; gap: 11px; margin-bottom: 26px; }
@@ -1997,8 +2003,8 @@ export default function App() {
           .wmg-nav-more { display: flex; }
         }
 
-        .wmg-more-sheet-backdrop { position: fixed; inset: 0; background: rgba(23,35,31,0.4); z-index: 40; display: flex; align-items: flex-end; }
-        .wmg-more-sheet { width: 100%; background: var(--ink-2); border-radius: 22px 22px 0 0; padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 30px rgba(23,35,31,0.2); }
+        .wmg-more-sheet-backdrop { position: fixed; inset: 0; background: rgba(15,15,45,0.4); z-index: 40; display: flex; align-items: flex-end; }
+        .wmg-more-sheet { width: 100%; background: var(--ink-2); border-radius: 22px 22px 0 0; padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 30px rgba(15,15,45,0.2); }
         .wmg-more-sheet-handle { width: 36px; height: 4px; border-radius: 3px; background: var(--hair); margin: 6px auto 14px; }
         .wmg-more-sheet-item { display: flex; align-items: center; gap: 14px; width: 100%; background: transparent; border: none; padding: 10px 6px; border-radius: 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 600; color: var(--paper); text-align: left; cursor: pointer; }
         .wmg-more-sheet-item.active { background: var(--brand-soft); }
@@ -2036,9 +2042,9 @@ export default function App() {
         @media (prefers-reduced-motion: reduce) { .wmg-content { animation: none; } }
         @media (max-width: 880px) { .wmg-content { padding: 4px 18px 0; } }
 
-        .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 23px; padding: 22px; box-shadow: 0 1px 2px rgba(15,30,25,0.03), 0 10px 24px -12px rgba(15,30,25,0.10); }
+        .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 23px; padding: 22px; box-shadow: 0 1px 2px rgba(15,15,45,0.03), 0 10px 24px -12px rgba(15,15,45,0.10); }
 
-        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,70,56,0.5); margin-bottom: 16px; position: relative; }
+        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(60,30,140,0.5); margin-bottom: 16px; position: relative; }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
         .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
         .wmg-hero-label strong { font-weight: 800; }
@@ -2113,7 +2119,7 @@ export default function App() {
         .wmg-insight-icon-badge.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
         .wmg-insight-icon-badge.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
         .wmg-coach-clickable { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
-        .wmg-coach-clickable:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -6px rgba(15,30,25,0.2); }
+        .wmg-coach-clickable:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -6px rgba(15,15,45,0.2); }
         .wmg-coach-chevron { margin-left: auto; align-self: center; flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(150deg, #4FC3F7, #2E86F0); color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px; }
         .wmg-coach-more { display: block; margin: 8px auto 0; background: transparent; border: none; color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 6px 10px; }
         .wmg-coach-more:hover { text-decoration: underline; }
@@ -2222,7 +2228,7 @@ export default function App() {
         .wmg-infotip-btn-light { border-color: rgba(255,255,255,0.6); color: rgba(255,255,255,0.9); }
         .wmg-infotip-btn-light:hover, .wmg-infotip-btn-light:focus { border-color: #FFFFFF; color: #FFFFFF; }
         .wmg-hero-score-wrap { display: flex; align-items: center; gap: 4px; }
-        .wmg-infotip-bubble { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: var(--paper); color: var(--ink); font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: normal; line-height: 1.5; padding: 10px 12px; border-radius: 16px; box-shadow: 0 8px 20px rgba(23,35,31,0.25); }
+        .wmg-infotip-bubble { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: var(--paper); color: var(--ink); font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: normal; line-height: 1.5; padding: 10px 12px; border-radius: 16px; box-shadow: 0 8px 20px rgba(15,15,45,0.25); }
         .wmg-infotip-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--paper); }
         .wmg-field { margin-bottom: 12px; }
         .wmg-input { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 16px; padding: 10px 11px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
@@ -2274,7 +2280,7 @@ export default function App() {
         .wmg-pension-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 800; margin-bottom: 4px; }
         .wmg-pension-income { font-size: 12px; color: var(--paper-dim); }
 
-        .wmg-tooltip { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 18px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 24px rgba(15,30,25,0.12); }
+        .wmg-tooltip { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 18px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 24px rgba(15,15,45,0.12); }
         .wmg-tooltip-label { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--paper-dim); margin-bottom: 6px; font-size: 11px; font-weight: 600; }
         .wmg-tooltip-row { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
         .wmg-tooltip-name { color: var(--paper-dim); }
@@ -2287,14 +2293,23 @@ export default function App() {
         .wmg-accordion-item:last-child { border-bottom: none; }
         .wmg-accordion-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: transparent; border: none; text-align: left; padding: 14px 2px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: var(--paper); }
         .wmg-accordion-head:hover { color: var(--brand); }
-        .wmg-accordion-icon { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; color: var(--brand); flex-shrink: 0; width: 18px; text-align: center; }
+        .wmg-accordion-toggle { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: 15px; font-weight: 800; flex-shrink: 0; line-height: 1; transition: transform .15s ease; }
+        .wmg-accordion-toggle.tone-brand { background: linear-gradient(150deg, #A78BFA, #7C4DFF); }
+        .wmg-accordion-toggle.tone-coral { background: linear-gradient(150deg, #FF9166, #FF6B4A); }
+        .wmg-accordion-toggle.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
+        .wmg-accordion-toggle.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
+        .wmg-edu-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .wmg-edu-dot.tone-brand { background: linear-gradient(150deg, #A78BFA, #7C4DFF); }
+        .wmg-edu-dot.tone-coral { background: linear-gradient(150deg, #FF9166, #FF6B4A); }
+        .wmg-edu-dot.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
+        .wmg-edu-dot.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
         .wmg-accordion-body { padding: 0 2px 16px; font-size: 13.5px; line-height: 1.65; color: var(--paper-dim); }
 
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
 
         .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 55%, #4FD1C5 100%); }
-        .wmg-onboard-card { width: 100%; max-width: 360px; background: var(--ink-2); border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); }
-        .wmg-onboard-icon { width: 56px; height: 56px; border-radius: 21px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+        .wmg-onboard-card { width: 100%; max-width: 360px; background: var(--ink-2); border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(60,30,140,0.5); }
+        .wmg-onboard-icon { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(150deg, var(--brand), var(--brand-2)); color: #FFFFFF; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; box-shadow: 0 8px 20px -6px rgba(60,30,140,0.5); }
         .wmg-onboard-icon svg { width: 26px; height: 26px; }
         .wmg-onboard-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 20px; }
         .wmg-onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hair); transition: all .2s ease; }
@@ -2303,8 +2318,8 @@ export default function App() {
         .wmg-onboard-body { font-size: 13.5px; line-height: 1.6; color: var(--paper-dim); margin-bottom: 28px; }
         .wmg-onboard-actions { display: flex; align-items: center; justify-content: center; gap: 14px; }
         .wmg-onboard-skip { background: transparent; border: none; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
-        .wmg-onboard-next { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 30px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; }
-        .wmg-onboard-next:hover { background: var(--brand-2); }
+        .wmg-onboard-next { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 30px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; flex: 1; box-shadow: 0 10px 24px -10px rgba(60,30,140,0.6); transition: filter .15s ease, transform .15s ease; }
+        .wmg-onboard-next:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
         .wmg-btn-primary { background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px 22px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; }
         .wmg-btn-primary:hover { background: var(--brand-2); }
@@ -2326,11 +2341,11 @@ export default function App() {
 
         .wmg-mascot-wrap { position: fixed; left: 18px; bottom: 18px; z-index: 30; }
         @media (max-width: 880px) { .wmg-mascot-wrap { left: 14px; bottom: calc(84px + env(safe-area-inset-bottom)); } }
-        .wmg-mascot-face { width: 48px; height: 48px; border-radius: 50%; background: var(--ink-2); border: none; box-shadow: 0 6px 18px -6px rgba(15,30,25,0.3); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; animation: wmgMascotBob 4.5s ease-in-out infinite; }
+        .wmg-mascot-face { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, #A78BFA, #7C4DFF); border: none; box-shadow: 0 8px 20px -6px rgba(124,77,255,0.5); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; animation: wmgMascotBob 4.5s ease-in-out infinite; }
         .wmg-mascot-face:hover { animation-play-state: paused; transform: scale(1.05); }
         @keyframes wmgMascotBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         @media (prefers-reduced-motion: reduce) { .wmg-mascot-face { animation: none; } }
-        .wmg-mascot-bubble { position: absolute; bottom: calc(100% + 12px); left: 0; width: 240px; background: var(--paper); color: var(--ink); border-radius: 18px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; box-shadow: 0 12px 28px rgba(15,30,25,0.28); }
+        .wmg-mascot-bubble { position: absolute; bottom: calc(100% + 12px); left: 0; width: 240px; background: var(--paper); color: var(--ink); border-radius: 18px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; box-shadow: 0 12px 28px rgba(10,8,35,0.35); }
         .wmg-mascot-bubble::after { content: ""; position: absolute; top: 100%; left: 18px; border: 7px solid transparent; border-top-color: var(--paper); }
         .wmg-mascot-bubble-close { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: var(--ink); opacity: 0.6; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px; }
         .wmg-mascot-bubble-close:hover { opacity: 1; }
@@ -2358,7 +2373,7 @@ export default function App() {
         .wmg-reader-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; margin-bottom: 12px; }
         .wmg-reader-applied { text-align: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; color: var(--sage); padding: 12px; }
 
-        .wmg-wizard-card { width: 100%; max-width: 460px; background: var(--ink-2); border-radius: 24px; padding: 30px 26px 26px; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); max-height: 88vh; overflow-y: auto; }
+        .wmg-wizard-card { width: 100%; max-width: 460px; background: var(--ink-2); border-radius: 24px; padding: 30px 26px 26px; box-shadow: 0 24px 48px -20px rgba(60,30,140,0.5); max-height: 88vh; overflow-y: auto; }
         .wmg-wizard-progress { margin-bottom: 22px; }
         .wmg-wizard-progress-track { height: 5px; border-radius: 999px; background: var(--ink-3); overflow: hidden; }
         .wmg-wizard-progress-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand-2)); border-radius: 999px; transition: width .25s ease; }
@@ -2380,11 +2395,11 @@ export default function App() {
         .wmg-wizard-back { background: transparent; border: 1px solid var(--hair); color: var(--paper); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 13px 20px; cursor: pointer; }
         @media (max-width: 480px) { .wmg-onboard { padding: 14px; } .wmg-wizard-card { padding: 24px 18px 20px; } .wmg-onboard-actions { flex-wrap: wrap; } }
 
-        .wmg-celebration { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 50; background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #FFFFFF; padding: 13px 22px 13px 16px; border-radius: 999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; box-shadow: 0 14px 32px -10px rgba(10,70,56,0.5); display: flex; align-items: center; gap: 10px; max-width: 90vw; animation: wmg-celebration-in 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+        .wmg-celebration { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 50; background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #FFFFFF; padding: 13px 22px 13px 16px; border-radius: 999px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; box-shadow: 0 14px 32px -10px rgba(60,30,140,0.5); display: flex; align-items: center; gap: 10px; max-width: 90vw; animation: wmg-celebration-in 0.5s cubic-bezier(0.34,1.56,0.64,1); }
         .wmg-celebration-icon { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #FFFFFF; }
         @keyframes wmg-celebration-in { from { transform: translate(-50%, -24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 
-        .wmg-feedback-modal { width: 100%; max-width: 380px; background: var(--ink-2); border-radius: 22px; padding: 26px 24px; margin: 16px; box-shadow: 0 20px 44px -14px rgba(15,30,25,0.4); }
+        .wmg-feedback-modal { width: 100%; max-width: 380px; background: var(--ink-2); border-radius: 22px; padding: 26px 24px; margin: 16px; box-shadow: 0 20px 44px -14px rgba(15,15,45,0.4); }
         .wmg-feedback-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 6px; }
         .wmg-feedback-sub { font-size: 13px; color: var(--paper-dim); line-height: 1.55; margin-bottom: 16px; }
         .wmg-feedback-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
@@ -4005,12 +4020,12 @@ const EDUCATION_TOPICS = [
   },
 ];
 
-function AccordionItem({ title, body, isOpen, onToggle }) {
+function AccordionItem({ title, body, isOpen, onToggle, tone = "brand" }) {
   return (
     <div className="wmg-accordion-item">
       <button className="wmg-accordion-head" onClick={onToggle} aria-expanded={isOpen}>
         <span>{title}</span>
-        <span className="wmg-accordion-icon">{isOpen ? "−" : "+"}</span>
+        <span className={`wmg-accordion-toggle tone-${tone}`}>{isOpen ? "−" : "+"}</span>
       </button>
       {isOpen && <div className="wmg-accordion-body">{body}</div>}
     </div>
@@ -4333,6 +4348,13 @@ function PensionReaderTab({ onUseInPension }) {
 }
 
 
+const EDU_CATEGORY_TONES = {
+  Pensions: "gold",
+  "Savings & ISAs": "sage",
+  Debt: "coral",
+  "Getting real help": "brand",
+};
+
 function EducationTab() {
   const [openId, setOpenId] = useState(null);
 
@@ -4345,25 +4367,32 @@ function EducationTab() {
         most years; treat specific figures below as a guide and check gov.uk or MoneyHelper for current numbers.
       </div>
 
-      {EDUCATION_TOPICS.map((group) => (
-        <React.Fragment key={group.category}>
-          <div className="wmg-section-title">{group.category}</div>
-          <Card>
-            {group.items.map((item, i) => {
-              const id = `${group.category}-${i}`;
-              return (
-                <AccordionItem
-                  key={id}
-                  title={item.title}
-                  body={item.body}
-                  isOpen={openId === id}
-                  onToggle={() => setOpenId(openId === id ? null : id)}
-                />
-              );
-            })}
-          </Card>
-        </React.Fragment>
-      ))}
+      {EDUCATION_TOPICS.map((group) => {
+        const tone = EDU_CATEGORY_TONES[group.category] || "brand";
+        return (
+          <React.Fragment key={group.category}>
+            <div className="wmg-section-title">
+              <span className={`wmg-edu-dot tone-${tone}`} />
+              <span>{group.category}</span>
+            </div>
+            <Card>
+              {group.items.map((item, i) => {
+                const id = `${group.category}-${i}`;
+                return (
+                  <AccordionItem
+                    key={id}
+                    title={item.title}
+                    body={item.body}
+                    isOpen={openId === id}
+                    onToggle={() => setOpenId(openId === id ? null : id)}
+                    tone={tone}
+                  />
+                );
+              })}
+            </Card>
+          </React.Fragment>
+        );
+      })}
     </>
   );
 }
