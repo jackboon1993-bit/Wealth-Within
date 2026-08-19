@@ -882,6 +882,8 @@ function SetupWizard({ onFinish }) {
 
   const [pension, setPension] = useState({ balance: 0, contribution: 0, currentAge: 30, retirementAge: 67 });
   const [statePensionIncluded, setStatePensionIncluded] = useState(true);
+  const [pensionStatus, setPensionStatus] = useState(null); // "yes" | "no" | "unsure" | null
+  const [pensionValueUnknown, setPensionValueUnknown] = useState(false);
 
   const goNext = () => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1));
   const goBack = () => setStepIdx((i) => Math.max(0, i - 1));
@@ -898,7 +900,10 @@ function SetupWizard({ onFinish }) {
       savings: { ...p.savings, balance: savingsBalance },
       emergencyFund,
       goals,
-      pension: { ...p.pension, ...pension },
+      pension:
+        pensionStatus === "no"
+          ? { ...p.pension, balance: 0, contribution: 0 }
+          : { ...p.pension, ...pension, balance: pensionValueUnknown ? 0 : pension.balance },
       statePension: { ...p.statePension, included: statePensionIncluded },
       onboarded: true,
     }));
@@ -1082,42 +1087,89 @@ function SetupWizard({ onFinish }) {
             <h2 className="wmg-wizard-step-title">Pension</h2>
             <p className="wmg-wizard-step-sub">Workplace or personal pension, plus your State Pension.</p>
 
-            <div className="wmg-wizard-list-row" style={{ marginBottom: 12 }}>
-              <input
-                className="wmg-input"
-                type="number"
-                inputMode="decimal"
-                placeholder="Pension balance"
-                value={pension.balance}
-                onChange={(e) => setPension((p) => ({ ...p, balance: Number(e.target.value) }))}
-              />
-              <input
-                className="wmg-input"
-                type="number"
-                inputMode="decimal"
-                placeholder="Monthly contribution"
-                value={pension.contribution}
-                onChange={(e) => setPension((p) => ({ ...p, contribution: Number(e.target.value) }))}
-              />
-            </div>
+            <p className="wmg-wizard-step-sub" style={{ marginTop: 0, marginBottom: 8, fontWeight: 600 }}>
+              Do you have a workplace or personal pension?
+            </p>
             <div className="wmg-wizard-list-row" style={{ marginBottom: 16 }}>
-              <input
-                className="wmg-input"
-                type="number"
-                inputMode="decimal"
-                placeholder="Current age"
-                value={pension.currentAge}
-                onChange={(e) => setPension((p) => ({ ...p, currentAge: Number(e.target.value) }))}
-              />
-              <input
-                className="wmg-input"
-                type="number"
-                inputMode="decimal"
-                placeholder="Retirement age"
-                value={pension.retirementAge}
-                onChange={(e) => setPension((p) => ({ ...p, retirementAge: Number(e.target.value) }))}
-              />
+              {[
+                { key: "yes", label: "Yes" },
+                { key: "no", label: "No" },
+                { key: "unsure", label: "Not sure" },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className="wmg-edit-toggle"
+                  aria-pressed={pensionStatus === opt.key}
+                  style={
+                    pensionStatus === opt.key
+                      ? { background: "var(--brand)", color: "#fff", borderColor: "var(--brand)" }
+                      : undefined
+                  }
+                  onClick={() => setPensionStatus(opt.key)}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
+
+            {pensionStatus === "no" && (
+              <p className="wmg-sub" style={{ marginBottom: 16 }}>
+                No problem — you can add a pension at any time from the Pension tab. Your State
+                Pension can still count towards your forecast below.
+              </p>
+            )}
+
+            {(pensionStatus === "yes" || pensionStatus === "unsure") && (
+              <>
+                <div className="wmg-wizard-list-row" style={{ marginBottom: 8 }}>
+                  <input
+                    className="wmg-input"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Pension balance"
+                    value={pensionValueUnknown ? "" : pension.balance}
+                    disabled={pensionValueUnknown}
+                    onChange={(e) => setPension((p) => ({ ...p, balance: Number(e.target.value) }))}
+                  />
+                  <input
+                    className="wmg-input"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Monthly contribution"
+                    value={pension.contribution}
+                    onChange={(e) => setPension((p) => ({ ...p, contribution: Number(e.target.value) }))}
+                  />
+                </div>
+                <label className="wmg-wizard-toggle" style={{ marginBottom: 16 }}>
+                  <input
+                    type="checkbox"
+                    checked={pensionValueUnknown}
+                    onChange={(e) => setPensionValueUnknown(e.target.checked)}
+                  />
+                  I don't know the value — add this later
+                </label>
+                <div className="wmg-wizard-list-row" style={{ marginBottom: 16 }}>
+                  <input
+                    className="wmg-input"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Current age"
+                    value={pension.currentAge}
+                    onChange={(e) => setPension((p) => ({ ...p, currentAge: Number(e.target.value) }))}
+                  />
+                  <input
+                    className="wmg-input"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Retirement age"
+                    value={pension.retirementAge}
+                    onChange={(e) => setPension((p) => ({ ...p, retirementAge: Number(e.target.value) }))}
+                  />
+                </div>
+              </>
+            )}
+
             <label className="wmg-wizard-toggle">
               <input type="checkbox" checked={statePensionIncluded} onChange={(e) => setStatePensionIncluded(e.target.checked)} />
               Include my State Pension in the forecast
