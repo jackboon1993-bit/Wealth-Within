@@ -140,6 +140,7 @@ const defaultProfile = {
       id: nextId(),
       name: "Housing & utilities",
       type: "essential",
+      budget: 500,
       items: [
         { id: nextId(), name: "Council tax", amount: 210 },
         { id: nextId(), name: "Electricity & gas", amount: 150 },
@@ -152,6 +153,7 @@ const defaultProfile = {
       id: nextId(),
       name: "Insurance & protection",
       type: "essential",
+      budget: 140,
       items: [
         { id: nextId(), name: "Home insurance", amount: 35 },
         { id: nextId(), name: "Life insurance", amount: 45 },
@@ -162,6 +164,7 @@ const defaultProfile = {
       id: nextId(),
       name: "Transport",
       type: "essential",
+      budget: 260,
       items: [
         { id: nextId(), name: "Fuel", amount: 150 },
         { id: nextId(), name: "Car maintenance", amount: 50 },
@@ -172,6 +175,7 @@ const defaultProfile = {
       id: nextId(),
       name: "Groceries & household",
       type: "essential",
+      budget: 550,
       items: [
         { id: nextId(), name: "Groceries", amount: 520 },
         { id: nextId(), name: "Household goods", amount: 40 },
@@ -181,12 +185,14 @@ const defaultProfile = {
       id: nextId(),
       name: "Childcare & family",
       type: "essential",
+      budget: 340,
       items: [{ id: nextId(), name: "Childcare", amount: 340 }],
     },
     {
       id: nextId(),
       name: "Health & personal care",
       type: "essential",
+      budget: 150,
       items: [
         { id: nextId(), name: "Pharmacy / health", amount: 70 },
         { id: nextId(), name: "Personal care", amount: 80 },
@@ -196,6 +202,7 @@ const defaultProfile = {
       id: nextId(),
       name: "Lifestyle & leisure",
       type: "lifestyle",
+      budget: 900,
       items: [
         { id: nextId(), name: "Eating out", amount: 300 },
         { id: nextId(), name: "Entertainment", amount: 100 },
@@ -268,6 +275,13 @@ function mergeWithDefaults(saved) {
   merged.loans = merged.loans.map(backfillDebt);
   merged.cards = merged.cards.map(backfillDebt);
   merged.mortgage = backfillDebt(merged.mortgage);
+
+  // backfill budget for expense categories saved before this feature existed —
+  // default to their current spend so nothing looks suddenly "over budget"
+  merged.expenseCategories = merged.expenseCategories.map((c) => ({
+    ...c,
+    budget: c.budget ?? c.items.reduce((s, i) => s + Number(i.amount || 0), 0),
+  }));
 
   return merged;
 }
@@ -1840,7 +1854,7 @@ export default function App() {
   const addCategory = () =>
     setProfile((p) => ({
       ...p,
-      expenseCategories: [...p.expenseCategories, { id: nextId(), name: "New category", type: "essential", items: [] }],
+      expenseCategories: [...p.expenseCategories, { id: nextId(), name: "New category", type: "essential", budget: 0, items: [] }],
     }));
   const removeCategory = (catId) =>
     setProfile((p) => ({ ...p, expenseCategories: p.expenseCategories.filter((c) => c.id !== catId) }));
@@ -1959,6 +1973,7 @@ export default function App() {
           font-family: 'Plus Jakarta Sans', sans-serif;
           min-height: 100%;
           font-variant-numeric: tabular-nums;
+          overflow-x: hidden;
         }
         .wmg-root * { box-sizing: border-box; }
         .wmg-mono { font-family: 'Plus Jakarta Sans', sans-serif; font-variant-numeric: tabular-nums; }
@@ -1994,8 +2009,8 @@ export default function App() {
         .wmg-nav-item.active:nth-of-type(8) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF7AB0, #FF3D81); box-shadow: 0 6px 18px rgba(255,61,129,0.4); }
         .wmg-nav-more { display: none; }
         @media (max-width: 880px) {
-          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 4px; border-radius: 18px; min-width: 56px; flex: 1; }
-          .wmg-nav-item span:last-child { font-size: 9px; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; }
+          .wmg-nav-item { flex-direction: column; gap: 3px; padding: 4px 2px; border-radius: 18px; min-width: 56px; flex: 1; white-space: normal; }
+          .wmg-nav-item span:last-child { display: block; width: 100%; font-size: 9px; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; white-space: normal; overflow-wrap: break-word; }
           .wmg-nav-item.active { background: transparent; }
           .wmg-nav-icon-badge { width: 34px; height: 34px; }
           .wmg-nav-item:first-child .wmg-nav-icon-badge { width: 50px; height: 50px; margin-top: -22px; border: 4px solid var(--ink-2); background: linear-gradient(135deg, #A78BFA, #7C4DFF); color: #FFFFFF; box-shadow: 0 8px 20px rgba(124,77,255,0.5); }
@@ -2151,15 +2166,9 @@ export default function App() {
         .wmg-networth-card { grid-column: span 2; background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 70%); }
         @media (max-width: 560px) { .wmg-networth-card { grid-column: span 2; } }
 
-        .wmg-flow-bar { display: flex; width: 100%; height: 38px; border-radius: 18px; overflow: hidden; }
         .wmg-flow-income-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
         .wmg-flow-income-label { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--paper-dim); }
         .wmg-flow-income-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 800; color: var(--paper); }
-        .wmg-flow-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; transition: width .3s ease; }
-        .bg-slate { background: var(--slate-fill); color: #17231F; }
-        .bg-rust { background: var(--rust-fill); color: #17231F; }
-        .bg-gold { background: var(--gold-fill); color: #17231F; }
-        .bg-sage { background: var(--sage-fill); color: #17231F; }
         .wmg-flow-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
         .wmg-flow-legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
         .wmg-swatch { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
@@ -2192,16 +2201,50 @@ export default function App() {
         .wmg-calc-item-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }
         .wmg-calc-item-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; color: var(--sage); }
 
-        .wmg-ef-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+        .wmg-ef-ring-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+        .wmg-ef-ring-val { font-family: 'Baloo 2', sans-serif; font-size: 19px; font-weight: 700; color: var(--paper); line-height: 1.1; }
+        .wmg-ef-ring-label { font-size: 11px; color: var(--paper-dim); margin-top: 2px; }
+        .wmg-ef-ring-side { display: flex; flex-direction: column; gap: 2px; }
+        .wmg-ef-ring-side-label { font-size: 12.5px; color: var(--paper-dim); font-weight: 600; }
+        .wmg-ef-ring-side-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; color: var(--paper); }
         .wmg-progress-track { width: 100%; height: 12px; background: var(--ink-3); border-radius: 999px; overflow: hidden; }
         .wmg-progress-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
         .wmg-progress-fill.tone-gold { background: linear-gradient(90deg, var(--gold), #FFA400); }
         .wmg-progress-fill.tone-sage { background: linear-gradient(90deg, var(--brand), var(--sage)); }
+        .wmg-progress-fill.tone-rust { background: linear-gradient(90deg, #FF7AB0, var(--rust)); }
+        .wmg-cat-budget-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .wmg-cat-badge { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 13px; }
+        .wmg-cat-badge.tone-brand { background: linear-gradient(150deg, #A78BFA, #7C4DFF); }
+        .wmg-cat-badge.tone-coral { background: linear-gradient(150deg, #FF9166, #FF6B4A); }
+        .wmg-cat-budget-info { flex: 1; min-width: 0; }
+        .wmg-cat-budget-label { font-size: 12.5px; color: var(--paper-dim); margin-bottom: 6px; }
+        .wmg-cat-budget-over { color: var(--rust); font-weight: 700; }
 
         .wmg-sub-list { display: flex; flex-direction: column; gap: 8px; }
-        .wmg-sub-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--ink-3); border-radius: 19px; }
-        .wmg-sub-row.cancelled { opacity: 0.4; }
-        .wmg-sub-left { display: flex; align-items: center; gap: 10px; }
+        .wmg-sub-card { background: var(--ink-3); border-radius: 19px; overflow: hidden; }
+        .wmg-sub-card.cancelled .wmg-sub-summary-amount, .wmg-sub-card.cancelled .wmg-sub-summary-name { opacity: 0.45; text-decoration: line-through; }
+        .wmg-sub-summary { width: 100%; display: flex; align-items: center; gap: 12px; background: transparent; border: none; padding: 11px 14px; cursor: pointer; text-align: left; font-family: inherit; }
+        .wmg-sub-avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; }
+        .wmg-sub-avatar.tone-brand { background: linear-gradient(150deg, #A78BFA, #7C4DFF); }
+        .wmg-sub-avatar.tone-coral { background: linear-gradient(150deg, #FF9166, #FF6B4A); }
+        .wmg-sub-avatar.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
+        .wmg-sub-avatar.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
+        .wmg-sub-avatar.tone-rust { background: linear-gradient(150deg, #FF7AB0, #FF3D81); }
+        .wmg-sub-summary-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+        .wmg-sub-summary-name { font-size: 14px; font-weight: 700; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wmg-sub-summary-cancelled { font-size: 10px; font-weight: 700; color: var(--paper-dim); text-transform: uppercase; letter-spacing: 0.04em; width: fit-content; }
+        .wmg-sub-summary-right { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+        .wmg-sub-summary-amount { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; color: var(--paper); }
+        .wmg-sub-summary-freq { font-size: 10.5px; color: var(--paper-dim); }
+        .wmg-sub-chevron { font-size: 18px; color: var(--paper-dim); flex-shrink: 0; transition: transform .15s ease; transform: rotate(90deg); }
+        .wmg-sub-chevron.open { transform: rotate(-90deg); }
+        .wmg-sub-edit { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+        .wmg-sub-edit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .wmg-sub-edit-actions { display: flex; align-items: center; gap: 10px; }
+        .wmg-sub-edit-actions .wmg-toggle-btn { margin-left: 0; }
+        .wmg-sub-name-input { width: 160px; max-width: 42vw; }
+        .wmg-sub-amount-input { width: 80px; }
+        @media (max-width: 480px) { .wmg-sub-name-input { max-width: 100%; width: 100%; } }
         .wmg-sub-name { font-size: 13.5px; font-weight: 500; }
         .wmg-flag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; color: var(--coral-text); background: var(--coral-soft); border-radius: 999px; padding: 3px 9px; }
         .wmg-sub-amount { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; }
@@ -2244,9 +2287,9 @@ export default function App() {
         .wmg-add-btn:hover { border-color: var(--brand); color: var(--brand); }
 
         .wmg-cat-card { margin-bottom: 14px; }
-        .wmg-cat-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
-        .wmg-cat-name-input { flex: 2; }
-        .wmg-cat-type-select { flex: 1; }
+        .wmg-cat-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .wmg-cat-name-input { flex: 2; min-width: 90px; }
+        .wmg-cat-type-select { flex: 1; min-width: 90px; }
         .wmg-cat-subtotal { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--hair); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; }
         .wmg-cat-subtotal-val { font-weight: 700; }
         .wmg-tag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 9px; border-radius: 999px; color: var(--paper-dim); background: var(--ink-3); }
@@ -2340,7 +2383,7 @@ export default function App() {
         .wmg-item-line-costs { font-size: 12.5px; color: var(--paper-dim); flex-shrink: 0; }
 
         .wmg-mascot-wrap { position: fixed; left: 18px; bottom: 18px; z-index: 30; }
-        @media (max-width: 880px) { .wmg-mascot-wrap { left: 14px; bottom: calc(84px + env(safe-area-inset-bottom)); } }
+        @media (max-width: 880px) { .wmg-mascot-wrap { left: 14px; bottom: calc(100px + env(safe-area-inset-bottom)); } }
         .wmg-mascot-face { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, #A78BFA, #7C4DFF); border: none; box-shadow: 0 8px 20px -6px rgba(124,77,255,0.5); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; animation: wmgMascotBob 4.5s ease-in-out infinite; }
         .wmg-mascot-face:hover { animation-play-state: paused; transform: scale(1.05); }
         @keyframes wmgMascotBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
@@ -2849,20 +2892,27 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
           <div className="wmg-flow-income-label">Income</div>
           <div className="wmg-flow-income-val">{gbp(totals.income)}</div>
         </div>
-        <div className="wmg-flow-bar">
-          {flowSegments.map((seg) => (
-            <div key={seg.key} className={`wmg-flow-seg bg-${seg.tone}`} style={{ width: `${(seg.value / flowTotal) * 100}%` }}>
-              {(seg.value / flowTotal) * 100 > 8 ? gbp(seg.value) : ""}
-            </div>
-          ))}
-        </div>
-        <div className="wmg-flow-legend">
-          {flowSegments.map((seg) => (
-            <div className="wmg-flow-legend-item" key={seg.key}>
-              <span className="wmg-swatch" style={{ background: `var(--${seg.tone}-fill)` }} />
-              {seg.label} <span className="wmg-flow-legend-val">{gbp(seg.value)}</span>
-            </div>
-          ))}
+        <div className="wmg-category-chart-row">
+          <div style={{ width: 140, height: 140, flexShrink: 0 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={flowSegments} dataKey="value" nameKey="label" innerRadius={42} outerRadius={68} paddingAngle={2} strokeWidth={0}>
+                  {flowSegments.map((seg) => (
+                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#8B5CF6"} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CategoryTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="wmg-flow-legend">
+            {flowSegments.map((seg) => (
+              <div className="wmg-flow-legend-item" key={seg.key}>
+                <span className="wmg-swatch" style={{ background: `var(--${seg.tone}-fill)` }} />
+                {seg.label} <span className="wmg-flow-legend-val">{gbp(seg.value)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
 
@@ -2900,6 +2950,77 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
   );
 }
 
+/* Emma-inspired compact subscription row: icon + name + price at a glance,
+   tap to expand for editing/cancel/remove controls. */
+const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
+
+function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove }) {
+  const [expanded, setExpanded] = useState(false);
+  const tone = SUB_AVATAR_TONES[index % SUB_AVATAR_TONES.length];
+  const initial = (sub.name || "?").trim().charAt(0).toUpperCase() || "?";
+
+  return (
+    <div className={`wmg-sub-card ${sub.cancelled ? "cancelled" : ""}`}>
+      <button type="button" className="wmg-sub-summary" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
+        <span className={`wmg-sub-avatar tone-${tone}`}>{initial}</span>
+        <span className="wmg-sub-summary-info">
+          <span className="wmg-sub-summary-name">{sub.name}</span>
+          {sub.cancelled ? (
+            <span className="wmg-sub-summary-cancelled">Cancelled</span>
+          ) : sub.flagged ? (
+            <span className="wmg-flag">Consider cutting</span>
+          ) : null}
+        </span>
+        <span className="wmg-sub-summary-right">
+          <span className="wmg-sub-summary-amount">{gbp(sub.amount)}</span>
+          <span className="wmg-sub-summary-freq">/month</span>
+        </span>
+        <span className={`wmg-sub-chevron ${expanded ? "open" : ""}`} aria-hidden="true">›</span>
+      </button>
+
+      {expanded && (
+        <div className="wmg-sub-edit">
+          <input
+            className="wmg-input wmg-sub-name-input"
+            value={sub.name}
+            onChange={(e) => onEdit("name", e.target.value)}
+          />
+          <div className="wmg-sub-edit-row">
+            <input
+              className="wmg-input wmg-sub-amount-input"
+              type="number"
+              value={sub.amount}
+              onChange={(e) => onEdit("amount", Number(e.target.value))}
+            />
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--paper-dim)" }}>
+              <input type="checkbox" checked={sub.flagged} onChange={(e) => onEdit("flagged", e.target.checked)} />
+              flag
+            </label>
+          </div>
+          <div className="wmg-sub-edit-actions">
+            <button
+              className={`wmg-toggle-btn ${sub.cancelled ? "is-cancelled" : ""}`}
+              onClick={onToggleCancel}
+              title={sub.cancelled ? "Bring this back into your monthly total" : "Stops counting it in your total — doesn't cancel it with the actual provider, and you can bring it back anytime"}
+            >
+              {sub.cancelled ? "Restore" : "Mark cancelled"}
+            </button>
+            <button
+              className="wmg-icon-btn"
+              onClick={onRemove}
+              aria-label="Remove"
+              title="Delete this row completely — use this if you added it by mistake, not for cancelling a subscription you actually have"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const FLOW_TONE_COLORS = { slate: "#A6A3D6", rust: "#FF8FA6", gold: "#FFCE6B", sage: "#4FD1C5" };
 const CATEGORY_COLORS = ["#8B5CF6", "#FF9166", "#FFCE6B", "#A6A3D6", "#FF6FA5", "#4FD1C5", "#FF5C7A", "#6C4CE0", "#FF8FA6", "#9C97C4"];
 
 function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
@@ -3004,6 +3125,24 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
               <span className={`wmg-tag ${cat.type}`}>{cat.type}</span>
               <button className="wmg-icon-btn" onClick={() => removeCategory(cat.id)} aria-label="Remove category">✕</button>
             </div>
+            <div className="wmg-cat-budget-row">
+              <span className={`wmg-cat-badge tone-${cat.type === "essential" ? "brand" : "coral"}`}>
+                {(cat.name || "?").trim().charAt(0).toUpperCase() || "?"}
+              </span>
+              <div className="wmg-cat-budget-info">
+                <div className="wmg-cat-budget-label">
+                  <span className={subtotal > cat.budget ? "wmg-cat-budget-over" : ""}>{gbp(subtotal)}</span> of{" "}
+                  <InlinePill
+                    value={cat.budget}
+                    onChange={(v) => updateCategoryField(cat.id, "budget", v)}
+                    formatter={(v) => gbp(v)}
+                    ariaLabel={`${cat.name} monthly budget`}
+                  />{" "}
+                  budget
+                </div>
+                <ProgressBar value={subtotal} max={cat.budget} tone={subtotal > cat.budget ? "rust" : "sage"} />
+              </div>
+            </div>
             {cat.items.map((item) => (
               <div className="wmg-item-line" key={item.id}>
                 <input
@@ -3034,46 +3173,15 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
       <div className="wmg-section-title">Subscriptions</div>
       <Card>
         <div className="wmg-sub-list">
-          {profile.subscriptions.map((s) => (
-            <div key={s.id} className={`wmg-sub-row ${s.cancelled ? "cancelled" : ""}`}>
-              <div className="wmg-sub-left">
-                <input
-                  className="wmg-input"
-                  style={{ width: 160 }}
-                  value={s.name}
-                  onChange={(e) => updateArrayItem("subscriptions")(s.id, "name", e.target.value)}
-                />
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--paper-dim)" }}>
-                  <input type="checkbox" checked={s.flagged} onChange={(e) => updateArrayItem("subscriptions")(s.id, "flagged", e.target.checked)} />
-                  flag
-                </label>
-                {s.flagged && !s.cancelled && <span className="wmg-flag">Consider cutting</span>}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  className="wmg-input"
-                  type="number"
-                  style={{ width: 80 }}
-                  value={s.amount}
-                  onChange={(e) => updateArrayItem("subscriptions")(s.id, "amount", Number(e.target.value))}
-                />
-                <button
-                  className={`wmg-toggle-btn ${s.cancelled ? "is-cancelled" : ""}`}
-                  onClick={() => toggleSub(s.id)}
-                  title={s.cancelled ? "Bring this back into your monthly total" : "Stops counting it in your total — doesn't cancel it with the actual provider, and you can bring it back anytime"}
-                >
-                  {s.cancelled ? "Restore" : "Mark cancelled"}
-                </button>
-                <button
-                  className="wmg-icon-btn"
-                  onClick={() => removeArrayItem("subscriptions")(s.id)}
-                  aria-label="Remove"
-                  title="Delete this row completely — use this if you added it by mistake, not for cancelling a subscription you actually have"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+          {profile.subscriptions.map((s, i) => (
+            <SubscriptionRow
+              key={s.id}
+              sub={s}
+              index={i}
+              onEdit={(field, value) => updateArrayItem("subscriptions")(s.id, field, value)}
+              onToggleCancel={() => toggleSub(s.id)}
+              onRemove={() => removeArrayItem("subscriptions")(s.id)}
+            />
           ))}
         </div>
         <button className="wmg-add-btn" onClick={addArrayItem("subscriptions", { name: "New subscription", amount: 0, flagged: false, cancelled: false })} style={{ marginTop: 10 }}>
@@ -3411,11 +3519,18 @@ function GoalsTab({ profile, setField, updateGoal, addGoal, removeGoal }) {
     <>
       <div className="wmg-section-title">Emergency fund</div>
       <Card>
-        <div className="wmg-ef-row">
-          <span className="wmg-mono" style={{ fontSize: 19, fontWeight: 600 }}>{gbp(profile.emergencyFund.balance)}</span>
-          <span style={{ color: "var(--paper-dim)", fontSize: 12.5 }}>of {gbp(profile.emergencyFund.target)} target</span>
+        <div className="wmg-ef-ring-row">
+          <GrowthRing progress={profile.emergencyFund.balance / Math.max(1, profile.emergencyFund.target)} size={132} tone="sage">
+            <div className="wmg-ef-ring-val">{gbp(profile.emergencyFund.balance)}</div>
+            <div className="wmg-ef-ring-label">of {gbp(profile.emergencyFund.target)}</div>
+          </GrowthRing>
+          <div className="wmg-ef-ring-side">
+            <div className="wmg-ef-ring-side-label">Still to save</div>
+            <div className="wmg-ef-ring-side-val">
+              {gbp(Math.max(0, profile.emergencyFund.target - profile.emergencyFund.balance))}
+            </div>
+          </div>
         </div>
-        <ProgressBar value={profile.emergencyFund.balance} max={profile.emergencyFund.target} tone="sage" />
         <div className="wmg-sentence-card" style={{ marginTop: 14 }}>
           You've put aside{" "}
           <InlinePill value={profile.emergencyFund.balance} onChange={(v) => setField(["emergencyFund", "balance"])(v)} formatter={(v) => gbp(v)} ariaLabel="Emergency fund balance" />{" "}
