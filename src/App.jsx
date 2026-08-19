@@ -1965,7 +1965,7 @@ export default function App() {
         .wmg-serif { font-family: 'Baloo 2', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
 
         .wmg-app { display: flex; min-height: 100vh; align-items: flex-start; }
-        @media (max-width: 880px) { .wmg-app { flex-direction: column; } }
+        @media (max-width: 880px) { .wmg-app { flex-direction: column; align-items: stretch; } }
 
         .wmg-sidebar { width: 240px; flex-shrink: 0; padding: 26px 16px; border-right: 1px solid var(--hair); position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; background: var(--ink-2); }
         @media (max-width: 880px) {
