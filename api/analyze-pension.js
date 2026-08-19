@@ -105,7 +105,12 @@ export default async function handler(req, res) {
     try {
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      console.error("Failed to parse model JSON:", cleaned);
+      // Deliberately not logging `cleaned` here — it's the model's response
+      // about the user's actual pension document (provider, values, etc.),
+      // so logging it would put personal financial data in plain server
+      // logs. Length only, enough to debug a parsing regression without
+      // capturing document content.
+      console.error("Failed to parse model JSON. Response length:", cleaned.length);
       res.status(502).json({ error: "Couldn't understand the document reader's response. Please try again." });
       return;
     }
