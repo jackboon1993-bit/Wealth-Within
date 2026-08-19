@@ -1506,6 +1506,33 @@ export default function App() {
     }
   };
 
+  const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
+  const [deleteAccountText, setDeleteAccountText] = useState("");
+  const [deleteAccountStatus, setDeleteAccountStatus] = useState("idle"); // idle | deleting | error
+  const deleteAccountNow = async () => {
+    if (!supabase) return;
+    setDeleteAccountStatus("deleting");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Not signed in.");
+
+      const resp = await fetch("/api/delete-account", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(result.error || "Couldn't delete the account.");
+
+      sessionStorage.setItem("wwa-account-deleted", "1");
+      await supabase.auth.signOut();
+    } catch (err) {
+      setDeleteAccountStatus("error");
+    }
+  };
+
   const allDebts = useMemo(
     () => [
       ...profile.loans.map((l) => ({ ...l, kind: "Loan", confirmedBalance: l.balance, balance: estimateBalanceToday(l.balance, l.rate, l.payment, l.lastConfirmedAt) })),
@@ -2460,6 +2487,61 @@ export default function App() {
               <button className="wmg-reset-btn" style={{ marginTop: 8 }} onClick={() => supabase.auth.signOut()}>
                 Sign out
               </button>
+            )}
+            {supabase && (
+              <div style={{ marginTop: 8 }}>
+                {!confirmingDeleteAccount ? (
+                  <button
+                    className="wmg-reset-btn"
+                    style={{ color: "var(--rust)", borderColor: "var(--rust)" }}
+                    onClick={() => {
+                      setConfirmingDeleteAccount(true);
+                      setDeleteAccountText("");
+                      setDeleteAccountStatus("idle");
+                    }}
+                  >
+                    Delete my account
+                  </button>
+                ) : (
+                  <div style={{ background: "var(--ink-3)", border: "1px solid var(--hair)", borderRadius: 10, padding: 12 }}>
+                    <p className="wmg-sub" style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--rust)" }}>
+                      This permanently deletes your account and all your data. It can't be undone.
+                    </p>
+                    <p className="wmg-sub" style={{ margin: "0 0 8px" }}>
+                      Type <strong>DELETE</strong> to confirm.
+                    </p>
+                    <input
+                      className="wmg-input"
+                      style={{ marginBottom: 8 }}
+                      value={deleteAccountText}
+                      onChange={(e) => setDeleteAccountText(e.target.value)}
+                      placeholder="DELETE"
+                      disabled={deleteAccountStatus === "deleting"}
+                    />
+                    {deleteAccountStatus === "error" && (
+                      <p className="wmg-sub" style={{ color: "var(--rust)", margin: "0 0 8px" }}>
+                        Something went wrong — please try again, or contact support if it keeps happening.
+                      </p>
+                    )}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        className="wmg-reset-btn danger"
+                        disabled={deleteAccountText !== "DELETE" || deleteAccountStatus === "deleting"}
+                        onClick={deleteAccountNow}
+                      >
+                        {deleteAccountStatus === "deleting" ? "Deleting…" : "Permanently delete"}
+                      </button>
+                      <button
+                        className="wmg-reset-btn"
+                        disabled={deleteAccountStatus === "deleting"}
+                        onClick={() => setConfirmingDeleteAccount(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

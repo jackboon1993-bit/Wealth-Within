@@ -40,6 +40,13 @@ function SignInScreen() {
   const [status, setStatus] = useState({ type: null, message: "" });
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (sessionStorage.getItem("wwa-account-deleted")) {
+      sessionStorage.removeItem("wwa-account-deleted");
+      setStatus({ type: "success", message: "Your account and all your data have been permanently deleted." });
+    }
+  }, []);
+
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
