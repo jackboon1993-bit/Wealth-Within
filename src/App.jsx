@@ -596,10 +596,10 @@ function Gauge({ score, variant = "light" }) {
   const nx = cx + (r - 12) * Math.cos(theta);
   const ny = cy - (r - 12) * Math.sin(theta);
   const isHero = variant === "hero";
-  const trackColor = isHero ? "rgba(255,255,255,0.28)" : "#EDE7DA";
-  const needleColor = isHero ? "#FFFFFF" : "#142420";
+  const trackColor = isHero ? "rgba(255,255,255,0.28)" : "#2A2A5C";
+  const needleColor = isHero ? "#FFFFFF" : "#F3F1FF";
   const hubFill = isHero ? "#FF9166" : "#8B5CF6";
-  const hubStroke = isHero ? "#0B5A48" : "#FFFFFF";
+  const hubStroke = "#FFFFFF";
   const gradId = isHero ? "gaugeGradHero" : "gaugeGrad";
 
   return (
@@ -609,12 +609,12 @@ function Gauge({ score, variant = "light" }) {
           {isHero ? (
             <>
               <stop offset="0%" stopColor="#FF9166" />
-              <stop offset="50%" stopColor="#FFD9A0" />
-              <stop offset="100%" stopColor="#BFF7E3" />
+              <stop offset="50%" stopColor="#FFCE6B" />
+              <stop offset="100%" stopColor="#4FD1C5" />
             </>
           ) : (
             <>
-              <stop offset="0%" stopColor="#D6483A" />
+              <stop offset="0%" stopColor="#FF5C7A" />
               <stop offset="50%" stopColor="#FFCE6B" />
               <stop offset="100%" stopColor="#8B5CF6" />
             </>
@@ -1427,13 +1427,13 @@ function BrandMark({ size = 34 }) {
     <svg width={size} height={size} viewBox="0 0 34 34" fill="none">
       <defs>
         <linearGradient id="brandMarkGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#17A184" />
-          <stop offset="100%" stopColor="#0B5A48" />
+          <stop offset="0%" stopColor="#FF6FA5" />
+          <stop offset="100%" stopColor="#7C4DFF" />
         </linearGradient>
       </defs>
       <rect width="34" height="34" rx="10" fill="url(#brandMarkGrad)" />
       <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="26" cy="10" r="1.9" fill="#FF9166" />
+      <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
     </svg>
   );
 }
@@ -2086,10 +2086,14 @@ export default function App() {
         .wmg-mosaic-tile-label { font-size: 10px; color: var(--paper-dim); margin-bottom: 2px; }
         .wmg-mosaic-tile-coral .wmg-mosaic-tile-label { color: var(--coral-text); opacity: 0.8; }
         .wmg-mosaic-tile-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--paper); }
-        .wmg-mosaic-quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
-        .wmg-mosaic-quick-tile { background: var(--ink-3); border-radius: 16px; padding: 12px 8px; text-align: center; color: var(--brand-2); }
-        .wmg-mosaic-quick-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--paper); margin-top: 5px; }
-        .wmg-mosaic-quick-label { font-size: 9.5px; color: var(--paper-dim); margin-top: 1px; }
+        .wmg-badge-row { display: flex; justify-content: space-around; gap: 8px; margin-bottom: 20px; }
+        .wmg-badge-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .wmg-badge-circle { width: 74px; height: 74px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 13px; color: #FFFFFF; }
+        .wmg-badge-circle.tone-brand { background: linear-gradient(150deg, #A78BFA, #7C4DFF); box-shadow: 0 8px 18px rgba(124,77,255,0.35); }
+        .wmg-badge-circle.tone-coral { background: linear-gradient(150deg, #FF9166, #FF6B4A); box-shadow: 0 8px 18px rgba(255,107,74,0.3); }
+        .wmg-badge-circle.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); box-shadow: 0 8px 18px rgba(23,163,152,0.3); }
+        .wmg-badge-circle.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); box-shadow: 0 8px 18px rgba(255,164,0,0.3); }
+        .wmg-badge-label { font-size: 11px; color: var(--paper-dim); font-weight: 600; }
 
         .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 8px; padding: 2px 2px 8px; }
         .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 19px; padding: 10px 14px; min-width: 92px; }
@@ -2104,13 +2108,13 @@ export default function App() {
         .wmg-insight-rust { background: linear-gradient(135deg, var(--rust-soft), var(--ink-2) 70%); }
         .wmg-insight-gold { background: linear-gradient(135deg, var(--gold-soft), var(--ink-2) 70%); }
         .wmg-insight-sage { background: linear-gradient(135deg, var(--sage-soft), var(--ink-2) 70%); }
-        .wmg-insight-icon-badge { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
-        .wmg-insight-icon-badge.tone-rust { background: var(--rust); color: #FFFFFF; }
-        .wmg-insight-icon-badge.tone-gold { background: var(--gold); color: #FFFFFF; }
-        .wmg-insight-icon-badge.tone-sage { background: var(--sage); color: #FFFFFF; }
+        .wmg-insight-icon-badge { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 13px; flex-shrink: 0; margin-top: 1px; color: #FFFFFF; }
+        .wmg-insight-icon-badge.tone-rust { background: linear-gradient(150deg, #FF7AB0, #FF3D81); }
+        .wmg-insight-icon-badge.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
+        .wmg-insight-icon-badge.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
         .wmg-coach-clickable { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
         .wmg-coach-clickable:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -6px rgba(15,30,25,0.2); }
-        .wmg-coach-chevron { margin-left: auto; color: var(--paper-dim); font-size: 15px; align-self: center; flex-shrink: 0; }
+        .wmg-coach-chevron { margin-left: auto; align-self: center; flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(150deg, #4FC3F7, #2E86F0); color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px; }
         .wmg-coach-more { display: block; margin: 8px auto 0; background: transparent; border: none; color: var(--brand); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 6px 10px; }
         .wmg-coach-more:hover { text-decoration: underline; }
 
@@ -2185,7 +2189,7 @@ export default function App() {
         .wmg-ef-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
         .wmg-progress-track { width: 100%; height: 12px; background: var(--ink-3); border-radius: 999px; overflow: hidden; }
         .wmg-progress-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
-        .wmg-progress-fill.tone-gold { background: linear-gradient(90deg, var(--gold), #C9A64B); }
+        .wmg-progress-fill.tone-gold { background: linear-gradient(90deg, var(--gold), #FFA400); }
         .wmg-progress-fill.tone-sage { background: linear-gradient(90deg, var(--brand), var(--sage)); }
 
         .wmg-sub-list { display: flex; flex-direction: column; gap: 8px; }
@@ -2242,7 +2246,7 @@ export default function App() {
         .wmg-tag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 9px; border-radius: 999px; color: var(--paper-dim); background: var(--ink-3); }
         .wmg-tag.essential { background: var(--slate-soft); color: var(--slate); }
         .wmg-tag.lifestyle { background: var(--coral-soft); color: var(--coral-text); }
-        .wmg-tag.assumed { background: var(--gold-soft, #F2E7C7); color: var(--gold, #97721F); }
+        .wmg-tag.assumed { background: var(--gold-soft, #3D3320); color: var(--gold, #FFCE6B); }
 
         .wmg-goal-card { margin-bottom: 14px; }
         .wmg-goal-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
@@ -2288,7 +2292,7 @@ export default function App() {
 
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
 
-        .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 55%, #1AA187 100%); }
+        .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 55%, #4FD1C5 100%); }
         .wmg-onboard-card { width: 100%; max-width: 360px; background: var(--ink-2); border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(10,70,56,0.5); }
         .wmg-onboard-icon { width: 56px; height: 56px; border-radius: 21px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
         .wmg-onboard-icon svg { width: 26px; height: 26px; }
@@ -2752,9 +2756,9 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const quickTiles = [
-    { label: "Available", value: gbp(totals.available), icon: "networth" },
-    { label: "Debt", value: gbp(totals.totalDebt), icon: "debt" },
-    { label: "Savings", value: gbp(profile.savings.balance), icon: "savings" },
+    { label: "Available", value: gbp(totals.available), icon: "networth", tone: "brand" },
+    { label: "Debt", value: gbp(totals.totalDebt), icon: "debt", tone: "coral" },
+    { label: "Savings", value: gbp(profile.savings.balance), icon: "savings", tone: "sage" },
   ];
 
   const chips = [
@@ -2806,12 +2810,11 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
         </Card>
       )}
 
-      <div className="wmg-mosaic-quick-row">
+      <div className="wmg-badge-row">
         {quickTiles.map((t) => (
-          <div className="wmg-mosaic-quick-tile" key={t.label}>
-            <StatIcon name={t.icon} />
-            <div className="wmg-mosaic-quick-val">{t.value}</div>
-            <div className="wmg-mosaic-quick-label">{t.label}</div>
+          <div className="wmg-badge-item" key={t.label}>
+            <div className={`wmg-badge-circle tone-${t.tone}`}>{t.value}</div>
+            <div className="wmg-badge-label">{t.label}</div>
           </div>
         ))}
       </div>
@@ -3698,9 +3701,9 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
                 <ReferenceLine
                   key={e.id}
                   x={Math.round((e.month / 12) * 10) / 10}
-                  stroke={e.type === "expense" ? "#D6483A" : "#4FD1C5"}
+                  stroke={e.type === "expense" ? "#FF5C7A" : "#4FD1C5"}
                   strokeDasharray="3 3"
-                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D6483A" : "#4FD1C5" }}
+                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#FF5C7A" : "#4FD1C5" }}
                 />
               ))}
               <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
