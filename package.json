@@ -11,7 +11,7 @@
     "android:open": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/android": "^6.1.2",
+    "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^6.1.2",
     "@sentry/react": "^8.36.0",
     "@supabase/supabase-js": "^2.45.0",
