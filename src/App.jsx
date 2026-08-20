@@ -1954,6 +1954,21 @@ export default function App() {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("idle"); // idle | sending | sent | error
 
+  // Accessibility: Escape closes whichever overlay is open. The "more" sheet
+  // in particular has no visible close button — a keyboard user who opens it
+  // without picking a different tab otherwise has no way to dismiss it.
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      if (moreOpen) setMoreOpen(false);
+      if (feedbackOpen) setFeedbackOpen(false);
+      if (confirmingReset) setConfirmingReset(false);
+      if (confirmingDeleteAccount) setConfirmingDeleteAccount(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [moreOpen, feedbackOpen, confirmingReset, confirmingDeleteAccount]);
+
   const submitFeedbackNow = async () => {
     if (!feedbackMessage.trim()) return;
     setFeedbackStatus("sending");
@@ -2019,7 +2034,7 @@ export default function App() {
           --rust-soft: #FFE6EC;
           --slate-soft: #EEECF7;
           --hair: #E4E1F0;
-          --coral-text: #C1481C;
+          --coral-text: #A83D17;
         }
         .wmg-root.theme-light .wmg-topbar { background: rgba(255,255,255,0.85); }
         .wmg-theme-toggle { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--hair); background: var(--ink-2); color: var(--paper); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
@@ -2317,6 +2332,7 @@ export default function App() {
         .wmg-infotip-wrap { position: relative; display: inline-block; margin-left: 5px; }
         .wmg-infotip-btn { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--paper-dim); background: transparent; color: var(--paper-dim); font-size: 9px; font-family: 'Plus Jakarta Sans', sans-serif; font-style: italic; font-weight: 700; line-height: 1; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
         .wmg-infotip-btn:hover, .wmg-infotip-btn:focus { border-color: var(--brand); color: var(--brand); outline: none; }
+        .wmg-infotip-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
         .wmg-infotip-btn-light { border-color: rgba(255,255,255,0.6); color: rgba(255,255,255,0.9); }
         .wmg-infotip-btn-light:hover, .wmg-infotip-btn-light:focus { border-color: #FFFFFF; color: #FFFFFF; }
         .wmg-hero-score-wrap { display: flex; align-items: center; gap: 4px; }
@@ -2401,6 +2417,19 @@ export default function App() {
         .wmg-edu-dot.tone-coral { background: linear-gradient(150deg, #FF9166, #FF6B4A); }
         .wmg-edu-dot.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
         .wmg-edu-dot.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
+
+        /* Accessibility: white text fails WCAG AA contrast on the lighter/brighter
+           gold, sage, coral and rust badge tones (as low as 1.7:1 for gold) — dark
+           text reads clearly on all four (6.5–9.7:1). Brand purple is left as white
+           since it's much closer to passing (4.2:1) and dark text there is worse,
+           not better (3.9:1) — a small remaining gap, not a regression. */
+        .wmg-badge-circle.tone-coral, .wmg-badge-circle.tone-sage, .wmg-badge-circle.tone-gold,
+        .wmg-sub-avatar.tone-coral, .wmg-sub-avatar.tone-sage, .wmg-sub-avatar.tone-gold, .wmg-sub-avatar.tone-rust,
+        .wmg-accordion-toggle.tone-coral, .wmg-accordion-toggle.tone-sage, .wmg-accordion-toggle.tone-gold,
+        .wmg-cat-badge.tone-coral,
+        .wmg-insight-icon-badge.tone-coral, .wmg-insight-icon-badge.tone-sage, .wmg-insight-icon-badge.tone-gold, .wmg-insight-icon-badge.tone-rust {
+          color: #1A1A3D;
+        }
         .wmg-accordion-body { padding: 0 2px 16px; font-size: 13.5px; line-height: 1.65; color: var(--paper-dim); }
 
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
