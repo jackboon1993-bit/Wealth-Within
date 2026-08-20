@@ -161,6 +161,74 @@ function FullScreenMessage({ text }) {
   );
 }
 
+function ReaderPreviewCard() {
+  return (
+    <div style={styles.previewCard}>
+      <div style={styles.previewTag}>Example — AI pension reader</div>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 13.5, color: "#F3F1FF", marginTop: 10 }}>
+        Legal &amp; General Workplace Pension
+      </div>
+      <div style={styles.previewChipRow}>
+        <div style={styles.previewChip}>
+          <div style={styles.previewChipLabel}>Current value</div>
+          <div style={styles.previewChipValue}>£42,300</div>
+        </div>
+        <div style={styles.previewChip}>
+          <div style={styles.previewChipLabel}>Annual fee</div>
+          <div style={styles.previewChipValue}>0.6%</div>
+        </div>
+      </div>
+      <p style={styles.previewVerdict}>
+        "Fees look reasonable for this type of pension, and contributions look on track for your stated retirement
+        age."
+      </p>
+    </div>
+  );
+}
+
+function BenefitsPanel() {
+  return (
+    <div style={styles.benefits}>
+      <div style={styles.brandRow}>
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+          <defs>
+            <linearGradient id="benefitsBrandGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#FF6FA5" />
+              <stop offset="100%" stopColor="#7C4DFF" />
+            </linearGradient>
+          </defs>
+          <rect width="34" height="34" rx="10" fill="url(#benefitsBrandGrad)" />
+          <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
+        </svg>
+        <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#F3F1FF" }}>
+          Wealth Within
+        </div>
+      </div>
+
+      <h1 style={styles.headline}>See your whole financial picture, in plain English.</h1>
+      <p style={styles.subhead}>Income, debts, savings and pension — brought together and explained simply, not just tracked.</p>
+
+      <ReaderPreviewCard />
+      <p style={styles.previewCaption}>
+        Upload your own statement — a PDF, or just a photo — in the Pension Reader tab. It's something even the big
+        budgeting apps don't do.
+      </p>
+
+      <div style={styles.bullets}>
+        <div style={styles.bullet}>
+          <span style={styles.bulletDot} />
+          See exactly when you'll be debt-free, and what overpaying does to that date.
+        </div>
+        <div style={styles.bullet}>
+          <span style={styles.bulletDot} />
+          Every core tool — budgeting, forecasting, and pension — free to use today.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SignInScreen() {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
@@ -207,67 +275,61 @@ function SignInScreen() {
         .wwa-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
         .wwa-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .wwa-switch { background: none; border: none; color: #FF6FA5; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0; }
+        .wwa-shell { display: flex; align-items: center; gap: 56px; max-width: 920px; width: 100%; }
+        .wwa-shell > .wwa-benefits { flex: 1 1 0; min-width: 0; }
+        .wwa-shell > .wwa-authcard { flex: 0 0 380px; }
+        @media (max-width: 880px) {
+          .wwa-shell { flex-direction: column; gap: 32px; }
+          .wwa-shell > .wwa-authcard { flex: 0 0 auto; width: 100%; }
+        }
       `}</style>
-      <div style={styles.card}>
-        <div style={styles.brandRow}>
-          <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-            <defs>
-              <linearGradient id="authBrandGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#FF6FA5" />
-                <stop offset="100%" stopColor="#7C4DFF" />
-              </linearGradient>
-            </defs>
-            <rect width="34" height="34" rx="10" fill="url(#authBrandGrad)" />
-            <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
-          </svg>
-          <div>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#F3F1FF" }}>
-              Wealth Within
-            </div>
-            <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 10.5, color: "#9C97C4" }}>Household finance, in one place</div>
-          </div>
+
+      <div className="wwa-shell">
+        <div className="wwa-benefits">
+          <BenefitsPanel />
         </div>
 
-        <h2 style={styles.heading}>{mode === "signup" ? "Create your account" : "Sign in"}</h2>
+        <div className="wwa-authcard" style={styles.card}>
+          <h2 style={styles.heading}>{mode === "signup" ? "Create your account" : "Sign in"}</h2>
 
-        <form onSubmit={submit}>
-          <input
-            className="wwa-input"
-            type="email"
-            placeholder="Email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            className="wwa-input"
-            type="password"
-            placeholder="Password"
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button className="wwa-btn" type="submit" disabled={busy}>
-            {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
-          </button>
-        </form>
+          <form onSubmit={submit}>
+            <input
+              className="wwa-input"
+              type="email"
+              placeholder="Email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <input
+              className="wwa-input"
+              type="password"
+              placeholder="Password"
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button className="wwa-btn" type="submit" disabled={busy}>
+              {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+            </button>
+          </form>
 
-        {status.message && (
-          <p style={{ fontSize: 12.5, marginTop: 12, color: status.type === "error" ? "#FF5C7A" : "#4FD1C5", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {status.message}
+          {status.message && (
+            <p style={{ fontSize: 12.5, marginTop: 12, color: status.type === "error" ? "#FF5C7A" : "#4FD1C5", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {status.message}
+            </p>
+          )}
+
+          <p style={{ marginTop: 18, fontSize: 12.5, fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#9C97C4" }}>
+            {mode === "signup" ? "Already have an account?" : "New here?"}{" "}
+            <button className="wwa-switch" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>
+              {mode === "signup" ? "Sign in" : "Create an account"}
+            </button>
           </p>
-        )}
-
-        <p style={{ marginTop: 18, fontSize: 12.5, fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#9C97C4" }}>
-          {mode === "signup" ? "Already have an account?" : "New here?"}{" "}
-          <button className="wwa-switch" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>
-            {mode === "signup" ? "Sign in" : "Create an account"}
-          </button>
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -301,4 +363,81 @@ const styles = {
   },
   brandRow: { display: "flex", alignItems: "center", gap: 11, marginBottom: 22 },
   heading: { fontFamily: "'Baloo 2', sans-serif", fontSize: 18, fontWeight: 700, color: "#F3F1FF", margin: "0 0 16px" },
+  benefits: { color: "#F3F1FF" },
+  headline: {
+    fontFamily: "'Baloo 2', sans-serif",
+    fontWeight: 800,
+    fontSize: "clamp(24px, 3.4vw, 32px)",
+    lineHeight: 1.15,
+    letterSpacing: "-0.01em",
+    color: "#F3F1FF",
+    margin: "0 0 10px",
+  },
+  subhead: {
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 14.5,
+    lineHeight: 1.5,
+    color: "#B7B2DE",
+    margin: "0 0 22px",
+    maxWidth: 440,
+  },
+  previewCard: {
+    background: "#21214A",
+    border: "1px solid #363068",
+    borderRadius: 18,
+    padding: "16px 18px",
+    maxWidth: 400,
+    boxShadow: "0 12px 28px -14px rgba(15,15,45,0.6)",
+  },
+  previewTag: {
+    display: "inline-block",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 10.5,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "#FF9FC0",
+    background: "rgba(255,111,165,0.12)",
+    borderRadius: 999,
+    padding: "3px 10px",
+  },
+  previewChipRow: { display: "flex", gap: 10, marginTop: 12 },
+  previewChip: { background: "#2A2A5C", borderRadius: 12, padding: "8px 12px", flex: 1 },
+  previewChipLabel: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 10.5, color: "#9C97C4" },
+  previewChipValue: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 15, fontWeight: 700, color: "#F3F1FF", marginTop: 2 },
+  previewVerdict: {
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 12.5,
+    fontStyle: "italic",
+    color: "#B7B2DE",
+    lineHeight: 1.5,
+    margin: "12px 0 0",
+  },
+  previewCaption: {
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 12,
+    color: "#9C97C4",
+    lineHeight: 1.5,
+    maxWidth: 400,
+    margin: "10px 0 20px",
+  },
+  bullets: { display: "flex", flexDirection: "column", gap: 10 },
+  bullet: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "#D8D4F5",
+    maxWidth: 420,
+  },
+  bulletDot: {
+    flexShrink: 0,
+    marginTop: 6,
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #8B5CF6, #FF6FA5)",
+  },
 };

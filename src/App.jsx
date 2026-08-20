@@ -9,6 +9,8 @@ import {
   ComposedChart,
   Line,
   Area,
+  BarChart,
+  Bar,
   PieChart,
   Pie,
   Cell,
@@ -1657,7 +1659,7 @@ const NAV = [
   { key: "debts", label: "Debts & Mortgage", icon: "debts" },
   { key: "goals", label: "Savings & Goals", icon: "goals" },
   { key: "pension", label: "Pension & Retirement", icon: "pension" },
-  { key: "pension-reader", label: "Pension Reader", icon: "reader" },
+  { key: "pension-reader", label: "AI Pension Reader", icon: "reader" },
   { key: "forecast", label: "Cash Flow Forecast", icon: "forecast" },
   { key: "education", label: "Education", icon: "education" },
 ];
@@ -1777,7 +1779,7 @@ const MASCOT_MESSAGES = {
   debts: "Tap the balance, rate, or payment on any debt to update it. Confirming it every so often keeps your \"debt-free by\" date accurate.",
   goals: "Set a target for anything you're saving towards — a holiday, a house deposit — and see when you'll realistically get there.",
   pension: "Your pension and State Pension both feed into your retirement forecast. Even rough numbers here are better than leaving it blank.",
-  "pension-reader": "Upload a pension statement — PDF or a photo — and I'll explain what it actually says in plain English.",
+  "pension-reader": "Most budgeting apps can't do this. Upload any pension statement — PDF or a photo — and I'll explain what it actually says in plain English, free.",
   forecast: "This projects your finances forward using everything else you've entered. Try the sliders to see how overpaying debt or saving more changes your future.",
   education: "General explainers on pensions, debt, and savings — not personalised advice, just the basics laid out plainly.",
   default: "Wealth Within pulls your income, debts, savings, and pension into one place, so you can see the full picture instead of piecing it together yourself.",
@@ -3456,6 +3458,19 @@ function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCategory, 
   const itemCount = cat.items.length;
   const initial = (cat.name || "?").trim().charAt(0).toUpperCase() || "?";
 
+  // Collapses every item in this category into a single "Total" item holding
+  // the combined amount — for anyone who'd rather type one number than
+  // itemize each line. Fully reversible: "+ Add item" still works normally
+  // afterwards to break it back out.
+  const combineIntoTotal = () => {
+    if (cat.items.length <= 1) return;
+    const total = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
+    const [first, ...rest] = cat.items;
+    onUpdateItem(first.id, "name", "Total");
+    onUpdateItem(first.id, "amount", total);
+    rest.forEach((i) => onRemoveItem(i.id));
+  };
+
   return (
     <Card className="wmg-cat-card">
       <button type="button" className="wmg-cat-summary-toggle" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
@@ -3523,13 +3538,75 @@ function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCategory, 
             </div>
           ))}
           <button className="wmg-add-btn" onClick={onAddItem}>+ Add item</button>
+          {cat.items.length > 1 && (
+            <button type="button" className="wmg-onboard-skip" style={{ marginLeft: 10 }} onClick={combineIntoTotal}>
+              Combine into one total
+            </button>
+          )}
         </div>
       )}
     </Card>
   );
 }
 
+function EditSpendingSheet({ profile, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, addArrayItem, onboardingEstimateItem, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="wmg-more-sheet-backdrop" onClick={onClose}>
+      <div className="wmg-more-sheet wmg-edit-spending-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="wmg-more-sheet-handle" />
+        <div className="wmg-more-sheet-title">
+          Edit my spending
+          <button className="wmg-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="wmg-section-desc">
+          Add what applies to your household — item by item for detail, or just type one number per category and
+          combine the rest. Mark each category essential or lifestyle — this drives your score and cash flow.
+        </div>
+        {onboardingEstimateItem && (
+          <Card style={{ border: "1px dashed var(--gold)", background: "var(--gold-soft)" }}>
+            <div className="wmg-eyebrow" style={{ marginBottom: 4 }}>Improve your spending picture</div>
+            <div className="wmg-sub" style={{ color: "var(--paper)", fontWeight: 600, marginBottom: 4 }}>
+              You estimated {gbp(onboardingEstimateItem.amount)} of monthly spending during setup.
+            </div>
+            <div className="wmg-sub">
+              Add your regular household and lifestyle costs below to make your forecasts more accurate — this
+              replaces the single estimate with a proper breakdown.
+            </div>
+          </Card>
+        )}
+        {profile.expenseCategories.map((cat) => {
+          const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
+          return (
+            <CategoryCard
+              key={cat.id}
+              cat={cat}
+              subtotal={subtotal}
+              onUpdateCategoryField={updateCategoryField}
+              onRemoveCategory={() => removeCategory(cat.id)}
+              onAddItem={() => addItem(cat.id)}
+              onRemoveItem={(itemId) => removeItem(cat.id, itemId)}
+              onUpdateItem={(itemId, field, value) => updateItem(cat.id, itemId, field, value)}
+            />
+          );
+        })}
+        <button className="wmg-add-btn" onClick={addCategory} style={{ marginBottom: 8 }}>+ Add category</button>
+        <button className="wmg-btn-primary" style={{ marginTop: 12 }} onClick={onClose}>Done</button>
+      </div>
+    </div>
+  );
+}
+
 function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
+  const [editSpendingOpen, setEditSpendingOpen] = useState(false);
+
   const onboardingEstimateItem = useMemo(() => {
     for (const cat of profile.expenseCategories) {
       const item = cat.items.find((i) => i.isOnboardingEstimate);
@@ -3564,7 +3641,7 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
         </div>
       </Card>
 
-      {categoryChartData.length > 0 && (
+      {categoryChartData.length > 0 ? (
         <>
           <div className="wmg-section-title">Where it actually goes</div>
           <Card>
@@ -3593,39 +3670,49 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
               </div>
             </div>
           </Card>
-        </>
-      )}
 
-      <div className="wmg-section-title">Expenditure, by category</div>
-      <div className="wmg-section-desc">Add every category and line item that applies to your household. Mark each category essential or lifestyle — this drives your score and cash flow.</div>
-      {onboardingEstimateItem && (
-        <Card style={{ border: "1px dashed var(--gold)", background: "var(--gold-soft)" }}>
-          <div className="wmg-eyebrow" style={{ marginBottom: 4 }}>Improve your spending picture</div>
-          <div className="wmg-sub" style={{ color: "var(--paper)", fontWeight: 600, marginBottom: 4 }}>
-            You estimated {gbp(onboardingEstimateItem.amount)} of monthly spending during setup.
-          </div>
-          <div className="wmg-sub">
-            Add your regular household and lifestyle costs below to make your forecasts more
-            accurate — this replaces the single estimate with a proper breakdown.
-          </div>
+          <div className="wmg-section-title">Spending by category</div>
+          <Card>
+            <div style={{ width: "100%", height: Math.max(160, categoryChartData.length * 40) }}>
+              <ResponsiveContainer>
+                <BarChart data={categoryChartData} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11.5 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CategoryTooltip />} />
+                  <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+                    {categoryChartData.map((entry, i) => (
+                      <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </>
+      ) : (
+        <Card style={{ marginTop: 4 }}>
+          <p style={{ marginBottom: 12 }}>Nothing added yet — add your outgoings to see where your money actually goes.</p>
         </Card>
       )}
-      {profile.expenseCategories.map((cat) => {
-        const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
-        return (
-          <CategoryCard
-            key={cat.id}
-            cat={cat}
-            subtotal={subtotal}
-            onUpdateCategoryField={updateCategoryField}
-            onRemoveCategory={() => removeCategory(cat.id)}
-            onAddItem={() => addItem(cat.id)}
-            onRemoveItem={(itemId) => removeItem(cat.id, itemId)}
-            onUpdateItem={(itemId, field, value) => updateItem(cat.id, itemId, field, value)}
-          />
-        );
-      })}
-      <button className="wmg-add-btn" onClick={addCategory} style={{ marginBottom: 8 }}>+ Add category</button>
+
+      <button className="wmg-btn-primary" style={{ margin: "8px 0 20px" }} onClick={() => setEditSpendingOpen(true)}>
+        Edit my spending
+      </button>
+
+      {editSpendingOpen && (
+        <EditSpendingSheet
+          profile={profile}
+          addCategory={addCategory}
+          removeCategory={removeCategory}
+          updateCategoryField={updateCategoryField}
+          addItem={addItem}
+          removeItem={removeItem}
+          updateItem={updateItem}
+          addArrayItem={addArrayItem}
+          onboardingEstimateItem={onboardingEstimateItem}
+          onClose={() => setEditSpendingOpen(false)}
+        />
+      )}
 
       <div className="wmg-section-title">Subscriptions</div>
       <Card>
@@ -4841,10 +4928,12 @@ function PensionReaderTab({ onUseInPension }) {
 
   return (
     <>
-      <div className="wmg-section-title">Pension document reader</div>
+      <div className="wmg-section-title">Make sense of your pension in seconds</div>
       <div className="wmg-section-desc">
-        Upload a pension statement — a PDF, or a photo if it's on paper — and this reads it and explains it in plain
-        English. Nothing is saved unless you choose to use the numbers in your Pension tab.
+        Upload any pension statement — a PDF, or just a photo if it's on paper — and get a plain-English breakdown of
+        what it means for you: current value, fees, and what it's likely to be worth by retirement. It's something
+        none of the big budgeting apps offer. Nothing is saved unless you choose to use the numbers in your Pension
+        tab.
       </div>
 
       {status !== "done" && (
