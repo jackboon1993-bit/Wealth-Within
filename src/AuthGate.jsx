@@ -38,8 +38,13 @@ export default function AuthGate({ children }) {
   if (!supabase) return children;
   if (session === undefined) return <FullScreenMessage text="Loading…" />;
   if (!session) return <SignInScreen />;
+  // aal === null means we have a session but haven't yet heard back from
+  // getAuthenticatorAssuranceLevel(). Treat that as "still checking", not
+  // "no challenge needed" — otherwise there's a brief window on sign-in /
+  // page load where the app renders before we know MFA is required.
+  if (aal === null) return <FullScreenMessage text="Loading…" />;
 
-  const needsChallenge = aal && aal.current === "aal1" && aal.next === "aal2";
+  const needsChallenge = aal.current === "aal1" && aal.next === "aal2";
   if (needsChallenge) return <MfaChallengeScreen onVerified={() => setAal({ current: "aal2", next: "aal2" })} />;
 
   const flaggedAt = session.user?.app_metadata?.inactivity_flagged_at;
