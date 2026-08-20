@@ -668,6 +668,23 @@ function Gauge({ score, variant = "light" }) {
   );
 }
 
+/* Compact, collapsed-by-default "why this matters" callout — real motivational
+   context for a section, tucked behind a tap so it doesn't add to the page's
+   visual weight for people who don't need it. */
+function WhyItMatters({ children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="wmg-why-card">
+      <button type="button" className="wmg-why-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="wmg-why-icon">✦</span>
+        <span className="wmg-why-label">Why this matters</span>
+        <span className={`wmg-sub-chevron ${open ? "open" : ""}`} aria-hidden="true">›</span>
+      </button>
+      {open && <div className="wmg-why-body">{children}</div>}
+    </div>
+  );
+}
+
 function InfoTip({ text, light }) {
   const [open, setOpen] = useState(false);
   return (
@@ -1500,6 +1517,20 @@ function Mascot({ tab }) {
 export default function App() {
   const [profile, setProfile] = useState(defaultProfile);
   const [tab, setTab] = useState("overview");
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("wwa-theme") === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("wwa-theme", theme);
+    } catch {
+      /* private browsing or storage disabled — theme just won't persist */
+    }
+  }, [theme]);
   const [extraPayment, setExtraPayment] = useState(200);
   const [selectedDebtId, setSelectedDebtId] = useState(defaultProfile.loans[0].id);
   const [horizonYears, setHorizonYears] = useState(10);
@@ -1938,7 +1969,7 @@ export default function App() {
   /* ================================ render ================================ */
 
   return (
-    <div className="wmg-root">
+    <div className={`wmg-root ${theme === "light" ? "theme-light" : ""}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
@@ -1975,6 +2006,24 @@ export default function App() {
           font-variant-numeric: tabular-nums;
           overflow-x: hidden;
         }
+        .wmg-root.theme-light {
+          --ink: #F7F6FC;
+          --ink-2: #FFFFFF;
+          --ink-3: #EEECF7;
+          --paper: #1A1A3D;
+          --paper-dim: #6B6690;
+          --brand-soft: #EFE9FE;
+          --coral-soft: #FFEBE0;
+          --gold-soft: #FFF5DE;
+          --sage-soft: #E1F8F5;
+          --rust-soft: #FFE6EC;
+          --slate-soft: #EEECF7;
+          --hair: #E4E1F0;
+          --coral-text: #C1481C;
+        }
+        .wmg-root.theme-light .wmg-topbar { background: rgba(255,255,255,0.85); }
+        .wmg-theme-toggle { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--hair); background: var(--ink-2); color: var(--paper); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+        .wmg-theme-toggle:hover { border-color: var(--brand); }
         .wmg-root * { box-sizing: border-box; }
         .wmg-mono { font-family: 'Plus Jakarta Sans', sans-serif; font-variant-numeric: tabular-nums; }
         .wmg-serif { font-family: 'Baloo 2', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
@@ -2273,6 +2322,11 @@ export default function App() {
         .wmg-hero-score-wrap { display: flex; align-items: center; gap: 4px; }
         .wmg-infotip-bubble { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 220px; background: var(--paper); color: var(--ink); font-size: 11.5px; font-weight: 500; text-transform: none; letter-spacing: normal; line-height: 1.5; padding: 10px 12px; border-radius: 16px; box-shadow: 0 8px 20px rgba(15,15,45,0.25); }
         .wmg-infotip-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--paper); }
+        .wmg-why-card { background: var(--brand-soft); border-radius: 18px; margin-bottom: 14px; overflow: hidden; }
+        .wmg-why-toggle { width: 100%; display: flex; align-items: center; gap: 9px; background: transparent; border: none; padding: 11px 14px; cursor: pointer; text-align: left; font-family: inherit; }
+        .wmg-why-icon { font-size: 13px; color: var(--brand); flex-shrink: 0; }
+        .wmg-why-label { flex: 1; font-size: 12.5px; font-weight: 700; color: var(--paper); }
+        .wmg-why-body { padding: 0 14px 14px; font-size: 12.5px; line-height: 1.6; color: var(--paper-dim); }
         .wmg-field { margin-bottom: 12px; }
         .wmg-input { background: var(--ink-3); color: var(--paper); border: 1px solid var(--hair); border-radius: 16px; padding: 10px 11px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; width: 100%; }
         .wmg-input:focus, .wmg-select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
@@ -2287,11 +2341,12 @@ export default function App() {
         .wmg-add-btn:hover { border-color: var(--brand); color: var(--brand); }
 
         .wmg-cat-card { margin-bottom: 14px; }
-        .wmg-cat-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-        .wmg-cat-name-input { flex: 2; min-width: 90px; }
         .wmg-cat-type-select { flex: 1; min-width: 90px; }
-        .wmg-cat-subtotal { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--hair); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; }
-        .wmg-cat-subtotal-val { font-weight: 700; }
+        .wmg-cat-summary-toggle { width: 100%; display: flex; align-items: center; gap: 12px; background: transparent; border: none; padding: 0 0 12px; cursor: pointer; text-align: left; font-family: inherit; }
+        .wmg-cat-summary-name-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; }
+        .wmg-cat-summary-name { font-size: 15px; font-weight: 700; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wmg-cat-edit { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--hair); display: flex; flex-direction: column; gap: 4px; }
+        .wmg-cat-edit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
         .wmg-tag { font-size: 9.5px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 3px 9px; border-radius: 999px; color: var(--paper-dim); background: var(--ink-3); }
         .wmg-tag.essential { background: var(--slate-soft); color: var(--slate); }
         .wmg-tag.lifestyle { background: var(--coral-soft); color: var(--coral-text); }
@@ -2376,10 +2431,8 @@ export default function App() {
         .wmg-sentence-name-input:focus { outline: none; border-bottom-color: var(--brand-2); }
         .wmg-sentence-row { display: flex; align-items: flex-start; gap: 10px; }
         .wmg-sentence-row-main { flex: 1; min-width: 0; }
-        .wmg-item-line { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hair); }
+        .wmg-item-line { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hair); flex-wrap: wrap; }
         .wmg-item-line:last-of-type { border-bottom: none; }
-        .wmg-item-line-name { flex: 1; min-width: 0; background: transparent; border: none; font-size: 13.5px; color: var(--paper); font-family: inherit; padding: 4px 0; }
-        .wmg-item-line-name:focus { outline: none; }
         .wmg-item-line-costs { font-size: 12.5px; color: var(--paper-dim); flex-shrink: 0; }
 
         .wmg-mascot-wrap { position: fixed; left: 18px; bottom: 18px; z-index: 30; }
@@ -2670,6 +2723,24 @@ export default function App() {
               <div className="wmg-topbar-title">{NAV.find((n) => n.key === tab)?.label}</div>
             </div>
             <div className="wmg-topbar-stats">
+              <button
+                type="button"
+                className="wmg-theme-toggle"
+                onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+                aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              >
+                {theme === "light" ? (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                ) : (
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="4.5" />
+                    <path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8" />
+                  </svg>
+                )}
+              </button>
               <div className="wmg-score-chip">
                 <span className="wmg-score-chip-dot" style={{ background: score >= 70 ? "var(--sage)" : score >= 45 ? "var(--gold)" : "var(--rust)" }} />
                 <span className="wmg-mono" style={{ fontSize: 13, fontWeight: 600 }}>{score}/100</span>
@@ -3023,6 +3094,87 @@ function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove }) {
 const FLOW_TONE_COLORS = { slate: "#A6A3D6", rust: "#FF8FA6", gold: "#FFCE6B", sage: "#4FD1C5" };
 const CATEGORY_COLORS = ["#8B5CF6", "#FF9166", "#FFCE6B", "#A6A3D6", "#FF6FA5", "#4FD1C5", "#FF5C7A", "#6C4CE0", "#FF8FA6", "#9C97C4"];
 
+/* Collapsible expense category card — badge/budget/progress always visible at
+   a glance, but the individual line items (the real source of visual clutter
+   on this tab) stay hidden until you tap to expand. */
+function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCategory, onAddItem, onRemoveItem, onUpdateItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const itemCount = cat.items.length;
+  const initial = (cat.name || "?").trim().charAt(0).toUpperCase() || "?";
+
+  return (
+    <Card className="wmg-cat-card">
+      <button type="button" className="wmg-cat-summary-toggle" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
+        <span className={`wmg-cat-badge tone-${cat.type === "essential" ? "brand" : "coral"}`}>{initial}</span>
+        <span className="wmg-cat-summary-name-wrap">
+          <span className="wmg-cat-summary-name">{cat.name}</span>
+          <span className={`wmg-tag ${cat.type}`}>{cat.type}</span>
+        </span>
+        <span className={`wmg-sub-chevron ${expanded ? "open" : ""}`} aria-hidden="true">›</span>
+      </button>
+
+      <div className="wmg-cat-budget-row">
+        <div className="wmg-cat-budget-info">
+          <div className="wmg-cat-budget-label">
+            <span className={subtotal > cat.budget ? "wmg-cat-budget-over" : ""}>{gbp(subtotal)}</span> of{" "}
+            <InlinePill
+              value={cat.budget}
+              onChange={(v) => onUpdateCategoryField(cat.id, "budget", v)}
+              formatter={(v) => gbp(v)}
+              ariaLabel={`${cat.name} monthly budget`}
+            />{" "}
+            budget · {itemCount} {itemCount === 1 ? "item" : "items"}
+          </div>
+          <ProgressBar value={subtotal} max={cat.budget} tone={subtotal > cat.budget ? "rust" : "sage"} />
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="wmg-cat-edit">
+          <div className="wmg-cat-edit-row">
+            <InlinePill
+              value={cat.name}
+              type="text"
+              onChange={(v) => onUpdateCategoryField(cat.id, "name", v)}
+              ariaLabel="Category name"
+              minWidth={100}
+            />
+            <select
+              className="wmg-select wmg-cat-type-select"
+              value={cat.type}
+              onChange={(e) => onUpdateCategoryField(cat.id, "type", e.target.value)}
+            >
+              <option value="essential">Essential</option>
+              <option value="lifestyle">Lifestyle</option>
+            </select>
+            <button className="wmg-icon-btn" onClick={onRemoveCategory} aria-label="Remove category">✕</button>
+          </div>
+          {cat.items.map((item) => (
+            <div className="wmg-item-line" key={item.id}>
+              <InlinePill
+                value={item.name}
+                type="text"
+                onChange={(v) => onUpdateItem(item.id, "name", v)}
+                ariaLabel="Item name"
+                minWidth={110}
+              />
+              <span className="wmg-item-line-costs">costs</span>
+              <InlinePill
+                value={item.amount}
+                onChange={(v) => onUpdateItem(item.id, "amount", v)}
+                formatter={(v) => gbp(v)}
+                ariaLabel={`${item.name} monthly cost`}
+              />
+              <button className="wmg-icon-btn" onClick={() => onRemoveItem(item.id)} aria-label="Remove item">✕</button>
+            </div>
+          ))}
+          <button className="wmg-add-btn" onClick={onAddItem}>+ Add item</button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
   const onboardingEstimateItem = useMemo(() => {
     for (const cat of profile.expenseCategories) {
@@ -3107,65 +3259,16 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
       {profile.expenseCategories.map((cat) => {
         const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
         return (
-          <Card className="wmg-cat-card" key={cat.id}>
-            <div className="wmg-cat-head">
-              <input
-                className="wmg-input wmg-cat-name-input"
-                value={cat.name}
-                onChange={(e) => updateCategoryField(cat.id, "name", e.target.value)}
-              />
-              <select
-                className="wmg-select wmg-cat-type-select"
-                value={cat.type}
-                onChange={(e) => updateCategoryField(cat.id, "type", e.target.value)}
-              >
-                <option value="essential">Essential</option>
-                <option value="lifestyle">Lifestyle</option>
-              </select>
-              <span className={`wmg-tag ${cat.type}`}>{cat.type}</span>
-              <button className="wmg-icon-btn" onClick={() => removeCategory(cat.id)} aria-label="Remove category">✕</button>
-            </div>
-            <div className="wmg-cat-budget-row">
-              <span className={`wmg-cat-badge tone-${cat.type === "essential" ? "brand" : "coral"}`}>
-                {(cat.name || "?").trim().charAt(0).toUpperCase() || "?"}
-              </span>
-              <div className="wmg-cat-budget-info">
-                <div className="wmg-cat-budget-label">
-                  <span className={subtotal > cat.budget ? "wmg-cat-budget-over" : ""}>{gbp(subtotal)}</span> of{" "}
-                  <InlinePill
-                    value={cat.budget}
-                    onChange={(v) => updateCategoryField(cat.id, "budget", v)}
-                    formatter={(v) => gbp(v)}
-                    ariaLabel={`${cat.name} monthly budget`}
-                  />{" "}
-                  budget
-                </div>
-                <ProgressBar value={subtotal} max={cat.budget} tone={subtotal > cat.budget ? "rust" : "sage"} />
-              </div>
-            </div>
-            {cat.items.map((item) => (
-              <div className="wmg-item-line" key={item.id}>
-                <input
-                  className="wmg-item-line-name"
-                  value={item.name}
-                  onChange={(e) => updateItem(cat.id, item.id, "name", e.target.value)}
-                />
-                <span className="wmg-item-line-costs">costs</span>
-                <InlinePill
-                  value={item.amount}
-                  onChange={(v) => updateItem(cat.id, item.id, "amount", v)}
-                  formatter={(v) => gbp(v)}
-                  ariaLabel={`${item.name} monthly cost`}
-                />
-                <button className="wmg-icon-btn" onClick={() => removeItem(cat.id, item.id)} aria-label="Remove item">✕</button>
-              </div>
-            ))}
-            <button className="wmg-add-btn" onClick={() => addItem(cat.id)}>+ Add item</button>
-            <div className="wmg-cat-subtotal">
-              <span style={{ color: "var(--paper-dim)" }}>Subtotal</span>
-              <span className="wmg-cat-subtotal-val">{gbp(subtotal)}/month</span>
-            </div>
-          </Card>
+          <CategoryCard
+            key={cat.id}
+            cat={cat}
+            subtotal={subtotal}
+            onUpdateCategoryField={updateCategoryField}
+            onRemoveCategory={() => removeCategory(cat.id)}
+            onAddItem={() => addItem(cat.id)}
+            onRemoveItem={(itemId) => removeItem(cat.id, itemId)}
+            onUpdateItem={(itemId, field, value) => updateItem(cat.id, itemId, field, value)}
+          />
         );
       })}
       <button className="wmg-add-btn" onClick={addCategory} style={{ marginBottom: 8 }}>+ Add category</button>
@@ -3472,6 +3575,12 @@ function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, 
       </button>
 
       <div className="wmg-section-title">Debt-free calculator</div>
+      <WhyItMatters>
+        Every pound of interest you pay is money that never becomes yours — it goes straight to the lender with
+        nothing to show for it. Clearing higher-interest debt first, even with a small amount extra each month, often
+        does more for your finances than any investment could, because you're guaranteed to "earn" whatever interest
+        rate you stop paying.
+      </WhyItMatters>
       <Card>
         <div className="wmg-eyebrow" style={{ marginBottom: 10 }}>Debt-free date, at current payments: <span className="wmg-mono" style={{ color: "var(--paper)" }}>{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</span></div>
         <div className="wmg-two-col">
@@ -3518,6 +3627,12 @@ function GoalsTab({ profile, setField, updateGoal, addGoal, removeGoal }) {
   return (
     <>
       <div className="wmg-section-title">Emergency fund</div>
+      <WhyItMatters>
+        Without a buffer, an unexpected bill or a lost month of income often gets paid for with high-interest
+        debt — turning a one-off problem into an ongoing one. An emergency fund breaks that cycle. It's not about
+        maximising returns; it's about not being forced into a bad financial decision the moment something goes
+        wrong.
+      </WhyItMatters>
       <Card>
         <div className="wmg-ef-ring-row">
           <GrowthRing progress={profile.emergencyFund.balance / Math.max(1, profile.emergencyFund.target)} size={132} tone="sage">
@@ -3588,6 +3703,13 @@ function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire 
   return (
     <>
       <div className="wmg-section-title">Pension details</div>
+      <WhyItMatters>
+        Pensions get a head start almost nothing else does: tax relief tops up what you put in, your employer often
+        matches some of it, and any growth compounds untouched for decades. Someone starting at 25 can end up with
+        roughly double the pot of someone starting the same monthly amount at 35 — not because they saved more, but
+        because their money had longer to grow. Whatever you can contribute now is worth more than the same amount
+        contributed next year.
+      </WhyItMatters>
       <Card>
         <div className="wmg-three-col">
           <Field label="Current pot value">
@@ -4056,6 +4178,10 @@ const EDUCATION_TOPICS = [
   {
     category: "Pensions",
     items: [
+      {
+        title: "Why starting early matters more than how much",
+        body: "Compound growth means your returns start earning their own returns, so time in the market does more heavy lifting than the size of your contributions. Someone who starts paying £200/month into a pension at 25 and stops at 35 (ten years of contributions, then nothing more) can end up with a larger pot at 65 than someone who starts at 35 and pays £200/month every year until retirement — purely because the first person's money had an extra decade to grow. The practical takeaway isn't 'it's too late' if you're starting later — it's that whatever you can contribute now is worth more than the same amount contributed next year, so the biggest cost of waiting is the years you can't get back.",
+      },
       {
         title: "Workplace pensions & auto-enrolment",
         body: "If you're employed, aged 22+, and earn over £10,000/year, your employer must automatically enrol you into a workplace pension unless you opt out. You pay in (usually a minimum of 5% of qualifying earnings), your employer adds at least 3% on top, and the government adds tax relief. Opting out means walking away from free money from your employer — it's usually worth staying in unless you have a specific reason not to.",
