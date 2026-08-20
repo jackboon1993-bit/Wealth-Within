@@ -685,6 +685,288 @@ function WhyItMatters({ children }) {
   );
 }
 
+/* Two-factor authentication management — enroll, verify, and remove a TOTP
+   authenticator app factor via Supabase's built-in MFA API. Manages its own
+   state so it can be dropped into any account-settings surface unchanged. */
+function MfaSection() {
+  const [factors, setFactors] = useState(null); // null = loading
+  const [enrolling, setEnrolling] = useState(false);
+  const [qrCode, setQrCode] = useState(null);
+  const [secret, setSecret] = useState(null);
+  const [factorId, setFactorId] = useState(null);
+  const [code, setCode] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | busy | error
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const refreshFactors = async () => {
+    const { data } = await supabase.auth.mfa.listFactors();
+    setFactors(data?.totp || []);
+  };
+
+  useEffect(() => {
+    refreshFactors();
+  }, []);
+
+  const startEnroll = async () => {
+    setStatus("idle");
+    setErrorMsg("");
+    setCode("");
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Authenticator app" });
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+    setQrCode(data.totp.qr_code);
+    setSecret(data.totp.secret);
+    setFactorId(data.id);
+    setEnrolling(true);
+  };
+
+  const confirmEnroll = async () => {
+    setStatus("busy");
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+    if (error) {
+      setStatus("error");
+      setErrorMsg("That code didn't match — check your authenticator app and try again.");
+      return;
+    }
+    setEnrolling(false);
+    setQrCode(null);
+    setSecret(null);
+    setCode("");
+    setFactorId(null);
+    setStatus("idle");
+    setErrorMsg("");
+    await refreshFactors();
+  };
+
+  const cancelEnroll = async () => {
+    // Clean up the unverified factor rather than leaving it dangling on the account.
+    if (factorId) {
+      try {
+        await supabase.auth.mfa.unenroll({ factorId });
+      } catch (e) {
+        /* best effort */
+      }
+    }
+    setEnrolling(false);
+    setQrCode(null);
+    setSecret(null);
+    setCode("");
+    setFactorId(null);
+    setStatus("idle");
+    setErrorMsg("");
+  };
+
+  const removeFactor = async (id) => {
+    setStatus("busy");
+    const { error } = await supabase.auth.mfa.unenroll({ factorId: id });
+    if (error) {
+      setErrorMsg(error.message);
+      setStatus("error");
+      return;
+    }
+    setStatus("idle");
+    setErrorMsg("");
+    await refreshFactors();
+  };
+
+  if (!supabase) return null;
+  const hasFactor = factors && factors.length > 0;
+
+  return (
+    <div className="wmg-mfa-section">
+      <div className="wmg-mfa-title">Two-factor authentication</div>
+
+      {factors === null && <p className="wmg-sub">Checking status…</p>}
+
+      {factors !== null && !enrolling && (
+        hasFactor ? (
+          <>
+            <p className="wmg-sub" style={{ color: "var(--sage)" }}>✓ Enabled — an authenticator app is required to sign in.</p>
+            {errorMsg && <p className="wmg-sub" style={{ color: "var(--rust)" }}>{errorMsg}</p>}
+            {factors.map((f) => (
+              <button
+                key={f.id}
+                className="wmg-reset-btn"
+                style={{ marginTop: 6, color: "var(--rust)", borderColor: "var(--rust)" }}
+                disabled={status === "busy"}
+                onClick={() => removeFactor(f.id)}
+              >
+                Turn off 2FA
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            <p className="wmg-sub">
+              Not enabled. Add an authenticator app (Google Authenticator, Authy, 1Password, etc.) for an extra layer
+              of protection on top of your password.
+            </p>
+            {errorMsg && <p className="wmg-sub" style={{ color: "var(--rust)" }}>{errorMsg}</p>}
+            <button className="wmg-reset-btn" style={{ marginTop: 6 }} onClick={startEnroll}>
+              Turn on 2FA
+            </button>
+          </>
+        )
+      )}
+
+      {enrolling && (
+        <div className="wmg-mfa-enroll">
+          <p className="wmg-sub">Scan this with your authenticator app:</p>
+          {qrCode && (
+            <img
+              src={qrCode}
+              alt="Scan with your authenticator app"
+              className="wmg-mfa-qr"
+            />
+          )}
+          <p className="wmg-sub" style={{ wordBreak: "break-all" }}>
+            Or enter this key manually: <strong>{secret}</strong>
+          </p>
+          <input
+            className="wmg-input"
+            style={{ marginTop: 8, marginBottom: 8 }}
+            placeholder="6-digit code"
+            inputMode="numeric"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          />
+          {status === "error" && <p className="wmg-sub" style={{ color: "var(--rust)" }}>{errorMsg}</p>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="wmg-onboard-next"
+              style={{ flex: 1 }}
+              disabled={code.length !== 6 || status === "busy"}
+              onClick={confirmEnroll}
+            >
+              {status === "busy" ? "Checking…" : "Confirm"}
+            </button>
+            <button className="wmg-reset-btn" onClick={cancelEnroll} disabled={status === "busy"}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Account settings — sync status, feedback, MFA, reset, sign out, and account
+   deletion. Rendered in two places (desktop sidebar, mobile account modal) so
+   these actions are reachable regardless of screen size. */
+function AccountPanel({
+  storageStatus,
+  onOpenFeedback,
+  confirmingReset,
+  setConfirmingReset,
+  resetData,
+  confirmingDeleteAccount,
+  setConfirmingDeleteAccount,
+  deleteAccountText,
+  setDeleteAccountText,
+  deleteAccountStatus,
+  deleteAccountNow,
+}) {
+  return (
+    <div className="wmg-account-panel">
+      <div className="wmg-sync-row">
+        <span className={`wmg-sync-dot status-${storageStatus}`} />
+        <span>
+          {storageStatus === "loading" && "Loading your data…"}
+          {storageStatus === "ready" && (supabase ? "Saved to your account" : "Saved on this device")}
+          {storageStatus === "saving" && "Saving…"}
+          {storageStatus === "saved" && (supabase ? "Saved to your account" : "Saved on this device")}
+          {storageStatus === "error" && "Couldn't save — check connection"}
+        </span>
+      </div>
+      <p style={{ margin: "10px 0" }}>
+        Figures are calculated from what you enter. Not connected to any bank, and not financial advice.
+      </p>
+      <p style={{ margin: "0 0 10px" }}>
+        <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Privacy</a>
+        {" · "}
+        <a href="/terms.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Terms</a>
+      </p>
+      <button
+        className="wmg-reset-btn"
+        style={{ marginBottom: 8, borderColor: "var(--brand)", color: "var(--brand)" }}
+        onClick={onOpenFeedback}
+      >
+        Send feedback
+      </button>
+      {confirmingReset ? (
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="wmg-reset-btn danger" onClick={resetData}>Yes, reset</button>
+          <button className="wmg-reset-btn" onClick={() => setConfirmingReset(false)}>Cancel</button>
+        </div>
+      ) : (
+        <button className="wmg-reset-btn" onClick={() => setConfirmingReset(true)}>Reset to example data</button>
+      )}
+      {supabase && (
+        <>
+          <div className="wmg-account-divider" />
+          <MfaSection />
+          <div className="wmg-account-divider" />
+          <button className="wmg-reset-btn" onClick={() => supabase.auth.signOut()}>
+            Sign out
+          </button>
+          <div style={{ marginTop: 8 }}>
+            {!confirmingDeleteAccount ? (
+              <button
+                className="wmg-reset-btn"
+                style={{ color: "var(--rust)", borderColor: "var(--rust)" }}
+                onClick={() => setConfirmingDeleteAccount(true)}
+              >
+                Delete my account
+              </button>
+            ) : (
+              <div style={{ background: "var(--ink-3)", border: "1px solid var(--hair)", borderRadius: 10, padding: 12 }}>
+                <p className="wmg-sub" style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--rust)" }}>
+                  This permanently deletes your account and all your data. It can't be undone.
+                </p>
+                <p className="wmg-sub" style={{ margin: "0 0 8px" }}>
+                  Type <strong>DELETE</strong> to confirm.
+                </p>
+                <input
+                  className="wmg-input"
+                  style={{ marginBottom: 8 }}
+                  value={deleteAccountText}
+                  onChange={(e) => setDeleteAccountText(e.target.value)}
+                  placeholder="DELETE"
+                  disabled={deleteAccountStatus === "deleting"}
+                />
+                {deleteAccountStatus === "error" && (
+                  <p className="wmg-sub" style={{ color: "var(--rust)", margin: "0 0 8px" }}>
+                    Something went wrong — please try again, or contact support if it keeps happening.
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    className="wmg-reset-btn danger"
+                    disabled={deleteAccountText !== "DELETE" || deleteAccountStatus === "deleting"}
+                    onClick={deleteAccountNow}
+                  >
+                    {deleteAccountStatus === "deleting" ? "Deleting…" : "Permanently delete"}
+                  </button>
+                  <button
+                    className="wmg-reset-btn"
+                    disabled={deleteAccountStatus === "deleting"}
+                    onClick={() => setConfirmingDeleteAccount(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function InfoTip({ text, light }) {
   const [open, setOpen] = useState(false);
   return (
@@ -1591,6 +1873,7 @@ export default function App() {
 
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const resetData = async () => {
     setProfile(defaultProfile);
     setSelectedDebtId(defaultProfile.loans[0].id);
@@ -1745,7 +2028,17 @@ export default function App() {
 
   const ccAnnualCost = totals.cardsBalance > 0 ? profile.cards.reduce((sum, c) => sum + (estimateBalanceToday(c.balance, c.rate, c.payment, c.lastConfirmedAt) * c.rate) / 100, 0) : 0;
 
+  const essentialRatio = totals.income > 0 ? totals.essential / totals.income : 0;
+  // Essential costs alone meeting or exceeding income is a fundamentally
+  // different situation from "overspending on lifestyle stuff" — there's no
+  // discretionary spending left to trim, and the usual gamified coaching
+  // tone (cancel subscriptions, hit your savings goal) isn't just unhelpful
+  // here, it can read as tone-deaf. This is a purely numeric signal from
+  // data already being calculated — not a diagnosis of anyone's situation.
+  const inFinancialHardship = essentialRatio >= 1;
+
   const coachTips = useMemo(() => {
+    if (inFinancialHardship) return [];
     const tips = [];
     if (totals.available < 0) {
       tips.push({ tone: "rust", tab: "income", text: `You're spending ${gbp(Math.abs(totals.available))} more than comes in each month. Close that gap before anything else — start with the lifestyle column.` });
@@ -1766,7 +2059,6 @@ export default function App() {
     if (totals.available > comfortableTarget) {
       tips.push({ tone: "sage", tab: "forecast", text: `You're already ${gbp(totals.available - comfortableTarget)}/month past "comfortable." Consider directing the surplus at your highest-interest debt or your pension.` });
     }
-    const essentialRatio = totals.income > 0 ? totals.essential / totals.income : 0;
     if (essentialRatio > 0.6) {
       tips.push({ tone: "rust", tab: "income", text: `Essential costs are eating ${Math.round(essentialRatio * 100)}% of your income — a common guideline is keeping this under 50-60%. Worth checking bills and housing costs for anything that could realistically shrink.` });
     } else if (essentialRatio > 0 && essentialRatio < 0.45) {
@@ -1777,7 +2069,7 @@ export default function App() {
       tips.push({ tone: "gold", tab: "pension", text: `Your pension contribution is under 5% of income. If your employer offers to match a higher contribution, that's effectively free money left unclaimed — worth checking.` });
     }
     return tips;
-  }, [totals, flaggedCount, flaggedSavings, profile.emergencyFund, profile.pension.contribution, ccAnnualCost, extraCalc, extraPayment, selectedDebt, comfortableTarget]);
+  }, [inFinancialHardship, totals, flaggedCount, flaggedSavings, profile.emergencyFund, profile.pension.contribution, ccAnnualCost, extraCalc, extraPayment, selectedDebt, comfortableTarget]);
 
   const forecast = useMemo(() => runForecast(profile, totals, horizonYears, allocationPct), [profile, totals, horizonYears, allocationPct]);
   const forecastBaseline = useMemo(() => runForecast(profile, totals, horizonYears, 0), [profile, totals, horizonYears]);
@@ -1961,13 +2253,14 @@ export default function App() {
     const onKeyDown = (e) => {
       if (e.key !== "Escape") return;
       if (moreOpen) setMoreOpen(false);
+      if (accountOpen) setAccountOpen(false);
       if (feedbackOpen) setFeedbackOpen(false);
       if (confirmingReset) setConfirmingReset(false);
       if (confirmingDeleteAccount) setConfirmingDeleteAccount(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [moreOpen, feedbackOpen, confirmingReset, confirmingDeleteAccount]);
+  }, [moreOpen, accountOpen, feedbackOpen, confirmingReset, confirmingDeleteAccount]);
 
   const submitFeedbackNow = async () => {
     if (!feedbackMessage.trim()) return;
@@ -2088,6 +2381,20 @@ export default function App() {
         .wmg-more-sheet-item { display: flex; align-items: center; gap: 14px; width: 100%; background: transparent; border: none; padding: 10px 6px; border-radius: 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 600; color: var(--paper); text-align: left; cursor: pointer; }
         .wmg-more-sheet-item.active { background: var(--brand-soft); }
         .wmg-more-sheet-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
+        .wmg-more-sheet-divider { height: 1px; background: var(--hair); margin: 8px 6px; }
+        .wmg-more-sheet-title { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; color: var(--paper); padding: 4px 6px 12px; }
+        .wmg-account-sheet { max-height: 82vh; overflow-y: auto; }
+        .wmg-account-panel { font-size: 11px; color: var(--paper-dim); line-height: 1.6; }
+        .wmg-account-divider { height: 1px; background: var(--hair); margin: 14px 0; }
+        .wmg-mfa-section { margin: 4px 0; }
+        .wmg-mfa-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 800; color: var(--paper); margin-bottom: 6px; }
+        .wmg-mfa-enroll { margin-top: 10px; background: var(--ink-3); border-radius: 16px; padding: 14px; }
+        .wmg-mfa-qr { width: 160px; height: 160px; background: #FFFFFF; border-radius: 12px; padding: 10px; margin: 8px 0; display: block; }
+        .wmg-hardship-card { font-size: 13px; line-height: 1.6; color: var(--paper-dim); border: 1px solid var(--hair); }
+        .wmg-hardship-links { display: flex; flex-direction: column; gap: 10px; }
+        .wmg-hardship-links a { display: block; background: var(--ink-3); border-radius: 14px; padding: 12px 14px; color: var(--paper); text-decoration: none; font-size: 13px; }
+        .wmg-hardship-links a:hover { background: var(--brand-soft); }
+        .wmg-hardship-links a strong { color: var(--brand); }
         @media (min-width: 881px) { .wmg-more-sheet-backdrop { display: none; } }
         .wmg-sidebar-foot { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--hair); font-size: 11px; color: var(--paper-dim); line-height: 1.6; }
         @media (max-width: 880px) { .wmg-sidebar-foot { display: none; } }
@@ -2581,6 +2888,56 @@ export default function App() {
                     {n.label}
                   </button>
                 ))}
+                <div className="wmg-more-sheet-divider" />
+                <button
+                  className="wmg-more-sheet-item"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setAccountOpen(true);
+                  }}
+                >
+                  <span className="wmg-nav-icon-badge">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="8" r="4" />
+                      <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+                    </svg>
+                  </span>
+                  Account
+                </button>
+              </div>
+            </div>
+          )}
+          {accountOpen && (
+            <div className="wmg-more-sheet-backdrop" onClick={() => setAccountOpen(false)}>
+              <div className="wmg-more-sheet wmg-account-sheet" onClick={(e) => e.stopPropagation()}>
+                <div className="wmg-more-sheet-handle" />
+                <div className="wmg-more-sheet-title">
+                  Account
+                  <button className="wmg-icon-btn" onClick={() => setAccountOpen(false)} aria-label="Close">✕</button>
+                </div>
+                <AccountPanel
+                  storageStatus={storageStatus}
+                  onOpenFeedback={() => {
+                    setAccountOpen(false);
+                    setFeedbackOpen(true);
+                    setFeedbackStatus("idle");
+                  }}
+                  confirmingReset={confirmingReset}
+                  setConfirmingReset={setConfirmingReset}
+                  resetData={resetData}
+                  confirmingDeleteAccount={confirmingDeleteAccount}
+                  setConfirmingDeleteAccount={(v) => {
+                    setConfirmingDeleteAccount(v);
+                    if (v) {
+                      setDeleteAccountText("");
+                      setDeleteAccountStatus("idle");
+                    }
+                  }}
+                  deleteAccountText={deleteAccountText}
+                  setDeleteAccountText={setDeleteAccountText}
+                  deleteAccountStatus={deleteAccountStatus}
+                  deleteAccountNow={deleteAccountNow}
+                />
               </div>
             </div>
           )}
@@ -2645,102 +3002,28 @@ export default function App() {
             </div>
           )}
           <div className="wmg-sidebar-foot">
-            <div className="wmg-sync-row">
-              <span className={`wmg-sync-dot status-${storageStatus}`} />
-              <span>
-                {storageStatus === "loading" && "Loading your data…"}
-                {storageStatus === "ready" && (supabase ? "Saved to your account" : "Saved on this device")}
-                {storageStatus === "saving" && "Saving…"}
-                {storageStatus === "saved" && (supabase ? "Saved to your account" : "Saved on this device")}
-                {storageStatus === "error" && "Couldn't save — check connection"}
-              </span>
-            </div>
-            <p style={{ margin: "10px 0" }}>
-              Figures are calculated from what you enter. Not connected to any bank, and not financial advice.
-            </p>
-            <p style={{ margin: "0 0 10px" }}>
-              <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Privacy</a>
-              {" · "}
-              <a href="/terms.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Terms</a>
-            </p>
-            <button
-              className="wmg-reset-btn"
-              style={{ marginBottom: 8, borderColor: "var(--brand)", color: "var(--brand)" }}
-              onClick={() => {
+            <AccountPanel
+              storageStatus={storageStatus}
+              onOpenFeedback={() => {
                 setFeedbackOpen(true);
                 setFeedbackStatus("idle");
               }}
-            >
-              Send feedback
-            </button>
-            {confirmingReset ? (
-              <div style={{ display: "flex", gap: 6 }}>
-                <button className="wmg-reset-btn danger" onClick={resetData}>Yes, reset</button>
-                <button className="wmg-reset-btn" onClick={() => setConfirmingReset(false)}>Cancel</button>
-              </div>
-            ) : (
-              <button className="wmg-reset-btn" onClick={() => setConfirmingReset(true)}>Reset to example data</button>
-            )}
-            {supabase && (
-              <button className="wmg-reset-btn" style={{ marginTop: 8 }} onClick={() => supabase.auth.signOut()}>
-                Sign out
-              </button>
-            )}
-            {supabase && (
-              <div style={{ marginTop: 8 }}>
-                {!confirmingDeleteAccount ? (
-                  <button
-                    className="wmg-reset-btn"
-                    style={{ color: "var(--rust)", borderColor: "var(--rust)" }}
-                    onClick={() => {
-                      setConfirmingDeleteAccount(true);
-                      setDeleteAccountText("");
-                      setDeleteAccountStatus("idle");
-                    }}
-                  >
-                    Delete my account
-                  </button>
-                ) : (
-                  <div style={{ background: "var(--ink-3)", border: "1px solid var(--hair)", borderRadius: 10, padding: 12 }}>
-                    <p className="wmg-sub" style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--rust)" }}>
-                      This permanently deletes your account and all your data. It can't be undone.
-                    </p>
-                    <p className="wmg-sub" style={{ margin: "0 0 8px" }}>
-                      Type <strong>DELETE</strong> to confirm.
-                    </p>
-                    <input
-                      className="wmg-input"
-                      style={{ marginBottom: 8 }}
-                      value={deleteAccountText}
-                      onChange={(e) => setDeleteAccountText(e.target.value)}
-                      placeholder="DELETE"
-                      disabled={deleteAccountStatus === "deleting"}
-                    />
-                    {deleteAccountStatus === "error" && (
-                      <p className="wmg-sub" style={{ color: "var(--rust)", margin: "0 0 8px" }}>
-                        Something went wrong — please try again, or contact support if it keeps happening.
-                      </p>
-                    )}
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        className="wmg-reset-btn danger"
-                        disabled={deleteAccountText !== "DELETE" || deleteAccountStatus === "deleting"}
-                        onClick={deleteAccountNow}
-                      >
-                        {deleteAccountStatus === "deleting" ? "Deleting…" : "Permanently delete"}
-                      </button>
-                      <button
-                        className="wmg-reset-btn"
-                        disabled={deleteAccountStatus === "deleting"}
-                        onClick={() => setConfirmingDeleteAccount(false)}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+              confirmingReset={confirmingReset}
+              setConfirmingReset={setConfirmingReset}
+              resetData={resetData}
+              confirmingDeleteAccount={confirmingDeleteAccount}
+              setConfirmingDeleteAccount={(v) => {
+                setConfirmingDeleteAccount(v);
+                if (v) {
+                  setDeleteAccountText("");
+                  setDeleteAccountStatus("idle");
+                }
+              }}
+              deleteAccountText={deleteAccountText}
+              setDeleteAccountText={setDeleteAccountText}
+              deleteAccountStatus={deleteAccountStatus}
+              deleteAccountNow={deleteAccountNow}
+            />
           </div>
         </div>
 
@@ -2797,6 +3080,7 @@ export default function App() {
                 flowSegments={flowSegments}
                 flowTotal={flowTotal}
                 coachTips={coachTips}
+                inFinancialHardship={inFinancialHardship}
                 onNavigate={setTab}
               />
             )}
@@ -2904,7 +3188,7 @@ export default function App() {
 
 /* ============================== tabs ============================== */
 
-function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, onNavigate }) {
+function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate }) {
   const [showAllTips, setShowAllTips] = useState(false);
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
@@ -3016,34 +3300,67 @@ function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMont
         </div>
       </Card>
 
-      <div className="wmg-section-title">Your coach</div>
-      {coachTips.length === 0 ? (
-        <Card className="wmg-insight-card wmg-insight-sage">
-          <span className="wmg-insight-icon-badge tone-sage">✓</span>
-          <p>Everything's in decent shape. Keep going.</p>
-        </Card>
+      {inFinancialHardship ? (
+        <>
+          <div className="wmg-section-title">Some real help</div>
+          <Card className="wmg-hardship-card">
+            <p style={{ margin: "0 0 12px" }}>
+              Right now your essential costs alone come to more than your income. That's a genuinely hard position
+              to be in, and it's more common than it feels — you're not alone in this, and there's real, free help
+              available today, not just app tips.
+            </p>
+            <div className="wmg-hardship-links">
+              <a href="https://www.stepchange.org" target="_blank" rel="noopener">
+                <strong>StepChange</strong> — free debt advice charity, online or by phone
+              </a>
+              <a href="https://www.nationaldebtline.org" target="_blank" rel="noopener">
+                <strong>National Debtline</strong> — free, confidential debt advice
+              </a>
+              <a href="https://www.citizensadvice.org.uk" target="_blank" rel="noopener">
+                <strong>Citizens Advice</strong> — free advice on debt and financial difficulty
+              </a>
+              <a href="https://www.moneyhelper.org.uk" target="_blank" rel="noopener">
+                <strong>MoneyHelper</strong> — free, government-backed money guidance
+              </a>
+            </div>
+            <p style={{ margin: "12px 0 0", fontSize: 11.5 }}>
+              This app can't give you advice, and the numbers above shouldn't be the main thing on your mind right
+              now — a real adviser can look at your whole situation and what actually helps, for free.
+            </p>
+          </Card>
+        </>
       ) : (
         <>
-          {coachTips.slice(0, 2).map((tip, i) => (
-            <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={i} onClick={() => onNavigate?.(tip.tab)}>
-              <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
-              <p>{tip.text}</p>
-              <span className="wmg-coach-chevron">→</span>
-            </button>
-          ))}
-          {coachTips.length > 2 && !showAllTips && (
-            <button className="wmg-coach-more" onClick={() => setShowAllTips(true)}>
-              + {coachTips.length - 2} more {coachTips.length - 2 === 1 ? "insight" : "insights"}
-            </button>
+          <div className="wmg-section-title">Your coach</div>
+          {coachTips.length === 0 ? (
+            <Card className="wmg-insight-card wmg-insight-sage">
+              <span className="wmg-insight-icon-badge tone-sage">✓</span>
+              <p>Everything's in decent shape. Keep going.</p>
+            </Card>
+          ) : (
+            <>
+              {coachTips.slice(0, 2).map((tip, i) => (
+                <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={i} onClick={() => onNavigate?.(tip.tab)}>
+                  <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
+                  <p>{tip.text}</p>
+                  <span className="wmg-coach-chevron">→</span>
+                </button>
+              ))}
+              {coachTips.length > 2 && !showAllTips && (
+                <button className="wmg-coach-more" onClick={() => setShowAllTips(true)}>
+                  + {coachTips.length - 2} more {coachTips.length - 2 === 1 ? "insight" : "insights"}
+                </button>
+              )}
+              {showAllTips &&
+                coachTips.slice(2).map((tip, i) => (
+                  <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={`more-${i}`} onClick={() => onNavigate?.(tip.tab)}>
+                    <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
+                    <p>{tip.text}</p>
+                    <span className="wmg-coach-chevron">→</span>
+                  </button>
+                ))}
+            </>
           )}
-          {showAllTips &&
-            coachTips.slice(2).map((tip, i) => (
-              <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={`more-${i}`} onClick={() => onNavigate?.(tip.tab)}>
-                <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
-                <p>{tip.text}</p>
-                <span className="wmg-coach-chevron">→</span>
-              </button>
-            ))}
         </>
       )}
     </>

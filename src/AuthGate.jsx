@@ -9,6 +9,7 @@ import { supabase } from "./lib/supabaseClient";
  */
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
+  const [aal, setAal] = useState(null); // null = not checked yet, otherwise { current, next }
 
   useEffect(() => {
     if (!supabase) return;
@@ -19,9 +20,27 @@ export default function AuthGate({ children }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // Whenever we have a session, check whether this specific session still
+  // needs a second-factor challenge before it's fully authenticated. This
+  // re-runs on every session change (fresh sign-in, or a restored session on
+  // page load) but not on every render, since a session that's already at
+  // aal2 doesn't need re-checking until it changes again.
+  useEffect(() => {
+    if (!supabase || !session) {
+      setAal(null);
+      return;
+    }
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+      if (data) setAal({ current: data.currentLevel, next: data.nextLevel });
+    });
+  }, [session]);
+
   if (!supabase) return children;
   if (session === undefined) return <FullScreenMessage text="Loading…" />;
   if (!session) return <SignInScreen />;
+
+  const needsChallenge = aal && aal.current === "aal1" && aal.next === "aal2";
+  if (needsChallenge) return <MfaChallengeScreen onVerified={() => setAal({ current: "aal2", next: "aal2" })} />;
 
   const flaggedAt = session.user?.app_metadata?.inactivity_flagged_at;
   return (
@@ -29,6 +48,87 @@ export default function AuthGate({ children }) {
       {flaggedAt && <InactivityBanner flaggedAt={flaggedAt} />}
       {children}
     </>
+  );
+}
+
+function MfaChallengeScreen({ onVerified }) {
+  const [code, setCode] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | busy | error
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setStatus("busy");
+    setErrorMsg("");
+    const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+    if (factorsError || !factorsData?.totp?.length) {
+      setStatus("error");
+      setErrorMsg("Couldn't find your authenticator setup. Try signing in again.");
+      return;
+    }
+    const factorId = factorsData.totp[0].id;
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+    if (error) {
+      setStatus("error");
+      setErrorMsg("That code didn't match — check your authenticator app and try again.");
+      return;
+    }
+    onVerified();
+  };
+
+  return (
+    <div style={styles.page}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        .wwa-input { width: 100%; box-sizing: border-box; background: #2A2A5C; color: #F3F1FF; border: 1px solid #363068; border-radius: 14px; padding: 12px 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; margin-bottom: 12px; letter-spacing: 0.1em; text-align: center; }
+        .wwa-input:focus { outline: 2px solid #8B5CF6; outline-offset: 1px; }
+        .wwa-btn { width: 100%; background: linear-gradient(135deg, #8B5CF6, #FF6FA5); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 24px -10px rgba(60,30,140,0.6); }
+        .wwa-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+      `}</style>
+      <div style={styles.card}>
+        <div style={styles.brandRow}>
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+            <defs>
+              <linearGradient id="mfaBrandGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#FF6FA5" />
+                <stop offset="100%" stopColor="#7C4DFF" />
+              </linearGradient>
+            </defs>
+            <rect width="34" height="34" rx="10" fill="url(#mfaBrandGrad)" />
+            <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
+          </svg>
+          <div>
+            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#F3F1FF" }}>
+              Wealth Within
+            </div>
+          </div>
+        </div>
+        <h2 style={styles.heading}>Enter your code</h2>
+        <p style={{ fontSize: 12.5, color: "#9C97C4", fontFamily: "'Plus Jakarta Sans', sans-serif", margin: "0 0 16px" }}>
+          Open your authenticator app and enter the 6-digit code for Wealth Within.
+        </p>
+        <form onSubmit={submit}>
+          <input
+            className="wwa-input"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="000000"
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          />
+          <button className="wwa-btn" type="submit" disabled={code.length !== 6 || status === "busy"}>
+            {status === "busy" ? "Checking…" : "Verify"}
+          </button>
+        </form>
+        {status === "error" && (
+          <p style={{ fontSize: 12.5, marginTop: 12, color: "#FF5C7A", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {errorMsg}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
