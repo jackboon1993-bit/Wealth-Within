@@ -3,6 +3,7 @@ import { getData, setData, deleteData } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
 import { startBankConnection, completeBankConnection, disconnectBank, getBankConnection } from "./lib/bank";
+import { parseTransactionsCSV, parseDebtsCSV } from "./lib/csv";
 import {
   LineChart,
   ComposedChart,
@@ -1652,6 +1653,7 @@ function ChartTooltip({ active, payload, label }) {
 const NAV = [
   { key: "overview", label: "Overview", icon: "overview" },
   { key: "income", label: "Income & Spending", icon: "income" },
+  { key: "import", label: "Import from Bank CSV", icon: "import" },
   { key: "debts", label: "Debts & Mortgage", icon: "debts" },
   { key: "goals", label: "Savings & Goals", icon: "goals" },
   { key: "pension", label: "Pension & Retirement", icon: "pension" },
@@ -1716,6 +1718,14 @@ function NavIcon({ name }) {
           <path d="M3 10 12 4l9 6" />
           <path d="M4.5 10v9M9 10v9M15 10v9M19.5 10v9" />
           <path d="M3 19.5h18" />
+        </svg>
+      );
+    case "import":
+      return (
+        <svg {...common}>
+          <path d="M12 3v12" />
+          <path d="M7.5 10.5 12 15l4.5-4.5" />
+          <path d="M4 19.5h16" />
         </svg>
       );
     case "forecast":
@@ -2202,6 +2212,27 @@ export default function App() {
         c.id === catId ? { ...c, items: c.items.map((i) => (i.id === itemId ? { ...i, [field]: value } : i)) } : c
       ),
     }));
+
+  // Merges imported-CSV spending totals into each matching category as a
+  // single "From bank import" line item (updating it in place on repeat
+  // imports rather than duplicating), and optionally updates income.
+  // categoryTotals: { [categoryName]: monthlyAmount }
+  const applyImportedSpending = (categoryTotals, estimatedIncome) => {
+    setProfile((p) => ({
+      ...p,
+      income: estimatedIncome != null ? estimatedIncome : p.income,
+      expenseCategories: p.expenseCategories.map((c) => {
+        const imported = categoryTotals[c.name];
+        if (imported == null) return c;
+        const existingIdx = c.items.findIndex((i) => i.name === "From bank import");
+        const items =
+          existingIdx >= 0
+            ? c.items.map((i, idx) => (idx === existingIdx ? { ...i, amount: imported } : i))
+            : [...c.items, { id: nextId(), name: "From bank import", amount: imported }];
+        return { ...c, items };
+      }),
+    }));
+  };
 
   const updateGoal = (id, field, value) =>
     setProfile((p) => ({ ...p, goals: p.goals.map((g) => (g.id === id ? { ...g, [field]: value } : g)) }));
@@ -3094,6 +3125,10 @@ export default function App() {
                 addArrayItem={addArrayItem}
                 removeArrayItem={removeArrayItem}
               />
+            )}
+
+            {tab === "import" && (
+              <ImportTab profile={profile} addBulkItems={addBulkItems} onApplyImportedSpending={applyImportedSpending} />
             )}
 
             {tab === "bank" && <BankTab />}
@@ -4907,6 +4942,383 @@ function PensionReaderTab({ onUseInPension }) {
   );
 }
 
+
+function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
+  const [mode, setMode] = useState("transactions"); // transactions | debts
+
+  const readFileText = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Could not read the file."));
+      reader.readAsText(file);
+    });
+
+  return (
+    <>
+      <div className="wmg-section-title">Import from a bank export</div>
+      <div className="wmg-section-desc">
+        Upload a CSV exported from your bank's statements page — or a simple debts list — instead of typing
+        everything in by hand. Nothing is saved until you review and choose to apply it.
+      </div>
+
+      <div className="wmg-chip-row" style={{ marginBottom: 16 }}>
+        <button className={mode === "transactions" ? "wmg-btn-primary" : "wmg-onboard-skip"} onClick={() => setMode("transactions")}>
+          Transactions
+        </button>
+        <button className={mode === "debts" ? "wmg-btn-primary" : "wmg-onboard-skip"} onClick={() => setMode("debts")}>
+          Debts
+        </button>
+      </div>
+
+      {mode === "transactions" ? (
+        <TransactionsImport profile={profile} onApplyImportedSpending={onApplyImportedSpending} readFileText={readFileText} />
+      ) : (
+        <DebtsImport addBulkItems={addBulkItems} readFileText={readFileText} />
+      )}
+
+      <div className="wmg-footnote" style={{ marginTop: 20 }}>
+        {mode === "transactions"
+          ? "Transaction descriptions are sent to Claude (Anthropic) to help match them to your categories. No account numbers, sort codes, or balances are included."
+          : "Nothing is saved until you review the rows below and choose to add them."}{" "}
+        This isn't financial advice — always check the totals before applying them.
+      </div>
+    </>
+  );
+}
+
+function TransactionsImport({ profile, onApplyImportedSpending, readFileText }) {
+  const inputRef = useRef(null);
+  const [status, setStatus] = useState("idle"); // idle | parsed | categorizing | reviewing | error
+  const [errorMsg, setErrorMsg] = useState("");
+  const [parsedTx, setParsedTx] = useState(null);
+  const [progress, setProgress] = useState("");
+  const [categoryTotals, setCategoryTotals] = useState(null);
+  const [incomeEstimate, setIncomeEstimate] = useState(null);
+  const [applied, setApplied] = useState(false);
+
+  const pickFile = async (f) => {
+    if (!f) return;
+    setErrorMsg("");
+    setApplied(false);
+    setCategoryTotals(null);
+    if (!f.name.toLowerCase().endsWith(".csv") && f.type !== "text/csv") {
+      setStatus("error");
+      setErrorMsg("Please choose a CSV file — most banks let you export one from your statements page.");
+      return;
+    }
+    try {
+      const text = await readFileText(f);
+      const { transactions, error } = parseTransactionsCSV(text);
+      if (error) {
+        setStatus("error");
+        setErrorMsg(error);
+        return;
+      }
+      setParsedTx(transactions);
+      setStatus("parsed");
+    } catch (e) {
+      setStatus("error");
+      setErrorMsg(e.message || "Could not read this file.");
+    }
+  };
+
+  const categorize = async () => {
+    if (!parsedTx) return;
+    setStatus("categorizing");
+    setErrorMsg("");
+    const categories = profile.expenseCategories.map((c) => c.name);
+    const batchSize = 150;
+    const results = new Array(parsedTx.length).fill(null);
+    try {
+      for (let start = 0; start < parsedTx.length; start += batchSize) {
+        const batch = parsedTx.slice(start, start + batchSize);
+        setProgress(`Categorising ${start + 1}–${Math.min(start + batchSize, parsedTx.length)} of ${parsedTx.length}…`);
+        const resp = await fetch("/api/categorize-transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transactions: batch.map((t) => ({ description: t.description, amount: t.amount })),
+            categories,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || "Something went wrong.");
+        (data.results || []).forEach((r, i) => {
+          results[start + i] = r;
+        });
+      }
+
+      const dates = parsedTx.map((t) => t.date.getTime());
+      const minDate = Math.min(...dates);
+      const maxDate = Math.max(...dates);
+      const spanDays = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24));
+      const spanMonths = Math.max(spanDays / 30, 1 / 30);
+
+      const totals = {};
+      let incomeTotal = 0;
+      parsedTx.forEach((t, i) => {
+        const r = results[i];
+        if (!r) return;
+        if (r.isIncome) {
+          if (t.amount > 0) incomeTotal += t.amount;
+          return;
+        }
+        if (r.category) {
+          totals[r.category] = (totals[r.category] || 0) + Math.abs(t.amount);
+        }
+      });
+      const monthlyTotals = {};
+      Object.entries(totals).forEach(([cat, sum]) => {
+        monthlyTotals[cat] = Math.round(sum / spanMonths);
+      });
+
+      setCategoryTotals(monthlyTotals);
+      setIncomeEstimate(incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : null);
+      setStatus("reviewing");
+    } catch (e) {
+      setStatus("error");
+      setErrorMsg(e.message || "Something went wrong categorising these transactions.");
+    }
+  };
+
+  const updateCategoryTotal = (cat, value) => {
+    setCategoryTotals((prev) => ({ ...prev, [cat]: Number(value) || 0 }));
+  };
+
+  const apply = () => {
+    onApplyImportedSpending(categoryTotals, incomeEstimate);
+    setApplied(true);
+  };
+
+  const reset = () => {
+    setStatus("idle");
+    setErrorMsg("");
+    setParsedTx(null);
+    setCategoryTotals(null);
+    setIncomeEstimate(null);
+    setApplied(false);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  return (
+    <>
+      {(status === "idle" || status === "error" || status === "parsed") && (
+        <Card>
+          <div
+            className="wmg-reader-dropzone"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              pickFile(e.dataTransfer.files?.[0]);
+            }}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="wmg-reader-input"
+              onChange={(e) => pickFile(e.target.files?.[0])}
+            />
+            {parsedTx ? (
+              <div className="wmg-reader-filename">
+                <i className="ti ti-file-check" aria-hidden="true" /> {parsedTx.length} transactions found
+              </div>
+            ) : (
+              <>
+                <div className="wmg-reader-dropzone-title">Tap to choose a CSV, or drag one here</div>
+                <div className="wmg-reader-dropzone-sub">Exported from your bank's statements page</div>
+              </>
+            )}
+          </div>
+          {status === "error" && <div className="wmg-reader-error">{errorMsg}</div>}
+          <button className="wmg-btn-primary wmg-reader-analyze" disabled={!parsedTx} onClick={categorize}>
+            Categorise these transactions
+          </button>
+        </Card>
+      )}
+
+      {status === "categorizing" && <Card>{progress || "Categorising…"}</Card>}
+
+      {status === "reviewing" && categoryTotals && (
+        <>
+          {incomeEstimate != null && (
+            <Card>
+              <div className="wmg-chip">
+                <div className="wmg-chip-label">Estimated monthly income (from this file)</div>
+                <div className="wmg-chip-value">
+                  <input
+                    type="number"
+                    value={incomeEstimate}
+                    onChange={(e) => setIncomeEstimate(Number(e.target.value) || 0)}
+                    style={{ width: 100 }}
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
+
+          <Card>
+            <div className="wmg-sub" style={{ marginBottom: 8 }}>
+              Suggested monthly spending by category — check these before applying
+            </div>
+            {Object.keys(categoryTotals).length === 0 && <p>No spending could be matched to your categories.</p>}
+            {Object.entries(categoryTotals).map(([cat, amount]) => (
+              <div key={cat} className="wmg-chip-row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                <span>{cat}</span>
+                <input type="number" value={amount} onChange={(e) => updateCategoryTotal(cat, e.target.value)} style={{ width: 90 }} />
+              </div>
+            ))}
+          </Card>
+
+          <div className="wmg-reader-actions">
+            {!applied && (
+              <button className="wmg-btn-primary" onClick={apply}>
+                Apply to my budget
+              </button>
+            )}
+            {applied && <div className="wmg-reader-applied">✓ Added to your budget</div>}
+            <button className="wmg-onboard-skip" onClick={reset}>
+              Import another file
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function DebtsImport({ addBulkItems, readFileText }) {
+  const inputRef = useRef(null);
+  const [status, setStatus] = useState("idle"); // idle | reviewing | error | applied
+  const [errorMsg, setErrorMsg] = useState("");
+  const [rows, setRows] = useState([]);
+
+  const pickFile = async (f) => {
+    if (!f) return;
+    setErrorMsg("");
+    if (!f.name.toLowerCase().endsWith(".csv") && f.type !== "text/csv") {
+      setStatus("error");
+      setErrorMsg("Please choose a CSV file.");
+      return;
+    }
+    try {
+      const text = await readFileText(f);
+      const { debts, error } = parseDebtsCSV(text);
+      if (error) {
+        setStatus("error");
+        setErrorMsg(error);
+        return;
+      }
+      setRows(debts);
+      setStatus("reviewing");
+    } catch (e) {
+      setStatus("error");
+      setErrorMsg(e.message || "Could not read this file.");
+    }
+  };
+
+  const updateRow = (i, field, value) => {
+    setRows((prev) =>
+      prev.map((r, idx) => (idx === i ? { ...r, [field]: field === "name" || field === "type" ? value : Number(value) || 0 } : r))
+    );
+  };
+
+  const removeRow = (i) => setRows((prev) => prev.filter((_, idx) => idx !== i));
+
+  const apply = () => {
+    const toEntry = (r) => ({
+      name: r.name,
+      balance: r.balance,
+      rate: r.rate,
+      payment: r.payment,
+      originalBalance: r.balance,
+      lastConfirmedAt: new Date().toISOString(),
+    });
+    const loans = rows.filter((r) => r.type === "loan").map(toEntry);
+    const cards = rows.filter((r) => r.type === "card").map(toEntry);
+    if (loans.length) addBulkItems("loans", loans);
+    if (cards.length) addBulkItems("cards", cards);
+    setStatus("applied");
+  };
+
+  const reset = () => {
+    setStatus("idle");
+    setErrorMsg("");
+    setRows([]);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  return (
+    <>
+      {(status === "idle" || status === "error") && (
+        <Card>
+          <div
+            className="wmg-reader-dropzone"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              pickFile(e.dataTransfer.files?.[0]);
+            }}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="wmg-reader-input"
+              onChange={(e) => pickFile(e.target.files?.[0])}
+            />
+            <div className="wmg-reader-dropzone-title">Tap to choose a CSV, or drag one here</div>
+            <div className="wmg-reader-dropzone-sub">Columns: Name, Balance, Rate, Payment, Type (loan/card)</div>
+          </div>
+          {status === "error" && <div className="wmg-reader-error">{errorMsg}</div>}
+        </Card>
+      )}
+
+      {status === "reviewing" && (
+        <>
+          <Card>
+            <div className="wmg-sub" style={{ marginBottom: 8 }}>
+              {rows.length} debts found — check before adding
+            </div>
+            {rows.map((r, i) => (
+              <div key={i} className="wmg-chip-row" style={{ marginBottom: 8, alignItems: "center" }}>
+                <input value={r.name} onChange={(e) => updateRow(i, "name", e.target.value)} style={{ flex: 2 }} />
+                <input type="number" value={r.balance} onChange={(e) => updateRow(i, "balance", e.target.value)} style={{ width: 90 }} />
+                <select value={r.type} onChange={(e) => updateRow(i, "type", e.target.value)}>
+                  <option value="loan">Loan</option>
+                  <option value="card">Card</option>
+                </select>
+                <button className="wmg-onboard-skip" onClick={() => removeRow(i)}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </Card>
+          <div className="wmg-reader-actions">
+            <button className="wmg-btn-primary" onClick={apply} disabled={rows.length === 0}>
+              Add these debts
+            </button>
+            <button className="wmg-onboard-skip" onClick={reset}>
+              Start over
+            </button>
+          </div>
+        </>
+      )}
+
+      {status === "applied" && (
+        <Card>
+          <div className="wmg-reader-applied">✓ Added to your Debts tab</div>
+          <button className="wmg-onboard-skip" style={{ marginTop: 12 }} onClick={reset}>
+            Import another file
+          </button>
+        </Card>
+      )}
+    </>
+  );
+}
 
 const EDU_CATEGORY_TONES = {
   Pensions: "gold",
