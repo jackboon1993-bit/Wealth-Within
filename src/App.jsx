@@ -9,8 +9,6 @@ import {
   ComposedChart,
   Line,
   Area,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
@@ -134,16 +132,17 @@ const defaultProfile = {
     lastConfirmedAt: daysAgoISO(20),
   },
   loans: [
-    { id: nextId(), name: "Car loan", balance: 21000, rate: 7.9, payment: 300, originalBalance: 24000, lastConfirmedAt: daysAgoISO(48) },
-    { id: nextId(), name: "Personal loan", balance: 18800, rate: 9.9, payment: 290, originalBalance: 18800, lastConfirmedAt: daysAgoISO(6) },
+    { id: nextId(), name: "Car loan", balance: 21000, rate: 7.9, payment: 300, originalBalance: 24000, lastConfirmedAt: daysAgoISO(48), debtType: "loan" },
+    { id: nextId(), name: "Personal loan", balance: 18800, rate: 9.9, payment: 290, originalBalance: 18800, lastConfirmedAt: daysAgoISO(6), debtType: "loan" },
   ],
-  cards: [{ id: nextId(), name: "Credit card", balance: 3200, rate: 22.9, payment: 150, originalBalance: 4500, lastConfirmedAt: daysAgoISO(12) }],
+  cards: [{ id: nextId(), name: "Credit card", balance: 3200, rate: 22.9, payment: 150, originalBalance: 4500, lastConfirmedAt: daysAgoISO(12), debtType: "card" }],
   expenseCategories: [
     {
       id: nextId(),
       name: "Housing & utilities",
       type: "essential",
       budget: 500,
+      isBills: true,
       items: [
         { id: nextId(), name: "Council tax", amount: 210 },
         { id: nextId(), name: "Electricity & gas", amount: 150 },
@@ -157,6 +156,7 @@ const defaultProfile = {
       name: "Insurance & protection",
       type: "essential",
       budget: 140,
+      isBills: true,
       items: [
         { id: nextId(), name: "Home insurance", amount: 35 },
         { id: nextId(), name: "Life insurance", amount: 45 },
@@ -252,6 +252,7 @@ const defaultProfile = {
     { id: nextId(), name: "Aggressive debt payoff", allocationPct: 100 },
   ],
   assumptions: { incomeGrowth: 3, inflation: 2.5, growthUncertaintyPct: 2 },
+  billsConfirmed: false,
 };
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a
@@ -270,20 +271,22 @@ function mergeWithDefaults(saved) {
   });
 
   // backfill balance-tracking fields for debts saved before this feature existed
-  const backfillDebt = (d) => ({
+  const backfillDebt = (d, fallbackType) => ({
     ...d,
     originalBalance: d.originalBalance ?? d.balance,
     lastConfirmedAt: d.lastConfirmedAt ?? new Date().toISOString(),
+    debtType: d.debtType ?? fallbackType,
   });
-  merged.loans = merged.loans.map(backfillDebt);
-  merged.cards = merged.cards.map(backfillDebt);
-  merged.mortgage = backfillDebt(merged.mortgage);
+  merged.loans = merged.loans.map((d) => backfillDebt(d, "loan"));
+  merged.cards = merged.cards.map((d) => backfillDebt(d, "card"));
+  merged.mortgage = backfillDebt(merged.mortgage, "mortgage");
 
   // backfill budget for expense categories saved before this feature existed —
   // default to their current spend so nothing looks suddenly "over budget"
   merged.expenseCategories = merged.expenseCategories.map((c) => ({
     ...c,
     budget: c.budget ?? c.items.reduce((s, i) => s + Number(i.amount || 0), 0),
+    isBills: c.isBills ?? (c.name === "Housing & utilities" || c.name === "Insurance & protection"),
   }));
 
   return merged;
@@ -1655,9 +1658,9 @@ function ChartTooltip({ active, payload, label }) {
 const NAV = [
   { key: "overview", label: "Overview", icon: "overview" },
   { key: "income", label: "Income & Spending", icon: "income" },
-  { key: "import", label: "Import from Bank CSV", icon: "import" },
   { key: "debts", label: "Debts & Mortgage", icon: "debts" },
   { key: "goals", label: "Savings & Goals", icon: "goals" },
+  { key: "import", label: "Import from Bank CSV", icon: "import" },
   { key: "pension", label: "Pension & Retirement", icon: "pension" },
   { key: "pension-reader", label: "AI Pension Reader", icon: "reader" },
   { key: "forecast", label: "Cash Flow Forecast", icon: "forecast" },
@@ -2200,6 +2203,16 @@ export default function App() {
       ...p,
       expenseCategories: p.expenseCategories.map((c) =>
         c.id === catId ? { ...c, items: [...c.items, { id: nextId(), name: "New item", amount: 0 }] } : c
+      ),
+    }));
+  // Same as addItem but lets the caller specify the item's name up front —
+  // used by the "common bills you haven't added" quick-add chips, so the
+  // person doesn't have to add a blank item and then type the name in.
+  const addNamedItem = (catId, name) =>
+    setProfile((p) => ({
+      ...p,
+      expenseCategories: p.expenseCategories.map((c) =>
+        c.id === catId ? { ...c, items: [...c.items, { id: nextId(), name, amount: 0 }] } : c
       ),
     }));
   const removeItem = (catId, itemId) =>
@@ -3079,18 +3092,22 @@ export default function App() {
                   </svg>
                 )}
               </button>
-              <div className="wmg-score-chip">
-                <span className="wmg-score-chip-dot" style={{ background: score >= 70 ? "var(--sage)" : score >= 45 ? "var(--gold)" : "var(--rust)" }} />
-                <span className="wmg-mono" style={{ fontSize: 13, fontWeight: 600 }}>{score}/100</span>
-              </div>
-              <div className="wmg-topbar-stat">
-                <div className="wmg-topbar-stat-label">Net worth</div>
-                <div className="wmg-topbar-stat-val tone-brand">{gbp(Math.round(animatedTopbarNetWorth))}</div>
-              </div>
-              <div className="wmg-topbar-stat">
-                <div className="wmg-topbar-stat-label">Available / mo</div>
-                <div className="wmg-topbar-stat-val" style={{ color: totals.available >= 0 ? "var(--sage)" : "var(--rust)" }}>{gbp(Math.round(animatedTopbarAvailable))}</div>
-              </div>
+            {tab !== "overview" && (
+              <>
+                <div className="wmg-score-chip">
+                  <span className="wmg-score-chip-dot" style={{ background: score >= 70 ? "var(--sage)" : score >= 45 ? "var(--gold)" : "var(--rust)" }} />
+                  <span className="wmg-mono" style={{ fontSize: 13, fontWeight: 600 }}>{score}/100</span>
+                </div>
+                <div className="wmg-topbar-stat">
+                  <div className="wmg-topbar-stat-label">Net worth</div>
+                  <div className="wmg-topbar-stat-val tone-brand">{gbp(Math.round(animatedTopbarNetWorth))}</div>
+                </div>
+                <div className="wmg-topbar-stat">
+                  <div className="wmg-topbar-stat-label">Available / mo</div>
+                  <div className="wmg-topbar-stat-val" style={{ color: totals.available >= 0 ? "var(--sage)" : "var(--rust)" }}>{gbp(Math.round(animatedTopbarAvailable))}</div>
+                </div>
+              </>
+            )}
             </div>
           </div>
 
@@ -3120,6 +3137,7 @@ export default function App() {
                 removeCategory={removeCategory}
                 updateCategoryField={updateCategoryField}
                 addItem={addItem}
+                addNamedItem={addNamedItem}
                 removeItem={removeItem}
                 updateItem={updateItem}
                 toggleSub={toggleSub}
@@ -3160,6 +3178,7 @@ export default function App() {
             {tab === "goals" && (
               <GoalsTab
                 profile={profile}
+                totals={totals}
                 setField={setField}
                 updateGoal={updateGoal}
                 addGoal={addGoal}
@@ -3450,6 +3469,23 @@ function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove }) {
 const FLOW_TONE_COLORS = { slate: "#A6A3D6", rust: "#FF8FA6", gold: "#FFCE6B", sage: "#4FD1C5" };
 const CATEGORY_COLORS = ["#8B5CF6", "#FF9166", "#FFCE6B", "#A6A3D6", "#FF6FA5", "#4FD1C5", "#FF5C7A", "#6C4CE0", "#FF8FA6", "#9C97C4"];
 
+// Common UK household bills — used to nudge anyone entering their bills if
+// something obvious looks missing. Matched by loose substring against the
+// names of items already in their bill categories, so "Electricity & gas"
+// covers both Electricity and Gas, "Home insurance" covers Home, etc.
+const COMMON_BILLS = [
+  { name: "Council Tax", match: ["council tax"] },
+  { name: "Electricity", match: ["electric"] },
+  { name: "Gas", match: ["gas"] },
+  { name: "Water", match: ["water"] },
+  { name: "Broadband / Internet", match: ["broadband", "internet", "wifi"] },
+  { name: "Mobile phone", match: ["mobile", "phone"] },
+  { name: "TV Licence", match: ["tv licence", "tv license"] },
+  { name: "Home insurance", match: ["home insurance", "buildings insurance", "contents insurance"] },
+  { name: "Car insurance", match: ["car insurance"] },
+  { name: "Life insurance", match: ["life insurance"] },
+];
+
 /* Collapsible expense category card — badge/budget/progress always visible at
    a glance, but the individual line items (the real source of visual clutter
    on this tab) stay hidden until you tap to expand. */
@@ -3604,8 +3640,14 @@ function EditSpendingSheet({ profile, addCategory, removeCategory, updateCategor
   );
 }
 
-function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
+function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem }) {
   const [editSpendingOpen, setEditSpendingOpen] = useState(false);
+  const [billCheckStatus, setBillCheckStatus] = useState("idle"); // idle | loading | done | error
+  const [billCheckResults, setBillCheckResults] = useState(null);
+  const [billCheckError, setBillCheckError] = useState("");
+  const [spendingInsightStatus, setSpendingInsightStatus] = useState("idle"); // idle | loading | done | error
+  const [spendingInsightResults, setSpendingInsightResults] = useState(null);
+  const [spendingInsightError, setSpendingInsightError] = useState("");
 
   const onboardingEstimateItem = useMemo(() => {
     for (const cat of profile.expenseCategories) {
@@ -3624,6 +3666,79 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
   }, [profile.expenseCategories, totals.subsTotal]);
   const categoryChartTotal = categoryChartData.reduce((s, r) => s + r.value, 0) || 1;
 
+  // Bills: the "Housing & utilities" and "Insurance & protection" categories
+  // (or any category the person has explicitly flagged as isBills) treated
+  // as a distinct, guided entry flow — asked for explicitly, ticked off once
+  // complete, then collapsed into a summary chart. Editing re-opens entry mode.
+  const billsCategories = useMemo(() => profile.expenseCategories.filter((c) => c.isBills), [profile.expenseCategories]);
+  const billsItemsFlat = useMemo(() => billsCategories.flatMap((c) => c.items), [billsCategories]);
+  const billsTotal = billsItemsFlat.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const missingBills = useMemo(() => {
+    const namesLower = billsItemsFlat.map((i) => (i.name || "").toLowerCase());
+    return COMMON_BILLS.filter((b) => !b.match.some((m) => namesLower.some((n) => n.includes(m))));
+  }, [billsItemsFlat]);
+  const billsChartData = useMemo(() => {
+    return billsItemsFlat
+      .filter((i) => Number(i.amount) > 0)
+      .map((i) => ({ name: i.name, value: Number(i.amount) }))
+      .sort((a, b) => b.value - a.value);
+  }, [billsItemsFlat]);
+
+  const addMissingBill = (billDef) => {
+    if (!billsCategories.length) return;
+    const isInsurance = billDef.name.toLowerCase().includes("insurance");
+    const target =
+      billsCategories.find((c) => c.name.toLowerCase().includes("insurance") === isInsurance) || billsCategories[0];
+    addNamedItem(target.id, billDef.name);
+  };
+
+  const checkBills = async () => {
+    const billsForCheck = billsItemsFlat.filter((i) => Number(i.amount) > 0);
+    if (!billsForCheck.length) return;
+    setBillCheckStatus("loading");
+    setBillCheckError("");
+    try {
+      const resp = await fetch("/api/check-bills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bills: billsForCheck.map((i) => ({ name: i.name, amount: i.amount })) }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Something went wrong.");
+      // zip results back up with the names/amounts we sent, so the UI doesn't
+      // need to re-derive anything from billsItemsFlat (which could change
+      // under it if the person edits while this is loading)
+      setBillCheckResults(billsForCheck.map((i, idx) => ({ name: i.name, amount: i.amount, ...data.results[idx] })));
+      setBillCheckStatus("done");
+    } catch (e) {
+      setBillCheckStatus("error");
+      setBillCheckError(e.message || "Couldn't check your bills right now.");
+    }
+  };
+
+  const getSpendingInsight = async () => {
+    if (!categoryChartData.length) return;
+    setSpendingInsightStatus("loading");
+    setSpendingInsightError("");
+    try {
+      const resp = await fetch("/api/spending-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categories: categoryChartData.map((r) => ({ name: r.name, value: r.value })),
+          income: profile.income,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Something went wrong.");
+      setSpendingInsightResults(data.insights || []);
+      setSpendingInsightStatus("done");
+    } catch (e) {
+      setSpendingInsightStatus("error");
+      setSpendingInsightError(e.message || "Couldn't generate insight right now.");
+    }
+  };
+
   return (
     <>
       <div className="wmg-section-title">Income</div>
@@ -3640,6 +3755,137 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
           </div>
         </div>
       </Card>
+
+      {billsCategories.length > 0 && (
+        <>
+          <div className="wmg-section-title">Your bills</div>
+          {!profile.billsConfirmed ? (
+            <>
+              <Card style={{ marginBottom: 10 }}>
+                <div className="wmg-sub">
+                  Add every regular bill you pay — we'll flag anything obvious that looks missing. Tick off once
+                  you're done and this turns into a chart, editable any time from "Edit my bills".
+                </div>
+              </Card>
+              {billsCategories.map((cat) => {
+                const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
+                return (
+                  <CategoryCard
+                    key={cat.id}
+                    cat={cat}
+                    subtotal={subtotal}
+                    onUpdateCategoryField={updateCategoryField}
+                    onRemoveCategory={() => removeCategory(cat.id)}
+                    onAddItem={() => addItem(cat.id)}
+                    onRemoveItem={(itemId) => removeItem(cat.id, itemId)}
+                    onUpdateItem={(itemId, field, value) => updateItem(cat.id, itemId, field, value)}
+                  />
+                );
+              })}
+              {missingBills.length > 0 && (
+                <Card style={{ marginBottom: 10 }}>
+                  <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Common bills you haven't added yet</div>
+                  <div className="wmg-chip-row" style={{ flexWrap: "wrap", overflow: "visible" }}>
+                    {missingBills.map((b) => (
+                      <button
+                        key={b.name}
+                        type="button"
+                        className="wmg-add-btn"
+                        style={{ width: "auto", flex: "0 0 auto" }}
+                        onClick={() => addMissingBill(b)}
+                      >
+                        + {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+              )}
+              <button
+                className="wmg-btn-primary"
+                style={{ margin: "4px 0 20px", width: "100%" }}
+                onClick={() => setField(["billsConfirmed"])(true)}
+              >
+                ✓ I've added all my bills
+              </button>
+            </>
+          ) : (
+            <Card style={{ marginBottom: 20 }}>
+              <div className="wmg-category-chart-row">
+                <div style={{ width: 140, height: 140, flexShrink: 0 }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={billsChartData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={68} paddingAngle={2} strokeWidth={0}>
+                        {billsChartData.map((entry, i) => (
+                          <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CategoryTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="wmg-category-legend">
+                  {billsChartData.map((row, i) => (
+                    <div className="wmg-category-legend-item" key={row.name}>
+                      <span className="wmg-swatch" style={{ background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
+                      <span className="wmg-category-legend-name">{row.name}</span>
+                      <span className="wmg-category-legend-val">{gbp(row.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="wmg-subs-total">
+                <span>Total bills</span>
+                <span>{gbp(billsTotal, 2)}/month</span>
+              </div>
+
+              {billCheckStatus === "idle" && (
+                <button className="wmg-add-btn" style={{ marginTop: 10 }} onClick={checkBills}>
+                  Check my bills against typical UK costs
+                </button>
+              )}
+              {billCheckStatus === "loading" && (
+                <div className="wmg-sub" style={{ marginTop: 10, textAlign: "center" }}>Checking your bills…</div>
+              )}
+              {billCheckStatus === "error" && (
+                <div style={{ marginTop: 10 }}>
+                  <div className="wmg-sub" style={{ color: "var(--rust)" }}>{billCheckError}</div>
+                  <button className="wmg-add-btn" style={{ marginTop: 6 }} onClick={checkBills}>Try again</button>
+                </div>
+              )}
+              {billCheckStatus === "done" && billCheckResults && (
+                <div style={{ marginTop: 12 }}>
+                  {billCheckResults.every((r) => r.verdict === "typical") ? (
+                    <div className="wmg-sub" style={{ color: "var(--sage)" }}>
+                      Nothing stands out — your bills look in line with typical UK costs.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Worth a second look</div>
+                      {billCheckResults
+                        .filter((r) => r.verdict !== "typical")
+                        .map((r) => (
+                          <div key={r.name} className="wmg-sub" style={{ marginBottom: 6, display: "flex", gap: 6 }}>
+                            <span>{r.verdict === "high" ? "⚠️" : "ℹ️"}</span>
+                            <span>
+                              <strong style={{ color: "var(--paper)" }}>{r.name}</strong> ({gbp(r.amount)}) — {r.note}
+                            </span>
+                          </div>
+                        ))}
+                    </>
+                  )}
+                  <div className="wmg-sub" style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+                    A rough, directional check against typical UK household costs — not a quote or advice to switch anything.
+                  </div>
+                </div>
+              )}
+
+              <button className="wmg-add-btn" style={{ marginTop: 10 }} onClick={() => setField(["billsConfirmed"])(false)}>
+                Edit my bills
+              </button>
+            </Card>
+          )}
+        </>
+      )}
 
       {categoryChartData.length > 0 ? (
         <>
@@ -3671,23 +3917,35 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
             </div>
           </Card>
 
-          <div className="wmg-section-title">Spending by category</div>
-          <Card>
-            <div style={{ width: "100%", height: Math.max(160, categoryChartData.length * 40) }}>
-              <ResponsiveContainer>
-                <BarChart data={categoryChartData} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11.5 }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CategoryTooltip />} />
-                  <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                    {categoryChartData.map((entry, i) => (
-                      <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <Card style={{ marginBottom: 20 }}>
+            {spendingInsightStatus === "idle" && (
+              <button className="wmg-add-btn" onClick={getSpendingInsight}>
+                Get an AI read on this breakdown
+              </button>
+            )}
+            {spendingInsightStatus === "loading" && (
+              <div className="wmg-sub" style={{ textAlign: "center" }}>Looking at your breakdown…</div>
+            )}
+            {spendingInsightStatus === "error" && (
+              <div>
+                <div className="wmg-sub" style={{ color: "var(--rust)" }}>{spendingInsightError}</div>
+                <button className="wmg-add-btn" style={{ marginTop: 6 }} onClick={getSpendingInsight}>Try again</button>
+              </div>
+            )}
+            {spendingInsightStatus === "done" && spendingInsightResults && (
+              <div>
+                <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>What stands out right now</div>
+                {spendingInsightResults.map((line, i) => (
+                  <div key={i} className="wmg-sub" style={{ marginBottom: 6 }}>• {line}</div>
+                ))}
+                <div className="wmg-sub" style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+                  Based on this month's snapshot only — the app doesn't yet track spending history over time, so this
+                  isn't a comparison to previous months.
+                </div>
+              </div>
+            )}
           </Card>
+
         </>
       ) : (
         <Card style={{ marginTop: 4 }}>
@@ -3740,6 +3998,14 @@ function IncomeTab({ profile, totals, setField, addCategory, removeCategory, upd
   );
 }
 
+const DEBT_TYPE_LABELS = {
+  loan: "Loan",
+  card: "Credit card",
+  "car-finance": "Car finance",
+  overdraft: "Overdraft",
+  other: "Other",
+};
+
 function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
   const [editing, setEditing] = useState(false);
   const [draftBalance, setDraftBalance] = useState(debt.balance);
@@ -3750,6 +4016,7 @@ function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
   const needsCheck = days >= 30;
   const changed = Math.abs(estimatedToday - debt.balance) > 1;
   const circumference = 2 * Math.PI * 30;
+  const debtType = debt.debtType || "loan";
 
   const finishConfirm = () => {
     onConfirm(draftBalance);
@@ -3763,7 +4030,20 @@ function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
           <div className="wmg-debt-ring-label">{Math.round(progress * 100)}%</div>
         </GrowthRing>
         <div className="wmg-debt-card-info">
-          <input className="wmg-goal-name-input" value={debt.name} onChange={(e) => onEdit("name", e.target.value)} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <input className="wmg-goal-name-input" value={debt.name} onChange={(e) => onEdit("name", e.target.value)} />
+            <select
+              className="wmg-select"
+              style={{ fontSize: 11, padding: "4px 8px" }}
+              value={debtType}
+              onChange={(e) => onEdit("debtType", e.target.value)}
+              aria-label="Debt type"
+            >
+              {Object.entries(DEBT_TYPE_LABELS).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
           <div className="wmg-debt-card-balance">
             {editing ? (
               <>
@@ -3808,6 +4088,20 @@ function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
         <InlinePill value={debt.payment} onChange={(v) => onEdit("payment", v)} formatter={(v) => gbp(v)} ariaLabel="Monthly payment" />{" "}
         a month.
       </div>
+
+      {debtType === "car-finance" && (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>
+          If this is PCP or HP finance with a final "balloon" payment due at the end of the agreement, add that
+          amount to the balance above now — the payoff calculator assumes a normal reducing loan and won't account
+          for a lump sum due later otherwise.
+        </div>
+      )}
+      {debtType === "overdraft" && (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>
+          Overdrafts usually don't have a fixed monthly repayment — it's fine to leave the payment at £0. Just know
+          this debt won't get a "debt-free by" date until you set one.
+        </div>
+      )}
 
       {needsCheck && !editing && (
         <div className="wmg-debt-nudge">
@@ -3986,9 +4280,16 @@ function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, 
       ))}
       <button
         className="wmg-add-btn"
-        onClick={addArrayItem("loans", { name: "New loan", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() })}
+        onClick={addArrayItem("loans", { name: "New loan", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "loan" })}
       >
         + Add loan
+      </button>
+      <button
+        className="wmg-add-btn"
+        style={{ marginTop: 8 }}
+        onClick={addArrayItem("loans", { name: "Car finance", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "car-finance" })}
+      >
+        + Add car finance (PCP / HP)
       </button>
 
       <div className="wmg-section-title">Credit cards</div>
@@ -4010,9 +4311,16 @@ function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, 
       ))}
       <button
         className="wmg-add-btn"
-        onClick={addArrayItem("cards", { name: "New card", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() })}
+        onClick={addArrayItem("cards", { name: "New card", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "card" })}
       >
         + Add credit card
+      </button>
+      <button
+        className="wmg-add-btn"
+        style={{ marginTop: 8 }}
+        onClick={addArrayItem("cards", { name: "Overdraft", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "overdraft" })}
+      >
+        + Add overdraft
       </button>
 
       <div className="wmg-section-title">Debt-free calculator</div>
@@ -4023,7 +4331,8 @@ function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, 
         rate you stop paying.
       </WhyItMatters>
       <Card>
-        <div className="wmg-eyebrow" style={{ marginBottom: 10 }}>Debt-free date, at current payments: <span className="wmg-mono" style={{ color: "var(--paper)" }}>{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</span></div>
+        <div className="wmg-eyebrow" style={{ marginBottom: 2 }}>Debt-free date, at current payments: <span className="wmg-mono" style={{ color: "var(--paper)" }}>{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</span></div>
+        <div className="wmg-sub" style={{ marginBottom: 10 }}>Based on each debt's payment staying as it is now, with no extra money redirected between debts. See the Cash Flow Forecast for a date that assumes any spare income goes toward debt first.</div>
         <div className="wmg-two-col">
           <div>
             <label className="wmg-field-label">Target debt</label>
@@ -4064,7 +4373,22 @@ function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, 
   );
 }
 
-function GoalsTab({ profile, setField, updateGoal, addGoal, removeGoal }) {
+function GoalsTab({ profile, totals, setField, updateGoal, addGoal, removeGoal }) {
+  // Feasibility check: purely arithmetic, no AI needed here — comparing what
+  // each goal's chosen timeframe actually requires against real monthly
+  // surplus (totals.available), not just showing the numbers in isolation.
+  const goalPlans = profile.goals.map((g) => {
+    const monthsAtPace = g.monthlyContribution > 0 ? Math.ceil((g.target - g.current) / g.monthlyContribution) : Infinity;
+    const desired = g.desiredMonths && g.desiredMonths > 0 ? g.desiredMonths : Math.max(1, Math.round(isFinite(monthsAtPace) ? monthsAtPace : 12));
+    const requiredMonthly = Math.max(0, (g.target - g.current) / desired);
+    const extraNeeded = Math.max(0, requiredMonthly - g.monthlyContribution);
+    return { goal: g, monthsAtPace, desired, requiredMonthly, extraNeeded };
+  });
+  const totalRequiredMonthly = goalPlans.reduce((s, p) => s + p.requiredMonthly, 0);
+  const totalCurrentMonthly = profile.goals.reduce((s, g) => s + Number(g.monthlyContribution || 0), 0);
+  const totalExtraNeeded = Math.max(0, totalRequiredMonthly - totalCurrentMonthly);
+  const available = totals.available;
+
   return (
     <>
       <div className="wmg-section-title">Emergency fund</div>
@@ -4098,10 +4422,27 @@ function GoalsTab({ profile, setField, updateGoal, addGoal, removeGoal }) {
 
       <div className="wmg-section-title">Savings goals</div>
       <div className="wmg-section-desc">Set a target for anything you're saving towards, and see when you'll get there — or what it takes to hit a date you choose.</div>
-      {profile.goals.map((g) => {
-        const monthsAtPace = g.monthlyContribution > 0 ? Math.ceil((g.target - g.current) / g.monthlyContribution) : Infinity;
-        const desired = g.desiredMonths && g.desiredMonths > 0 ? g.desiredMonths : Math.max(1, Math.round(isFinite(monthsAtPace) ? monthsAtPace : 12));
-        const requiredMonthly = (g.target - g.current) / desired;
+
+      {profile.goals.length > 0 && (
+        <Card style={{ marginBottom: 12 }}>
+          <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Are all your goals realistic together?</div>
+          <div className="wmg-sub">
+            Hitting the timeframes you've chosen across all goals needs{" "}
+            <strong style={{ color: "var(--paper)" }}>{gbp(totalRequiredMonthly)}/month</strong> in total — you're
+            currently putting in {gbp(totalCurrentMonthly)}/month, and you have{" "}
+            <strong style={{ color: available >= 0 ? "var(--sage)" : "var(--rust)" }}>{gbp(available)}/month</strong> available.
+          </div>
+          <div className="wmg-sub" style={{ marginTop: 6, fontWeight: 700, color: totalExtraNeeded === 0 ? "var(--sage)" : totalExtraNeeded <= available ? "var(--gold)" : "var(--rust)" }}>
+            {totalExtraNeeded === 0
+              ? "You're on pace for every goal at its chosen date."
+              : totalExtraNeeded <= available
+              ? `You'd need to find an extra ${gbp(totalExtraNeeded)}/month — comfortably covered by what's available.`
+              : `You'd need an extra ${gbp(totalExtraNeeded)}/month, but only ${gbp(available)} is available — these timeframes aren't realistic together without freeing up more, or pushing some dates back.`}
+          </div>
+        </Card>
+      )}
+
+      {goalPlans.map(({ goal: g, monthsAtPace, desired, requiredMonthly, extraNeeded }) => {
         return (
           <Card className="wmg-goal-card" key={g.id}>
             <div className="wmg-goal-head">
@@ -4132,6 +4473,13 @@ function GoalsTab({ profile, setField, updateGoal, addGoal, removeGoal }) {
               />{" "}
               months by saving <span className="wmg-goal-plan-highlight">{gbp(Math.max(0, requiredMonthly))}</span>/month.
             </div>
+            {extraNeeded > 0.5 && (
+              <div className="wmg-sub" style={{ marginTop: 8, color: extraNeeded <= available ? "var(--gold)" : "var(--rust)" }}>
+                {extraNeeded <= available
+                  ? `That's ${gbp(extraNeeded)}/month more than you're putting in now — affordable given what's available.`
+                  : `That's ${gbp(extraNeeded)}/month more than you're putting in now — more than your ${gbp(available)}/month available, so this date may not be realistic on its own.`}
+              </div>
+            )}
           </Card>
         );
       })}
@@ -4429,6 +4777,7 @@ function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocati
           <div>
             <div className="wmg-calc-item-label">Debt-free date</div>
             <div className="wmg-calc-item-val" style={{ color: "var(--paper)" }}>{forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} yrs`}</div>
+            <div className="wmg-sub" style={{ marginTop: 2 }}>Assumes spare income each month goes toward your highest-interest debt first — earlier than the fixed-payment date on the Debts & Mortgage tab.</div>
           </div>
           <div>
             <div className="wmg-calc-item-label">Mortgage-free date</div>

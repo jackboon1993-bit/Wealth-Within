@@ -1,0 +1,37 @@
+# Dependabot configuration — keeps npm dependencies and GitHub Actions up to
+# date automatically, opening a PR when a new version (including security
+# fixes) is available, instead of relying on someone remembering to run
+# `npm audit` manually.
+#
+# Security updates specifically (the kind behind the 9 npm audit findings)
+# are opened as soon as GitHub's advisory database flags a vulnerable
+# version in use, regardless of this weekly schedule — Dependabot treats
+# those as higher priority and doesn't wait for the next scheduled run.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      # Bundle minor/patch bumps together to cut down on PR noise — major
+      # version bumps still get their own PR since those are more likely to
+      # need a manual look before merging.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"
