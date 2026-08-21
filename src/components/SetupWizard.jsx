@@ -102,11 +102,11 @@ export function QuickImport({ onAdd }) {
       {preview && preview.length > 0 && (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
           {preview.map((r, i) => (
-            <div key={i} className="wmg-array-row" style={{ background: "var(--ink-3)", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--hair)" }}>
-              <span style={{ flex: 2, fontSize: 12.5 }}>{r.name}</span>
-              <span className="wmg-mono" style={{ flex: 1, fontSize: 12 }}>{gbp(r.balance)}</span>
-              <span className="wmg-mono" style={{ flex: 1, fontSize: 12 }}>{r.rate}%</span>
-              <span className="wmg-mono" style={{ flex: 1, fontSize: 12 }}>{gbp(r.payment)}/mo</span>
+            <div key={i} className="wmg-array-row" style={{ background: "var(--ink-3)", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--hair)", flexWrap: "wrap" }}>
+              <span style={{ flex: "1 1 100%", fontSize: 12.5, fontWeight: 700 }}>{r.name}</span>
+              <span className="wmg-mono" style={{ flex: 1, minWidth: 70, fontSize: 12 }}>{gbp(r.balance)}</span>
+              <span className="wmg-mono" style={{ flex: 1, minWidth: 50, fontSize: 12 }}>{r.rate}%</span>
+              <span className="wmg-mono" style={{ flex: 1, minWidth: 70, fontSize: 12 }}>{gbp(r.payment)}/mo</span>
             </div>
           ))}
         </div>

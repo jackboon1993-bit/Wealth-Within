@@ -690,6 +690,13 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
       )}
 
       <div className="wmg-section-title">Subscriptions</div>
+      <Card style={{ marginBottom: 10 }}>
+        <div className="wmg-sub">
+          List anything that charges you regularly — streaming, apps, gym, subscription boxes. We'll flag ones
+          worth reconsidering. Marking one cancelled just stops it counting in your total here — it doesn't cancel
+          it with the provider, so you'll still need to do that yourself.
+        </div>
+      </Card>
       <Card>
         <div className="wmg-sub-list">
           {profile.subscriptions.map((s, i) => (

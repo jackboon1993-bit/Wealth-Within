@@ -1078,16 +1078,26 @@ export default function App() {
         .wmg-item-line > .wmg-pill-fill:nth-child(2), .wmg-item-line > input.wmg-pill-fill:nth-child(2) { width: 100px; flex-shrink: 0; }
 
         .wmg-mascot-wrap { position: fixed; left: 18px; bottom: 18px; z-index: 30; }
-        @media (max-width: 880px) { .wmg-mascot-wrap { left: 14px; bottom: calc(100px + env(safe-area-inset-bottom)); } }
+        @media (max-width: 880px) { .wmg-mascot-wrap { left: auto; right: 14px; bottom: calc(100px + env(safe-area-inset-bottom)); } }
         .wmg-mascot-face { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, #A78BFA, #7C4DFF); border: none; box-shadow: 0 8px 20px -6px rgba(124,77,255,0.5); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; animation: wmgMascotBob 4.5s ease-in-out infinite; }
         .wmg-mascot-face:hover { animation-play-state: paused; transform: scale(1.05); }
         @keyframes wmgMascotBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         @media (prefers-reduced-motion: reduce) { .wmg-mascot-face { animation: none; } }
         .wmg-mascot-bubble { position: absolute; bottom: calc(100% + 12px); left: 0; width: 240px; background: var(--paper); color: var(--ink); border-radius: 18px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; box-shadow: 0 12px 28px rgba(10,8,35,0.35); }
         .wmg-mascot-bubble::after { content: ""; position: absolute; top: 100%; left: 18px; border: 7px solid transparent; border-top-color: var(--paper); }
+        @media (max-width: 880px) {
+          .wmg-mascot-bubble { left: auto; right: 0; }
+          .wmg-mascot-bubble::after { left: auto; right: 18px; }
+        }
         .wmg-mascot-bubble-close { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: var(--ink); opacity: 0.6; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px; }
         .wmg-mascot-bubble-close:hover { opacity: 1; }
         .wmg-mascot-bubble p { margin: 0; padding-right: 10px; }
+
+        .wmg-life-event-card { padding: 12px; background: var(--ink-3); border: 1px solid var(--hair); border-radius: 14px; margin-bottom: 10px; }
+        .wmg-life-event-row-top { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
+        .wmg-life-event-row-top > div { flex: 1; min-width: 0; }
+        .wmg-life-event-row-bottom { display: flex; flex-wrap: wrap; gap: 8px; }
+        .wmg-life-event-row-bottom > div { flex: 1; min-width: 90px; }
 
         .wmg-bank-connected-row { display: flex; align-items: center; gap: 12px; }
         .wmg-bank-connected-icon { width: 44px; height: 44px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-2); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }

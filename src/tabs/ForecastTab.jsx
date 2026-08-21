@@ -237,39 +237,43 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           </div>
         )}
 
-        {profile.scenarios.length > 0 && (
-          <div className="wmg-array-row" style={{ marginBottom: 4 }}>
-            <div style={{ flex: 2 }} className="wmg-field-label">Name</div>
-            <div style={{ flex: 1 }} className="wmg-field-label">% to debt</div>
-            <div style={{ flex: 2 }} className="wmg-field-label">Net worth then</div>
-            <div style={{ width: 32 }} />
-          </div>
-        )}
         {scenarioForecasts.map((s, idx) => {
           const finalRow = s.result.series[s.result.series.length - 1];
           return (
-            <div className="wmg-array-row" key={s.id}>
-              <input
-                className="wmg-input"
-                style={{ flex: 2, borderLeft: `3px solid ${SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}` }}
-                value={s.name}
-                onChange={(e) => updateScenario(s.id, "name", e.target.value)}
-              />
-              <input
-                className="wmg-input"
-                type="number"
-                min="0"
-                max="100"
-                style={{ flex: 1 }}
-                value={s.allocationPct}
-                onChange={(e) => updateScenario(s.id, "allocationPct", Number(e.target.value))}
-              />
-              <div style={{ flex: 2, display: "flex", alignItems: "center", fontFamily: "Inter", fontWeight: 700, fontSize: 13 }}>
-                {finalRow ? gbp(finalRow[key("netWorth")]) : "—"}
+            <div className="wmg-life-event-card" key={s.id}>
+              <div className="wmg-life-event-row-top">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="wmg-field-label">Name</div>
+                  <input
+                    className="wmg-input"
+                    style={{ borderLeft: `3px solid ${SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}` }}
+                    value={s.name}
+                    onChange={(e) => updateScenario(s.id, "name", e.target.value)}
+                  />
+                </div>
+                <button className="wmg-icon-btn" onClick={() => removeScenario(s.id)} aria-label="Remove">
+                  ✕
+                </button>
               </div>
-              <button className="wmg-icon-btn" onClick={() => removeScenario(s.id)} aria-label="Remove">
-                ✕
-              </button>
+              <div className="wmg-life-event-row-bottom">
+                <div>
+                  <div className="wmg-field-label">% to debt</div>
+                  <input
+                    className="wmg-input"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={s.allocationPct}
+                    onChange={(e) => updateScenario(s.id, "allocationPct", Number(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <div className="wmg-field-label">Net worth then</div>
+                  <div className="wmg-input" style={{ display: "flex", alignItems: "center", fontFamily: "Inter", fontWeight: 700 }}>
+                    {finalRow ? gbp(finalRow[key("netWorth")]) : "—"}
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })}
@@ -288,51 +292,54 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         {profile.lifeEvents.length === 0 && (
           <div className="wmg-sub" style={{ marginBottom: 12 }}>No life events added yet.</div>
         )}
-        {profile.lifeEvents.length > 0 && (
-          <div className="wmg-array-row" style={{ marginBottom: 4 }}>
-            <div style={{ flex: 2 }} className="wmg-field-label">Name</div>
-            <div style={{ flex: 1 }} className="wmg-field-label">Type</div>
-            <div style={{ flex: 1 }} className="wmg-field-label">Amount</div>
-            <div style={{ flex: 1 }} className="wmg-field-label">In (years)</div>
-            <div style={{ width: 32 }} />
-          </div>
-        )}
         {profile.lifeEvents.map((e) => (
-          <div className="wmg-array-row" key={e.id}>
-            <input
-              className="wmg-input"
-              style={{ flex: 2 }}
-              value={e.name}
-              onChange={(ev) => updateLifeEvent(e.id, "name", ev.target.value)}
-            />
-            <select
-              className="wmg-select"
-              style={{ flex: 1 }}
-              value={e.type}
-              onChange={(ev) => updateLifeEvent(e.id, "type", ev.target.value)}
-            >
-              <option value="expense">Expense</option>
-              <option value="income">Windfall</option>
-            </select>
-            <input
-              className="wmg-input"
-              type="number"
-              style={{ flex: 1 }}
-              value={e.amount}
-              onChange={(ev) => updateLifeEvent(e.id, "amount", Number(ev.target.value))}
-            />
-            <input
-              className="wmg-input"
-              type="number"
-              step="0.5"
-              style={{ flex: 1 }}
-              title="Years from now"
-              value={e.yearsFromNow}
-              onChange={(ev) => updateLifeEvent(e.id, "yearsFromNow", Number(ev.target.value))}
-            />
-            <button className="wmg-icon-btn" onClick={() => removeLifeEvent(e.id)} aria-label="Remove">
-              ✕
-            </button>
+          <div className="wmg-life-event-card" key={e.id}>
+            <div className="wmg-life-event-row-top">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="wmg-field-label">Name</div>
+                <input
+                  className="wmg-input"
+                  value={e.name}
+                  onChange={(ev) => updateLifeEvent(e.id, "name", ev.target.value)}
+                />
+              </div>
+              <button className="wmg-icon-btn" onClick={() => removeLifeEvent(e.id)} aria-label="Remove">
+                ✕
+              </button>
+            </div>
+            <div className="wmg-life-event-row-bottom">
+              <div>
+                <div className="wmg-field-label">Type</div>
+                <select
+                  className="wmg-select"
+                  value={e.type}
+                  onChange={(ev) => updateLifeEvent(e.id, "type", ev.target.value)}
+                >
+                  <option value="expense">Expense</option>
+                  <option value="income">Windfall</option>
+                </select>
+              </div>
+              <div>
+                <div className="wmg-field-label">Amount</div>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  value={e.amount}
+                  onChange={(ev) => updateLifeEvent(e.id, "amount", Number(ev.target.value))}
+                />
+              </div>
+              <div>
+                <div className="wmg-field-label">In (years)</div>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  step="0.5"
+                  title="Years from now"
+                  value={e.yearsFromNow}
+                  onChange={(ev) => updateLifeEvent(e.id, "yearsFromNow", Number(ev.target.value))}
+                />
+              </div>
+            </div>
           </div>
         ))}
         <button className="wmg-add-btn" onClick={addLifeEvent}>
