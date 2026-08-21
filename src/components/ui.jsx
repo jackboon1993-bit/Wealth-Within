@@ -275,7 +275,7 @@ export function Field({ label, hint, children }) {
    literal 0, and selects existing text on focus so typing always overwrites
    rather than appends. */
 
-export function InlinePill({ value, onChange, type = "number", step, formatter, ariaLabel, minWidth }) {
+export function InlinePill({ value, onChange, type = "number", step, formatter, ariaLabel, minWidth, fill, align }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef(null);
@@ -300,12 +300,12 @@ export function InlinePill({ value, onChange, type = "number", step, formatter, 
     return (
       <input
         ref={inputRef}
-        className="wmg-pill-input"
+        className={`wmg-pill-input ${fill ? "wmg-pill-fill" : ""}`}
         type={type}
         step={step}
         inputMode={type === "number" ? "decimal" : undefined}
         value={draft}
-        style={minWidth ? { minWidth } : undefined}
+        style={{ ...(minWidth ? { minWidth } : undefined), ...(align ? { textAlign: align } : undefined) }}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === "Enter" && commit()}
@@ -314,7 +314,13 @@ export function InlinePill({ value, onChange, type = "number", step, formatter, 
   }
 
   return (
-    <button type="button" className="wmg-pill" aria-label={ariaLabel} onClick={() => setEditing(true)}>
+    <button
+      type="button"
+      className={`wmg-pill ${fill ? "wmg-pill-fill" : ""}`}
+      style={align ? { textAlign: align } : undefined}
+      aria-label={ariaLabel}
+      onClick={() => setEditing(true)}
+    >
       {formatter ? formatter(value) : value}
     </button>
   );

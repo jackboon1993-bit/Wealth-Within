@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
-import { gbp, gbpApprox, addMonths, runForecast } from "../lib/finance";
+import { gbp, gbpApprox, addMonths, runForecast, getActiveMode } from "../lib/finance";
 import { Card, Field, ChartTooltip } from "../components/ui";
 
 export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocationPct, forecast, interestSavedFromAllocation, totals, profile, setField, updateLifeEvent, addLifeEvent, removeLifeEvent, addScenario, updateScenario, removeScenario }) {
+  const activeMode = getActiveMode(profile);
   const [realTerms, setRealTerms] = useState(false);
   const suffix = realTerms ? "Real" : "";
   const last = forecast.series[forecast.series.length - 1];
@@ -55,6 +56,18 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         spending with the pay-rise and inflation assumptions below. Choose how your monthly surplus is split between
         overpaying debt (highest interest first) and saving/investing the rest.
       </div>
+
+      {activeMode === "guided" && last && (
+        <Card className="wmg-guided-summary-card">
+          <p style={{ margin: 0 }}>
+            At this pace — with your current surplus split between debt and savings, and pay-rise/inflation
+            assumptions applied — your net worth could be around{" "}
+            <strong>{gbpApprox(last.netWorth)}</strong> in <strong>{horizonYears} years</strong>. Adjust the horizon
+            or the split below to see how that changes.
+          </p>
+        </Card>
+      )}
+
       <Card>
         <div className="wmg-three-col">
           <div>

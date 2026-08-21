@@ -167,6 +167,21 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
           {celebration} is paid off — one less thing to worry about.
         </div>
       )}
+      {activeMode === "guided" && (
+        <Card className="wmg-guided-summary-card">
+          <p style={{ margin: 0 }}>
+            {totals.totalDebt > 0 ? (
+              <>
+                You have <strong>{gbp(totals.totalDebt)}</strong> in total debt across your mortgage, loans, and
+                cards. At your current pace, you're on track to be debt-free by{" "}
+                <strong>{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "an unclear date — check the figures below"}</strong>.
+              </>
+            ) : (
+              "You've got no debt currently added here — nice position to be in. Add anything you're paying off below if that changes."
+            )}
+          </p>
+        </Card>
+      )}
       <div className="wmg-section-title">Mortgage</div>
       <Card>
         <div className="wmg-three-col">

@@ -5,9 +5,21 @@ import { Card, WhyItMatters, DisclosureSection, Field, ChartTooltip } from "../c
 
 export function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire }) {
   const activeMode = getActiveMode(profile);
+  const projectedAtRetirement = pensionScenarios?.[pensionScenarios.length - 1];
+
   return (
     <>
       <div className="wmg-section-title">Pension details</div>
+      {activeMode === "guided" && projectedAtRetirement && (
+        <Card className="wmg-guided-summary-card">
+          <p style={{ margin: 0 }}>
+            At your current pot and contributions, with a medium growth assumption, your pension could be worth
+            around <strong>{gbpApprox(projectedAtRetirement.medium)}</strong> by the time you retire in{" "}
+            <strong>{pensionYearsToRetire} years</strong>. That's a projection, not a guarantee — see the chart below
+            for how it changes under slower or faster growth.
+          </p>
+        </Card>
+      )}
       <WhyItMatters>
         Pensions get a head start almost nothing else does: tax relief tops up what you put in, your employer often
         matches some of it, and any growth compounds untouched for decades. Someone starting at 25 can end up with

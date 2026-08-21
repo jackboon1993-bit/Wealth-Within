@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { gbp, monthKey, formatMonthKey } from "../lib/finance";
+import { gbp, monthKey, formatMonthKey, getActiveMode } from "../lib/finance";
 import { Card, ProgressBar, InlinePill, CategoryTooltip } from "../components/ui";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
@@ -162,6 +162,13 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
             </select>
             <button className="wmg-icon-btn" onClick={onRemoveCategory} aria-label="Remove category">✕</button>
           </div>
+          {cat.items.length > 0 && (
+            <div className="wmg-item-grid-head">
+              <span>Item</span>
+              <span style={{ textAlign: "right" }}>Monthly cost</span>
+              <span />
+            </div>
+          )}
           {cat.items.map((item) => (
             <div className="wmg-item-line" key={item.id}>
               <InlinePill
@@ -169,14 +176,15 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
                 type="text"
                 onChange={(v) => onUpdateItem(item.id, "name", v)}
                 ariaLabel="Item name"
-                minWidth={110}
+                fill
               />
-              <span className="wmg-item-line-costs">costs</span>
               <InlinePill
                 value={item.amount}
                 onChange={(v) => onUpdateItem(item.id, "amount", v)}
                 formatter={(v) => gbp(v)}
                 ariaLabel={`${item.name} monthly cost`}
+                fill
+                align="right"
               />
               <button className="wmg-icon-btn" onClick={() => onRemoveItem(item.id)} aria-label="Remove item">✕</button>
             </div>
@@ -251,6 +259,7 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
 
 
 export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem, saveSpendingSnapshot }) {
+  const activeMode = getActiveMode(profile);
   const [editSpendingOpen, setEditSpendingOpen] = useState(false);
   const [billCheckStatus, setBillCheckStatus] = useState("idle"); // idle | loading | done | error
   const [billCheckResults, setBillCheckResults] = useState(null);
@@ -388,6 +397,18 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           </div>
         </div>
       </Card>
+
+      {activeMode === "guided" && (
+        <Card className="wmg-guided-summary-card">
+          <p style={{ margin: 0 }}>
+            After everything you've added so far, you have <strong>{gbp(Math.round(totals.available))}</strong> left
+            each month.
+            {categoryChartData.length > 0 && (
+              <> Your biggest spending category is <strong>{categoryChartData[0].name}</strong> at {gbp(categoryChartData[0].value)}.</>
+            )}
+          </p>
+        </Card>
+      )}
 
       {billsCategories.length > 0 && (
         <>

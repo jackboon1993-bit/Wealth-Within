@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { gbp, addMonths } from "../lib/finance";
+import { gbp, addMonths, getActiveMode } from "../lib/finance";
 import { FLOW_TONE_COLORS } from "../lib/constants";
 import { Card, GrowthRing, useCountUp, CategoryTooltip } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate }) {
   const [showAllTips, setShowAllTips] = useState(false);
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
+  const activeMode = getActiveMode(profile);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
@@ -53,6 +54,18 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             <button type="button" className="wmg-score-explainer-close" onClick={() => setScoreInfoOpen(false)} aria-label="Close">×</button>
           </div>
           <p>{scoreExplainer}</p>
+        </Card>
+      )}
+
+      {activeMode === "guided" && (
+        <Card className="wmg-guided-summary-card">
+          <p style={{ margin: 0 }}>
+            After your regular income and spending, you have <strong>{gbp(Math.round(totals.available))}</strong> left
+            each month.{" "}
+            {totals.totalDebt > 0
+              ? "You could use some of this to pay off debt faster, or build up your savings — the boxes below break down where you stand on each."
+              : "You could use some of this to build up your savings or work toward a goal — the boxes below break down where you stand overall."}
+          </p>
         </Card>
       )}
 
