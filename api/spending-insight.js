@@ -1,13 +1,15 @@
 // Vercel Serverless Function.
 // Receives the user's current spending-by-category breakdown and monthly
 // income (no transaction-level detail) and asks Claude for a few short,
-// plain-English observations about the CURRENT snapshot.
+// plain-English observations.
 //
-// Deliberately does NOT claim anything changed over time ("up 18% this
-// month" etc) — the app doesn't retain monthly history yet, CSV imports
-// collapse into a single running total per category, and there's no
-// snapshot mechanism. A genuine month-over-month version of this belongs
-// alongside that feature if it gets built later.
+// Optionally also receives `previousPeriod` — a genuine prior month's total
+// spending, from the app's spending-snapshot history feature. This is ONLY
+// ever real, explicitly-saved data (see spendingSnapshots in lib/finance.js
+// on the client) — never inferred or estimated server-side. When present,
+// the model is allowed exactly one trend observation using that real total;
+// when absent, it's instructed the same as before: no trend claims at all,
+// since a single snapshot genuinely can't support one.
 // The Anthropic API key lives only here, server-side.
 
 export const config = {
@@ -18,11 +20,16 @@ export const config = {
   },
 };
 
-const SYSTEM_PROMPT = `You are a UK household-finance assistant. You will be given someone's current monthly spending broken down by category, and their monthly take-home income. Both are in GBP.
+function buildSystemPrompt(hasPreviousPeriod) {
+  const trendRule = hasPreviousPeriod
+    ? `You ARE given one genuine prior period's total spending figure (see "previousPeriod" below), explicitly saved by the person — not estimated. You may make AT MOST ONE observation comparing the current total spending to that prior total (e.g. "total spending is up/down £X (Y%) from [prior month]"). Do NOT invent or imply any category-level trend ("dining out is up") — you only have a prior TOTAL, not a prior category breakdown, so any category-specific comparison would be fabricated. All other observations must still follow the current-snapshot-only rule below.`
+    : `You have no information about how this person's spending has changed over time. Do NOT claim or imply anything increased, decreased, or changed compared to a previous period ("up from last month", "you're spending more than you used to", etc) — you only have this one snapshot. Frame everything in terms of the current amounts and proportions only.`;
 
-Write 2-4 short, plain-English observations about this snapshot — for example, a category that's a notably large or small share of income compared to typical UK household proportions, or a healthy pattern worth acknowledging. Be specific with figures (cite the category name, its £ amount, and/or its % of income) but keep each observation to one sentence.
+  return `You are a UK household-finance assistant. You will be given someone's current monthly spending broken down by category, and their monthly take-home income. Both are in GBP.
 
-CRITICAL: You have no information about how this person's spending has changed over time. Do NOT claim or imply anything increased, decreased, or changed compared to a previous period ("up from last month", "you're spending more than you used to", etc) — you only have this one snapshot. Frame everything in terms of the current amounts and proportions only.
+Write 2-4 short, plain-English observations — for example, a category that's a notably large or small share of income compared to typical UK household proportions, or a healthy pattern worth acknowledging. Be specific with figures (cite the category name, its £ amount, and/or its % of income) but keep each observation to one sentence.
+
+CRITICAL: ${trendRule}
 
 Keep tone neutral and non-judgmental — this is information, not a lecture. If nothing stands out as unusual, it's fine to say the breakdown looks reasonable. Do not give regulated financial advice.
 
@@ -30,6 +37,7 @@ Respond with ONLY a JSON object, no other text, no markdown fences, in exactly t
 {
   "insights": ["short observation 1", "short observation 2"]
 }`;
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -43,7 +51,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { categories, income } = req.body || {};
+  const { categories, income, previousPeriod } = req.body || {};
   if (!Array.isArray(categories) || categories.length === 0) {
     res.status(400).json({ error: "Missing categories." });
     return;
@@ -59,6 +67,14 @@ export default async function handler(req, res) {
   }));
   const incomeNum = Number(income) || 0;
 
+  // Only trust previousPeriod if it's genuinely shaped like one — a month
+  // label and a positive total. Anything else is silently dropped rather
+  // than passed to the model, which just falls back to the no-trend prompt.
+  const validPreviousPeriod =
+    previousPeriod && typeof previousPeriod.month === "string" && Number(previousPeriod.totalSpending) > 0
+      ? { month: previousPeriod.month.slice(0, 40), totalSpending: Number(previousPeriod.totalSpending) }
+      : null;
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -70,11 +86,13 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 1000,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(Boolean(validPreviousPeriod)),
         messages: [
           {
             role: "user",
-            content: `income: ${incomeNum}\n\ncategories: ${JSON.stringify(payload)}\n\nRespond with the JSON object described in your instructions.`,
+            content: `income: ${incomeNum}\n\ncategories: ${JSON.stringify(payload)}${
+              validPreviousPeriod ? `\n\npreviousPeriod: ${JSON.stringify(validPreviousPeriod)}` : ""
+            }\n\nRespond with the JSON object described in your instructions.`,
           },
         ],
       }),
