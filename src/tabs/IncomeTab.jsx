@@ -363,7 +363,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           categories: categoryChartData.map((r) => ({ name: r.name, value: r.value })),
-          income: profile.income,
+          income: totals.income,
           // Only sent when a real prior snapshot exists — never fabricated,
           // see saveSpendingSnapshot's comment on why this can't be inferred.
           previousPeriod: comparisonSnapshot
@@ -387,15 +387,60 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
       <Card>
         <div className="wmg-two-col">
           <div className="wmg-sentence-card">
-            You take home{" "}
-            <InlinePill value={profile.income} onChange={(v) => setField(["income"])(v)} formatter={(v) => gbp(v)} ariaLabel="Monthly income" />{" "}
-            a month.
+            You take home <strong>{gbp(totals.income)}</strong> a month
+            {profile.incomes.length > 1 ? ` across ${profile.incomes.length} income sources` : ""}.
           </div>
           <div>
             <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>This month, total spend</div>
             <div className="wmg-figure tone-paper">{gbp(totals.essential + totals.debtPayments + totals.lifestyle)}</div>
           </div>
         </div>
+      </Card>
+
+      <div className="wmg-section-title">Income sources</div>
+      <Card style={{ marginBottom: 10 }}>
+        <div className="wmg-sub">
+          Add every regular source of income here — your salary, a partner's income, freelance work, benefits. We
+          add them together for the total above.
+        </div>
+      </Card>
+      <Card>
+        {profile.incomes.map((inc) => (
+          <div className="wmg-life-event-card" key={inc.id}>
+            <div className="wmg-life-event-row-top">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="wmg-field-label">Name</div>
+                <input
+                  className="wmg-input"
+                  value={inc.name}
+                  onChange={(e) => updateArrayItem("incomes")(inc.id, "name", e.target.value)}
+                />
+              </div>
+              {profile.incomes.length > 1 && (
+                <button className="wmg-icon-btn" onClick={() => removeArrayItem("incomes")(inc.id)} aria-label="Remove">
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="wmg-life-event-row-bottom">
+              <div>
+                <div className="wmg-field-label">Monthly amount</div>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  value={inc.amount}
+                  onChange={(e) => updateArrayItem("incomes")(inc.id, "amount", Number(e.target.value))}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          className="wmg-add-btn"
+          onClick={addArrayItem("incomes", { name: "New income", amount: 0 })}
+        >
+          + Add income source
+        </button>
       </Card>
 
       {activeMode === "guided" && (

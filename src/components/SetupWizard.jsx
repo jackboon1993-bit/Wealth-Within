@@ -238,7 +238,7 @@ export function SetupWizard({ onFinish }) {
     onFinish((p) => ({
       ...p,
       recommendedMode: comfortLevel && detailPreference ? deriveRecommendedMode(comfortLevel, detailPreference) : p.recommendedMode,
-      income,
+      incomes: [{ id: nextId(), name: "Your income", amount: income }],
       expenseCategories:
         spendingEstimate > 0
           ? [

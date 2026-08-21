@@ -149,7 +149,7 @@ export function deriveRecommendedMode(comfort, detail) {
 
 export const defaultProfile = {
   onboarded: false,
-  income: 5800,
+  incomes: [{ id: nextId(), name: "Your income", amount: 5800 }],
   homeValue: 337000,
   homeValueGrowth: 2,
   mortgage: {
@@ -317,6 +317,17 @@ export function mergeWithDefaults(saved) {
     merged[k] = Array.isArray(saved[k]) ? saved[k] : defaultProfile[k];
   });
 
+  // migrate the old single-figure `income` field (pre-multi-income) into the
+  // new `incomes` list, so nobody's saved take-home figure gets silently lost
+  if (Array.isArray(saved.incomes) && saved.incomes.length > 0) {
+    merged.incomes = saved.incomes;
+  } else if (typeof saved.income === "number") {
+    merged.incomes = [{ id: nextId(), name: "Your income", amount: saved.income }];
+  } else {
+    merged.incomes = defaultProfile.incomes;
+  }
+  delete merged.income;
+
   // backfill balance-tracking fields for debts saved before this feature existed
   const backfillDebt = (d, fallbackType) => ({
     ...d,
@@ -337,6 +348,14 @@ export function mergeWithDefaults(saved) {
   }));
 
   return merged;
+}
+
+/* Sums every income source into one monthly figure. Everywhere else in the
+   app (score, available funds, the forecast engine) reads this single number
+   rather than the incomes list directly, so adding or removing an income
+   source needs no other changes anywhere downstream. */
+export function totalIncome(profile) {
+  return (profile.incomes || []).reduce((s, i) => s + Number(i.amount || 0), 0);
 }
 
 /* ============================ UK tax estimate ============================ */

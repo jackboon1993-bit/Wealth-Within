@@ -14,6 +14,7 @@ import {
   defaultProfile,
   mergeWithDefaults,
   estimateUKIncomeTax,
+  totalIncome,
   runForecast,
 } from "./lib/finance";
 import { NAV, TAB_TITLES } from "./lib/constants";
@@ -182,7 +183,7 @@ export default function App() {
     const essential = Number(profile.mortgage.payment || 0) + essentialCatTotal;
     const debtPayments = loansPayment + cardsPayment;
     const lifestyle = lifestyleCatTotal + subsTotal;
-    const income = Number(profile.income || 0);
+    const income = totalIncome(profile);
     const available = income - essential - debtPayments - lifestyle;
 
     const mortgageBalanceToday = estimateBalanceToday(
@@ -422,7 +423,7 @@ export default function App() {
         .filter((c) => c.amount > 0);
       const totalSpending = byCategory.reduce((s, c) => s + c.amount, 0);
       const key = monthKey();
-      const snapshot = { id: nextId(), month: key, savedAt: new Date().toISOString(), income: Number(p.income || 0), totalSpending, byCategory };
+      const snapshot = { id: nextId(), month: key, savedAt: new Date().toISOString(), income: totalIncome(p), totalSpending, byCategory };
       const existingIdx = p.spendingSnapshots.findIndex((s) => s.month === key);
       const spendingSnapshots =
         existingIdx >= 0
