@@ -21,7 +21,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts" },
     { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—", tone: "gold", tab: "debts" },
     { label: "Home equity", value: gbp(totals.homeEquity), tone: "slate", tab: "debts" },
-    { label: "Pension", value: gbp(profile.pension.balance), tone: "slate", tab: "pension" },
+    { label: "Pension", value: gbp(totals.pensionBalance), tone: "slate", tab: "pension" },
     { label: "Investments", value: gbp(profile.investments.balance), tone: "slate", tab: "goals" },
   ];
 

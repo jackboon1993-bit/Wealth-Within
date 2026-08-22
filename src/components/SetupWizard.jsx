@@ -265,10 +265,19 @@ export function SetupWizard({ onFinish }) {
       savings: { ...p.savings, balance: savingsBalance },
       emergencyFund,
       goals,
-      pension:
+      // Wizard deliberately stays single-pot, same as income — no added
+      // onboarding friction. It feeds a one-item pensions list; adding more
+      // pots later happens on the Pension tab itself. currentAge/
+      // retirementAge are person-level (pensionSettings), shared with
+      // whatever pots get added later.
+      pensions:
         pensionStatus === "no"
-          ? { ...p.pension, balance: 0, contribution: 0 }
-          : { ...p.pension, ...pension, balance: pensionValueUnknown ? 0 : pension.balance },
+          ? [{ ...p.pensions[0], balance: 0, contribution: 0 }]
+          : [{ ...p.pensions[0], balance: pensionValueUnknown ? 0 : pension.balance, contribution: pension.contribution }],
+      pensionSettings:
+        pensionStatus === "no"
+          ? p.pensionSettings
+          : { ...p.pensionSettings, currentAge: pension.currentAge, retirementAge: pension.retirementAge },
       statePension: { ...p.statePension, included: statePensionIncluded },
       onboarded: true,
     }));

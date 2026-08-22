@@ -130,6 +130,20 @@ export default function App() {
     }
   };
 
+  // After joining or leaving a household, the profile data belongs to a
+  // different household entirely — reload it from scratch rather than
+  // trying to patch the in-memory profile, same as the initial mount load.
+  const reloadAfterHouseholdChange = async () => {
+    try {
+      const result = await getData();
+      const merged = mergeWithDefaults(result);
+      setProfile(merged);
+      if (merged.loans && merged.loans[0]) setSelectedDebtId(merged.loans[0].id);
+    } catch (err) {
+      setStorageStatus("error");
+    }
+  };
+
   const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
   const [deleteAccountText, setDeleteAccountText] = useState("");
   const [deleteAccountStatus, setDeleteAccountStatus] = useState("idle"); // idle | deleting | error
@@ -194,11 +208,13 @@ export default function App() {
     );
     const homeEquity = Number(profile.homeValue || 0) - mortgageBalanceToday;
     const totalDebt = loansBalance + cardsBalance;
+    const pensionBalance = profile.pensions.reduce((s, p) => s + Number(p.balance || 0), 0);
+    const pensionContribution = profile.pensions.reduce((s, p) => s + Number(p.contribution || 0), 0);
     const netWorth =
       homeEquity +
       Number(profile.savings.balance || 0) +
       Number(profile.investments.balance || 0) +
-      Number(profile.pension.balance || 0) -
+      pensionBalance -
       totalDebt;
 
     return {
@@ -218,6 +234,8 @@ export default function App() {
       mortgageBalanceToday,
       totalDebt,
       netWorth,
+      pensionBalance,
+      pensionContribution,
     };
   }, [profile]);
 
@@ -226,7 +244,7 @@ export default function App() {
     const savingsRate = totals.available / (totals.income || 1);
     const efMonths = profile.emergencyFund.balance / Math.max(1, totals.essential + totals.debtPayments);
     const dtiRatio = totals.totalDebt / annualIncome;
-    const investRatio = (profile.pension.balance + profile.investments.balance) / annualIncome;
+    const investRatio = (totals.pensionBalance + profile.investments.balance) / annualIncome;
     const equityRatio = totals.homeEquity / Math.max(1, profile.homeValue);
 
     const s1 = clamp(savingsRate / 0.2, 0, 1) * 30;
@@ -309,41 +327,42 @@ export default function App() {
     } else if (essentialRatio > 0 && essentialRatio < 0.45) {
       tips.push({ tone: "sage", tab: "income", text: `Essential costs are a comfortable ${Math.round(essentialRatio * 100)}% of your income — well within the usual 50-60% guideline, giving you real room to save or invest the rest.` });
     }
-    const pensionContribRatio = totals.income > 0 ? profile.pension.contribution / totals.income : 0;
-    if (pensionContribRatio < 0.05 && profile.pension.contribution >= 0) {
+    const pensionContribRatio = totals.income > 0 ? totals.pensionContribution / totals.income : 0;
+    if (pensionContribRatio < 0.05 && totals.pensionContribution >= 0) {
       tips.push({ tone: "gold", tab: "pension", text: `Your pension contribution is under 5% of income. If your employer offers to match a higher contribution, that's effectively free money left unclaimed — worth checking.` });
     }
     return tips;
-  }, [inFinancialHardship, totals, flaggedCount, flaggedSavings, profile.emergencyFund, profile.pension.contribution, ccAnnualCost, extraCalc, extraPayment, selectedDebt, comfortableTarget]);
+  }, [inFinancialHardship, totals, flaggedCount, flaggedSavings, profile.emergencyFund, ccAnnualCost, extraCalc, extraPayment, selectedDebt, comfortableTarget]);
 
   const forecast = useMemo(() => runForecast(profile, totals, horizonYears, allocationPct), [profile, totals, horizonYears, allocationPct]);
   const forecastBaseline = useMemo(() => runForecast(profile, totals, horizonYears, 0), [profile, totals, horizonYears]);
 
-  const pensionMonthsToRetire = Math.max(0, (profile.pension.retirementAge - profile.pension.currentAge) * 12);
+  const pensionMonthsToRetire = Math.max(0, (profile.pensionSettings.retirementAge - profile.pensionSettings.currentAge) * 12);
   const pensionYearsToRetire = Math.round(pensionMonthsToRetire / 12);
+  // Each pot grows under its own low/medium/high rates; the three scenario
+  // totals below are the SUM of all pots' outcomes under that scenario —
+  // not one blended rate applied to a combined balance, so a pot with a
+  // punchier growth assumption doesn't get diluted by a cautious one.
   const pensionScenarios = useMemo(() => {
-    const rates = { low: profile.pension.growthLow, medium: profile.pension.growthMedium, high: profile.pension.growthHigh };
-    const fv = {};
-    Object.entries(rates).forEach(([k, r]) => {
-      fv[k] = futureValue(profile.pension.balance, profile.pension.contribution, r, pensionMonthsToRetire);
-    });
+    const pots = profile.pensions || [];
+    const fvAtMonths = (m) =>
+      pots.reduce(
+        (acc, p) => {
+          acc.low += futureValue(p.balance, p.contribution, p.growthLow, m);
+          acc.medium += futureValue(p.balance, p.contribution, p.growthMedium, m);
+          acc.high += futureValue(p.balance, p.contribution, p.growthHigh, m);
+          return acc;
+        },
+        { low: 0, medium: 0, high: 0 }
+      );
+    const fv = fvAtMonths(pensionMonthsToRetire);
     const series = [];
     for (let y = 0; y <= pensionYearsToRetire; y += Math.max(1, Math.round(pensionYearsToRetire / 12))) {
-      const m = y * 12;
-      series.push({
-        year: y,
-        low: Math.round(futureValue(profile.pension.balance, profile.pension.contribution, rates.low, m)),
-        medium: Math.round(futureValue(profile.pension.balance, profile.pension.contribution, rates.medium, m)),
-        high: Math.round(futureValue(profile.pension.balance, profile.pension.contribution, rates.high, m)),
-      });
+      const totals = fvAtMonths(y * 12);
+      series.push({ year: y, low: Math.round(totals.low), medium: Math.round(totals.medium), high: Math.round(totals.high) });
     }
     if (series[series.length - 1]?.year !== pensionYearsToRetire) {
-      series.push({
-        year: pensionYearsToRetire,
-        low: Math.round(fv.low),
-        medium: Math.round(fv.medium),
-        high: Math.round(fv.high),
-      });
+      series.push({ year: pensionYearsToRetire, low: Math.round(fv.low), medium: Math.round(fv.medium), high: Math.round(fv.high) });
     }
 
     const inflation = profile.assumptions?.inflation ?? 0;
@@ -353,17 +372,18 @@ export default function App() {
     const grossMonthlyIncome = {};
     const combinedNetMonthlyIncome = {};
 
+    const drawdownRate = profile.pensionSettings.drawdownRate;
     const spIncluded = profile.statePension?.included ?? false;
     const spClaimAge = profile.statePension?.claimAge ?? 67;
     const spWeekly = profile.statePension?.weeklyAmount ?? 0;
     const spAnnualToday = spWeekly * 52;
-    const spAlreadyClaimingAtRetirement = spIncluded && spClaimAge <= profile.pension.retirementAge;
+    const spAlreadyClaimingAtRetirement = spIncluded && spClaimAge <= profile.pensionSettings.retirementAge;
     const spAnnualAtRetirement = spAlreadyClaimingAtRetirement ? spAnnualToday * discount : 0;
     const spMonthlyToday = spIncluded ? spAnnualToday / 12 : 0;
 
     Object.entries(fv).forEach(([k, v]) => {
       real[k] = v / discount;
-      const grossAnnualDrawdown = (v * profile.pension.drawdownRate) / 100;
+      const grossAnnualDrawdown = (v * drawdownRate) / 100;
       const taxFreePortion = grossAnnualDrawdown * 0.25;
       const taxablePortion = grossAnnualDrawdown - taxFreePortion;
       const tax = estimateUKIncomeTax(taxablePortion);
@@ -383,7 +403,7 @@ export default function App() {
       combinedNetMonthlyIncome,
       statePension: { included: spIncluded, claimAge: spClaimAge, monthlyToday: spMonthlyToday, alreadyClaimingAtRetirement: spAlreadyClaimingAtRetirement },
     };
-  }, [profile.pension, profile.statePension, profile.assumptions, pensionMonthsToRetire, pensionYearsToRetire]);
+  }, [profile.pensions, profile.pensionSettings, profile.statePension, profile.assumptions, pensionMonthsToRetire, pensionYearsToRetire]);
 
   /* ---------- mutation helpers ---------- */
 
@@ -1282,6 +1302,7 @@ export default function App() {
                   setDeleteAccountText={setDeleteAccountText}
                   deleteAccountStatus={deleteAccountStatus}
                   deleteAccountNow={deleteAccountNow}
+                  onHouseholdChanged={reloadAfterHouseholdChange}
                 />
               </div>
             </div>
@@ -1370,6 +1391,7 @@ export default function App() {
               setDeleteAccountText={setDeleteAccountText}
               deleteAccountStatus={deleteAccountStatus}
               deleteAccountNow={deleteAccountNow}
+              onHouseholdChanged={reloadAfterHouseholdChange}
             />
           </div>
         </div>
@@ -1497,15 +1519,39 @@ export default function App() {
             )}
 
             {tab === "pension" && (
-              <PensionTab profile={profile} setField={setField} pensionScenarios={pensionScenarios} pensionYearsToRetire={pensionYearsToRetire} />
+              <PensionTab
+                profile={profile}
+                setField={setField}
+                pensionScenarios={pensionScenarios}
+                pensionYearsToRetire={pensionYearsToRetire}
+                totals={totals}
+                updateArrayItem={updateArrayItem}
+                addArrayItem={addArrayItem}
+                removeArrayItem={removeArrayItem}
+              />
             )}
 
             {tab === "pension-reader" && (
               <PensionReaderTab
-                onUseInPension={(result) => {
-                  if (result.currentValue != null) setField(["pension", "balance"])(result.currentValue);
-                  if (result.monthlyContribution != null) setField(["pension", "contribution"])(result.monthlyContribution);
-                  if (result.retirementAge != null) setField(["pension", "retirementAge"])(result.retirementAge);
+                pensions={profile.pensions}
+                onUseInPension={(result, targetPotId) => {
+                  if (targetPotId === "new") {
+                    addArrayItem("pensions", {
+                      name: result.provider || "New pension",
+                      balance: result.currentValue ?? 0,
+                      contribution: result.monthlyContribution ?? 0,
+                      growthLow: defaultProfile.pensions[0].growthLow,
+                      growthMedium: defaultProfile.pensions[0].growthMedium,
+                      growthHigh: defaultProfile.pensions[0].growthHigh,
+                    })();
+                  } else {
+                    if (result.currentValue != null) updateArrayItem("pensions")(targetPotId, "balance", result.currentValue);
+                    if (result.monthlyContribution != null) updateArrayItem("pensions")(targetPotId, "contribution", result.monthlyContribution);
+                  }
+                  // Retirement age is a person-level assumption shared across
+                  // all pots, so a statement's assumed retirement age updates
+                  // it regardless of which pot the numbers went into.
+                  if (result.retirementAge != null) setField(["pensionSettings", "retirementAge"])(result.retirementAge);
                 }}
               />
             )}

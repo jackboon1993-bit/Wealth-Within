@@ -1,6 +1,192 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { MODE_LABELS, getActiveMode } from "../lib/finance";
+import { getHouseholdInfo, renameHousehold, createInvite, joinHousehold, leaveHousehold } from "../lib/household";
+
+export function HouseholdSection({ onHouseholdChanged }) {
+  const [info, setInfo] = useState(null); // null = loading
+  const [errorMsg, setErrorMsg] = useState("");
+  const [nameDraft, setNameDraft] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [invite, setInvite] = useState(null); // { code, expires_at }
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
+
+  const refresh = async () => {
+    try {
+      const result = await getHouseholdInfo();
+      setInfo(result);
+      if (result) setNameDraft(result.name);
+    } catch (e) {
+      setErrorMsg("Couldn't load household info.");
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  if (!supabase) return null;
+
+  const saveName = async () => {
+    if (!info || !nameDraft.trim() || nameDraft === info.name) {
+      setEditingName(false);
+      return;
+    }
+    try {
+      await renameHousehold(info.householdId, nameDraft.trim());
+      setEditingName(false);
+      await refresh();
+    } catch (e) {
+      setErrorMsg("Couldn't rename the household.");
+    }
+  };
+
+  const generateInvite = async () => {
+    if (!info) return;
+    setInviteBusy(true);
+    setErrorMsg("");
+    setCopied(false);
+    try {
+      const result = await createInvite(info.householdId);
+      setInvite(result);
+    } catch (e) {
+      setErrorMsg("Couldn't generate an invite code.");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const copyInvite = async () => {
+    if (!invite) return;
+    try {
+      await navigator.clipboard.writeText(invite.code);
+      setCopied(true);
+    } catch (e) {
+      /* clipboard permissions may be denied — the code is still shown on screen */
+    }
+  };
+
+  const doJoin = async () => {
+    if (!joinCode.trim()) return;
+    setJoinBusy(true);
+    setErrorMsg("");
+    try {
+      await joinHousehold(joinCode.trim());
+      setJoinCode("");
+      await refresh();
+      if (onHouseholdChanged) await onHouseholdChanged();
+    } catch (e) {
+      setErrorMsg(e.message?.includes("already belong") ? e.message : "That code didn't work — check it's typed correctly and hasn't expired (codes last 7 days).");
+    } finally {
+      setJoinBusy(false);
+    }
+  };
+
+  const doLeave = async () => {
+    if (!info) return;
+    setLeaveBusy(true);
+    setErrorMsg("");
+    try {
+      await leaveHousehold(info.householdId);
+      setConfirmingLeave(false);
+      await refresh();
+      if (onHouseholdChanged) await onHouseholdChanged();
+    } catch (e) {
+      setErrorMsg("Couldn't leave the household.");
+    } finally {
+      setLeaveBusy(false);
+    }
+  };
+
+  return (
+    <div className="wmg-household-section">
+      <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Household</div>
+
+      {info === null && !errorMsg && <p className="wmg-sub">Loading…</p>}
+
+      {info && (
+        <>
+          {editingName ? (
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <input
+                className="wmg-input"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveName()}
+                autoFocus
+              />
+              <button className="wmg-icon-btn" onClick={saveName} aria-label="Save name">✓</button>
+            </div>
+          ) : (
+            <p className="wmg-sub" style={{ margin: "0 0 8px" }}>
+              <strong style={{ color: "var(--paper)" }}>{info.name}</strong>{" "}
+              <button className="wmg-onboard-skip" style={{ fontSize: 11 }} onClick={() => setEditingName(true)}>Rename</button>
+              <br />
+              {info.memberCount} member{info.memberCount !== 1 ? "s" : ""} — everyone has full access to the same data.
+            </p>
+          )}
+
+          {invite ? (
+            <div style={{ background: "var(--ink-3)", border: "1px solid var(--hair)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
+              <p className="wmg-sub" style={{ margin: "0 0 6px" }}>
+                Share this code — anyone who enters it below can join your household. It expires in 7 days.
+              </p>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <code style={{ fontSize: 16, fontWeight: 700, letterSpacing: "0.08em", color: "var(--brand)" }}>{invite.code}</code>
+                <button className="wmg-onboard-skip" onClick={copyInvite}>{copied ? "Copied ✓" : "Copy"}</button>
+              </div>
+            </div>
+          ) : (
+            <button className="wmg-reset-btn" style={{ marginBottom: 8 }} disabled={inviteBusy} onClick={generateInvite}>
+              {inviteBusy ? "Generating…" : "Generate invite code"}
+            </button>
+          )}
+
+          <div className="wmg-account-divider" />
+
+          <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Join a different household</div>
+          <p className="wmg-sub" style={{ margin: "0 0 8px" }}>
+            Got a code from someone else? Entering it moves you into their household and away from this one.
+          </p>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <input
+              className="wmg-input"
+              placeholder="Invite code"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              disabled={joinBusy}
+            />
+            <button className="wmg-onboard-skip" disabled={joinBusy || !joinCode.trim()} onClick={doJoin}>
+              {joinBusy ? "Joining…" : "Join"}
+            </button>
+          </div>
+
+          <div className="wmg-account-divider" />
+
+          {confirmingLeave ? (
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="wmg-reset-btn danger" disabled={leaveBusy} onClick={doLeave}>
+                {leaveBusy ? "Leaving…" : "Yes, leave"}
+              </button>
+              <button className="wmg-reset-btn" disabled={leaveBusy} onClick={() => setConfirmingLeave(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button className="wmg-reset-btn" onClick={() => setConfirmingLeave(true)}>Leave this household</button>
+          )}
+
+          {errorMsg && <p className="wmg-sub" style={{ color: "var(--rust)", marginTop: 8 }}>{errorMsg}</p>}
+        </>
+      )}
+
+      <div className="wmg-account-divider" />
+    </div>
+  );
+}
 
 export function MfaSection() {
   const [factors, setFactors] = useState(null); // null = loading
@@ -185,6 +371,7 @@ export function AccountPanel({
   setDeleteAccountText,
   deleteAccountStatus,
   deleteAccountNow,
+  onHouseholdChanged,
 }) {
   const activeMode = getActiveMode(profile);
   return (
@@ -211,6 +398,7 @@ export function AccountPanel({
           <div className="wmg-account-divider" />
         </>
       )}
+      {supabase && <HouseholdSection onHouseholdChanged={onHouseholdChanged} />}
       <div className="wmg-sync-row">
         <span className={`wmg-sync-dot status-${storageStatus}`} />
         <span>

@@ -153,12 +153,13 @@ export function BankTab() {
 
 
 
-export function PensionReaderTab({ onUseInPension }) {
+export function PensionReaderTab({ onUseInPension, pensions = [] }) {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | reading | done | error
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [applied, setApplied] = useState(false);
+  const [targetPotId, setTargetPotId] = useState("new");
   const inputRef = useRef(null);
 
   const pickFile = (f) => {
@@ -209,12 +210,13 @@ export function PensionReaderTab({ onUseInPension }) {
     setResult(null);
     setErrorMsg("");
     setApplied(false);
+    setTargetPotId("new");
     if (inputRef.current) inputRef.current.value = "";
   };
 
   const useInPension = () => {
     if (!result) return;
-    onUseInPension(result);
+    onUseInPension(result, targetPotId);
     setApplied(true);
   };
 
@@ -304,6 +306,22 @@ export function PensionReaderTab({ onUseInPension }) {
             </span>
             <p>{result.verdict.text}</p>
           </Card>
+
+          {onUseInPension && result.currentValue != null && !applied && (
+            <Card style={{ marginTop: 12 }}>
+              <div className="wmg-field-label">Where should these numbers go?</div>
+              <select
+                className="wmg-input"
+                value={targetPotId}
+                onChange={(e) => setTargetPotId(e.target.value)}
+              >
+                <option value="new">Add as a new pension pot{result.provider ? ` (${result.provider})` : ""}</option>
+                {pensions.map((p) => (
+                  <option key={p.id} value={p.id}>Update "{p.name}"</option>
+                ))}
+              </select>
+            </Card>
+          )}
 
           <div className="wmg-reader-actions">
             {onUseInPension && result.currentValue != null && !applied && (

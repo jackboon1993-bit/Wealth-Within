@@ -117,8 +117,11 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
               <CartesianGrid stroke="#363068" vertical={false} />
               <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
               <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
+              <Legend
+                wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
+                itemSorter={(item) => [key("netWorthBand"), key("netWorth"), key("debt"), key("savingsInvest"), key("pension")].indexOf(item.dataKey)}
+              />
               <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
               {forecast.resolvedLifeEvents?.map((e) => (
                 <ReferenceLine
                   key={e.id}
@@ -219,8 +222,11 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                 <CartesianGrid stroke="#363068" vertical={false} />
                 <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
                 <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
+                <Legend
+                  wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
+                  itemSorter={(item) => scenarioForecasts.findIndex((s) => `s_${s.id}` === item.dataKey)}
+                />
                 <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }} />
                 {scenarioForecasts.map((s, idx) => (
                   <Line
                     key={s.id}

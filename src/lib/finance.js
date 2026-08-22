@@ -255,14 +255,17 @@ export const defaultProfile = {
     { id: nextId(), name: "Cloud storage", amount: 3, flagged: true, cancelled: false },
     { id: nextId(), name: "Phone insurance", amount: 11, flagged: true, cancelled: false },
   ],
-  pension: {
-    balance: 74000,
-    contribution: 350,
+  // Multiple pension pots are supported (workplace, personal, old employer
+  // pots, etc). Each pot compounds independently under its own growth
+  // assumptions. currentAge/retirementAge/drawdownRate are deliberately
+  // person-level (pensionSettings), not per-pot — retirement age doesn't
+  // vary by which pot you're looking at.
+  pensions: [
+    { id: nextId(), name: "Workplace pension", balance: 74000, contribution: 350, growthLow: 3, growthMedium: 5, growthHigh: 7 },
+  ],
+  pensionSettings: {
     currentAge: 35,
     retirementAge: 67,
-    growthLow: 3,
-    growthMedium: 5,
-    growthHigh: 7,
     drawdownRate: 4,
   },
   statePension: { weeklyAmount: 221.2, claimAge: 67, included: true },
@@ -308,7 +311,7 @@ export const defaultProfile = {
 export function mergeWithDefaults(saved) {
   if (!saved || typeof saved !== "object") return defaultProfile;
   const merged = { ...defaultProfile, ...saved };
-  const nestedObjectKeys = ["mortgage", "pension", "statePension", "savings", "emergencyFund", "investments", "assumptions"];
+  const nestedObjectKeys = ["mortgage", "pensionSettings", "statePension", "savings", "emergencyFund", "investments", "assumptions"];
   nestedObjectKeys.forEach((k) => {
     merged[k] = { ...defaultProfile[k], ...(saved[k] && typeof saved[k] === "object" ? saved[k] : {}) };
   });
@@ -327,6 +330,35 @@ export function mergeWithDefaults(saved) {
     merged.incomes = defaultProfile.incomes;
   }
   delete merged.income;
+
+  // migrate the old single-pot `pension` object (pre-multi-pension) into the
+  // new `pensions` list, same pattern as incomes above. currentAge,
+  // retirementAge and drawdownRate move out to the new person-level
+  // `pensionSettings` object (merged separately above), since those were
+  // never really "per pot" even in the old single-pension shape.
+  if (Array.isArray(saved.pensions) && saved.pensions.length > 0) {
+    merged.pensions = saved.pensions;
+  } else if (saved.pension && typeof saved.pension === "object") {
+    merged.pensions = [
+      {
+        id: nextId(),
+        name: "Your pension",
+        balance: saved.pension.balance ?? 0,
+        contribution: saved.pension.contribution ?? 0,
+        growthLow: saved.pension.growthLow ?? defaultProfile.pensions[0].growthLow,
+        growthMedium: saved.pension.growthMedium ?? defaultProfile.pensions[0].growthMedium,
+        growthHigh: saved.pension.growthHigh ?? defaultProfile.pensions[0].growthHigh,
+      },
+    ];
+    merged.pensionSettings = {
+      currentAge: saved.pension.currentAge ?? defaultProfile.pensionSettings.currentAge,
+      retirementAge: saved.pension.retirementAge ?? defaultProfile.pensionSettings.retirementAge,
+      drawdownRate: saved.pension.drawdownRate ?? defaultProfile.pensionSettings.drawdownRate,
+    };
+  } else {
+    merged.pensions = defaultProfile.pensions;
+  }
+  delete merged.pension;
 
   // backfill balance-tracking fields for debts saved before this feature existed
   const backfillDebt = (d, fallbackType) => ({
@@ -398,9 +430,15 @@ export function runForecast(profile, totals, horizonYears, allocationPct, growth
   let investments = profile.investments.balance;
   const investRate = Math.max(0, profile.investments.growthRate + growthOffsetPct);
   const investContribution = profile.investments.monthlyContribution;
-  let pension = profile.pension.balance;
-  const pensionRate = Math.max(0, profile.pension.growthMedium + growthOffsetPct);
-  const pensionContribution = profile.pension.contribution;
+  // Each pension pot compounds independently under its own medium-growth
+  // assumption and receives its own contribution — a person with one
+  // higher-growth pot and one cautious pot shouldn't have them blended into
+  // a single average rate.
+  const pensionPots = (profile.pensions || []).map((p) => ({
+    balance: p.balance,
+    rate: Math.max(0, p.growthMedium + growthOffsetPct),
+    contribution: p.contribution,
+  }));
 
   let essential = totals.essential - mortgagePayment;
   let lifestyle = totals.lifestyle;
@@ -411,7 +449,7 @@ export function runForecast(profile, totals, horizonYears, allocationPct, growth
   const statePensionIncluded = profile.statePension?.included ?? false;
   let statePensionMonthly = ((profile.statePension?.weeklyAmount ?? 0) * 52) / 12;
   const statePensionClaimAgeMonths = (profile.statePension?.claimAge ?? 67) * 12;
-  const startAgeMonths = (profile.pension.currentAge ?? 35) * 12;
+  const startAgeMonths = (profile.pensionSettings?.currentAge ?? 35) * 12;
   let statePensionStartMonth = null;
 
   let mortgageYearStartBalance = mortgageEntry.balance;
@@ -502,7 +540,10 @@ export function runForecast(profile, totals, horizonYears, allocationPct, growth
 
     savings = savings * (1 + savingsRate / 100 / 12) + extraSavings + (lifeEventsByMonth[m] || 0);
     investments = investments * (1 + investRate / 100 / 12) + investContribution;
-    pension = pension * (1 + pensionRate / 100 / 12) + pensionContribution;
+    pensionPots.forEach((pot) => {
+      pot.balance = pot.balance * (1 + pot.rate / 100 / 12) + pot.contribution;
+    });
+    const pension = pensionPots.reduce((s, pot) => s + pot.balance, 0);
 
     const remainingNonMortgageDebt = debts.reduce((s, d) => s + d.balance, 0);
     if (debtFreeMonth === null && remainingNonMortgageDebt <= 0.5) debtFreeMonth = m;
