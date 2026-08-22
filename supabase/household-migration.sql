@@ -52,33 +52,47 @@ alter table public.household_members enable row level security;
 alter table public.household_data enable row level security;
 alter table public.household_invites enable row level security;
 
+-- Membership check lives in its own SECURITY DEFINER function rather than
+-- a plain subquery repeated in every policy below. This matters: a policy
+-- on household_members that queries household_members from WITHIN itself
+-- (or a policy on another table that queries household_members, which
+-- itself has RLS enabled) causes Postgres to detect a circular dependency
+-- and refuse to run the query at all ("infinite recursion detected in
+-- policy for relation ..."). A SECURITY DEFINER function runs with the
+-- privileges of its owner rather than the calling user, so it reads
+-- household_members WITHOUT re-triggering its own RLS policy — breaking
+-- the cycle. This is the standard, documented fix for this exact class of
+-- Postgres/Supabase bug.
+create or replace function public.is_household_member(target_household uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.household_members
+    where household_id = target_household and user_id = auth.uid()
+  );
+$$;
+
+grant execute on function public.is_household_member(uuid) to authenticated;
+
 create policy "members can view their household"
   on public.households for select
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = households.id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(id));
 
 create policy "members can update their household"
   on public.households for update
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = households.id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(id));
 
 create policy "members can delete their household"
   on public.households for delete
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = households.id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(id));
 
 create policy "members can view co-members"
   on public.household_members for select
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = household_members.household_id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(household_id));
 
 create policy "members can remove themselves"
   on public.household_members for delete
@@ -86,45 +100,27 @@ create policy "members can remove themselves"
 
 create policy "members can view household data"
   on public.household_data for select
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = household_data.household_id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(household_id));
 
 create policy "members can update household data"
   on public.household_data for update
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = household_data.household_id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(household_id));
 
 create policy "members can delete household data"
   on public.household_data for delete
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = household_data.household_id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(household_id));
 
 create policy "members can insert household data"
   on public.household_data for insert
-  with check (exists (
-    select 1 from public.household_members m
-    where m.household_id = household_data.household_id and m.user_id = auth.uid()
-  ));
+  with check (public.is_household_member(household_id));
 
 create policy "members can view their household's invites"
   on public.household_invites for select
-  using (exists (
-    select 1 from public.household_members m
-    where m.household_id = household_invites.household_id and m.user_id = auth.uid()
-  ));
+  using (public.is_household_member(household_id));
 
 create policy "members can create invites for their household"
   on public.household_invites for insert
-  with check (exists (
-    select 1 from public.household_members m
-    where m.household_id = household_invites.household_id and m.user_id = auth.uid()
-  ));
+  with check (public.is_household_member(household_id));
 
 -- ============================================================
 -- 3. Functions (security definer — do their own validation, see
