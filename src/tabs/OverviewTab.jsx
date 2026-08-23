@@ -4,8 +4,7 @@ import { gbp, addMonths, getActiveMode } from "../lib/finance";
 import { FLOW_TONE_COLORS } from "../lib/constants";
 import { Card, GrowthRing, useCountUp, CategoryTooltip } from "../components/ui";
 
-export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate }) {
-  const [showAllTips, setShowAllTips] = useState(false);
+export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, inFinancialHardship, onNavigate }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   const activeMode = getActiveMode(profile);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
@@ -69,7 +68,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {inFinancialHardship ? (
+      {inFinancialHardship && (
         <>
           <div className="wmg-section-title">Some real help</div>
           <Card className="wmg-hardship-card">
@@ -97,39 +96,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               now — a real adviser can look at your whole situation and what actually helps, for free.
             </p>
           </Card>
-        </>
-      ) : (
-        <>
-          <div className="wmg-section-title">Your coach</div>
-          {coachTips.length === 0 ? (
-            <Card className="wmg-insight-card wmg-insight-sage">
-              <span className="wmg-insight-icon-badge tone-sage">✓</span>
-              <p>Everything's in decent shape. Keep going.</p>
-            </Card>
-          ) : (
-            <>
-              {coachTips.slice(0, 2).map((tip, i) => (
-                <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={i} onClick={() => onNavigate?.(tip.tab)}>
-                  <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
-                  <p>{tip.text}</p>
-                  <span className="wmg-coach-chevron">→</span>
-                </button>
-              ))}
-              {coachTips.length > 2 && !showAllTips && (
-                <button className="wmg-coach-more" onClick={() => setShowAllTips(true)}>
-                  + {coachTips.length - 2} more {coachTips.length - 2 === 1 ? "insight" : "insights"}
-                </button>
-              )}
-              {showAllTips &&
-                coachTips.slice(2).map((tip, i) => (
-                  <button className={`wmg-card wmg-insight-card wmg-insight-${tip.tone} wmg-coach-clickable`} key={`more-${i}`} onClick={() => onNavigate?.(tip.tab)}>
-                    <span className={`wmg-insight-icon-badge tone-${tip.tone}`}>{tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}</span>
-                    <p>{tip.text}</p>
-                    <span className="wmg-coach-chevron">→</span>
-                  </button>
-                ))}
-            </>
-          )}
         </>
       )}
 

@@ -611,19 +611,48 @@ export function TabTip({ tab, seen, onDismiss }) {
 }
 
 
-export function Mascot({ tab }) {
+export function Mascot({ tab, coachTips = [], inFinancialHardship = false, onNavigate }) {
   const [open, setOpen] = useState(false);
+  // The hardship card stays directly visible on the Overview page itself —
+  // never gated behind this popover — so when someone's in that state the
+  // mascot just falls back to its normal per-tab blurb instead of tips.
+  const showTips = tab === "overview" && !inFinancialHardship;
   const message = MASCOT_MESSAGES[tab] || MASCOT_MESSAGES.default;
 
   return (
     <div className="wmg-mascot-wrap">
       {open && (
-        <div className="wmg-mascot-bubble" role="dialog" aria-label="About this app">
+        <div className="wmg-mascot-bubble" role="dialog" aria-label={showTips ? "Your coach tips" : "About this app"}>
           <button type="button" className="wmg-mascot-bubble-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
-          <p>{message}</p>
+          {showTips ? (
+            coachTips.length === 0 ? (
+              <p>Everything's in decent shape. Keep going.</p>
+            ) : (
+              <div className="wmg-mascot-tips">
+                {coachTips.map((tip, i) => (
+                  <button
+                    type="button"
+                    key={i}
+                    className={`wmg-mascot-tip tone-${tip.tone}`}
+                    onClick={() => {
+                      onNavigate?.(tip.tab);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className={`wmg-mascot-tip-badge tone-${tip.tone}`} aria-hidden="true">
+                      {tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}
+                    </span>
+                    <span className="wmg-mascot-tip-text">{tip.text}</span>
+                  </button>
+                ))}
+              </div>
+            )
+          ) : (
+            <p>{message}</p>
+          )}
         </div>
       )}
-      <button type="button" className="wmg-mascot-face" onClick={() => setOpen((o) => !o)} aria-label="What does this app do?" aria-expanded={open}>
+      <button type="button" className="wmg-mascot-face" onClick={() => setOpen((o) => !o)} aria-label={showTips ? "See your coach tips" : "What does this app do?"} aria-expanded={open}>
         <svg width="26" height="26" viewBox="0 0 26 26">
           <circle cx="9" cy="12" r="1.9" fill="#FFFFFF" />
           <circle cx="17" cy="12" r="1.9" fill="#FFFFFF" />

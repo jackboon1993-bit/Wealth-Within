@@ -43,20 +43,6 @@ const ImportTab = lazy(() => import("./tabs/BankImportTab").then((m) => ({ defau
 export default function App() {
   const [profile, setProfile] = useState(defaultProfile);
   const [tab, setTab] = useState("overview");
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem("wwa-theme") === "light" ? "light" : "dark";
-    } catch {
-      return "dark";
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("wwa-theme", theme);
-    } catch {
-      /* private browsing or storage disabled — theme just won't persist */
-    }
-  }, [theme]);
   const [extraPayment, setExtraPayment] = useState(200);
   const [selectedDebtId, setSelectedDebtId] = useState(defaultProfile.loans[0].id);
   const [horizonYears, setHorizonYears] = useState(10);
@@ -607,7 +593,7 @@ export default function App() {
   /* ================================ render ================================ */
 
   return (
-    <div className={`wmg-root ${theme === "light" ? "theme-light" : ""}`}>
+    <div className="wmg-root">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
@@ -644,24 +630,6 @@ export default function App() {
           font-variant-numeric: tabular-nums;
           overflow-x: hidden;
         }
-        .wmg-root.theme-light {
-          --ink: #F7F6FC;
-          --ink-2: #FFFFFF;
-          --ink-3: #EEECF7;
-          --paper: #1A1A3D;
-          --paper-dim: #6B6690;
-          --brand-soft: #EFE9FE;
-          --coral-soft: #FFEBE0;
-          --gold-soft: #FFF5DE;
-          --sage-soft: #E1F8F5;
-          --rust-soft: #FFE6EC;
-          --slate-soft: #EEECF7;
-          --hair: #E4E1F0;
-          --coral-text: #A83D17;
-        }
-        .wmg-root.theme-light .wmg-topbar { background: rgba(255,255,255,0.85); }
-        .wmg-theme-toggle { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--hair); background: var(--ink-2); color: var(--paper); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-        .wmg-theme-toggle:hover { border-color: var(--brand); }
         .wmg-root * { box-sizing: border-box; }
         .wmg-mono { font-family: 'Plus Jakarta Sans', sans-serif; font-variant-numeric: tabular-nums; }
         .wmg-serif { font-family: 'Baloo 2', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
@@ -1137,6 +1105,14 @@ export default function App() {
         .wmg-mascot-bubble-close { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: var(--ink); opacity: 0.6; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px; }
         .wmg-mascot-bubble-close:hover { opacity: 1; }
         .wmg-mascot-bubble p { margin: 0; padding-right: 10px; }
+        .wmg-mascot-tips { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; padding-right: 10px; }
+        .wmg-mascot-tip { display: flex; align-items: flex-start; gap: 8px; text-align: left; background: transparent; border: none; padding: 4px 0; cursor: pointer; font-family: inherit; }
+        .wmg-mascot-tip-badge { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+        .wmg-mascot-tip-badge.tone-gold { background: var(--gold); color: var(--ink); }
+        .wmg-mascot-tip-badge.tone-sage { background: var(--sage); color: var(--ink); }
+        .wmg-mascot-tip-badge.tone-rust { background: var(--rust); color: #FFFFFF; }
+        .wmg-mascot-tip-text { font-size: 12.5px; line-height: 1.5; }
+        .wmg-mascot-tip:hover .wmg-mascot-tip-text { text-decoration: underline; }
 
         .wmg-life-event-card { padding: 12px; background: var(--ink-3); border: 1px solid var(--hair); border-radius: 14px; margin-bottom: 10px; }
         .wmg-life-event-row-top { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
@@ -1428,24 +1404,6 @@ export default function App() {
               <div className="wmg-topbar-title">{TAB_TITLES[tab]}</div>
             </div>
             <div className="wmg-topbar-stats">
-              <button
-                type="button"
-                className="wmg-theme-toggle"
-                onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-                aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
-                title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
-              >
-                {theme === "light" ? (
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                  </svg>
-                ) : (
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="4.5" />
-                    <path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8" />
-                  </svg>
-                )}
-              </button>
             {tab !== "overview" && (
               <>
                 <div className="wmg-score-chip">
@@ -1478,7 +1436,6 @@ export default function App() {
                 mortgageMonths={mortgageMonths}
                 flowSegments={flowSegments}
                 flowTotal={flowTotal}
-                coachTips={coachTips}
                 inFinancialHardship={inFinancialHardship}
                 onNavigate={setTab}
               />
@@ -1612,7 +1569,7 @@ export default function App() {
             </div>
           </div>
         </div>
-        <Mascot tab={tab} />
+        <Mascot tab={tab} coachTips={coachTips} inFinancialHardship={inFinancialHardship} onNavigate={setTab} />
       </div>
       )}
     </div>
