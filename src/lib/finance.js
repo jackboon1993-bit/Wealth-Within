@@ -117,7 +117,7 @@ export const nextId = () => uid++;
 /* ====================== adaptive experience (Phase 2) ====================== */
 
 
-export const MODE_LABELS = { guided: "Guided", standard: "Standard", advanced: "Advanced" };
+export const MODE_LABELS = { guided: "Guided", standard: "Standard" };
 
 // preferredMode (an explicit choice, from onboarding or Settings) always wins
 // over recommendedMode (the onboarding suggestion) — this is what lets a
@@ -128,20 +128,15 @@ export function getActiveMode(profile) {
   return profile.preferredMode || profile.recommendedMode || "standard";
 }
 
-// Base the recommendation mainly on how the person wants information
-// presented (Q2) — that's the more direct signal for a *presentation*
-// setting. Self-reported comfort (Q1) is used only to soften an "advanced"
-// result for someone who's just getting started: they may still want the
-// full numbers, but they likely also still need the explanatory text that
-// Advanced mode hides, so they land on Standard instead. A confident person
-// who wants things kept simple is NOT overridden — that's a legitimate
-// preference, not a knowledge gap, and the whole point of this system is to
-// treat it as one.
+// Base the recommendation on how the person wants information presented
+// (Q2) — that's the more direct signal for a *presentation* setting.
+// Only two modes exist: Guided (simple, explained) and Standard (full
+// detail). There used to be a third "Advanced" mode, but it never actually
+// behaved differently from Standard anywhere in the app, so it was removed
+// rather than kept as a label with no real effect.
 
 export function deriveRecommendedMode(comfort, detail) {
-  const base = detail === "simple" ? "guided" : detail === "all-numbers" ? "advanced" : "standard";
-  if (comfort === "getting-started" && base === "advanced") return "standard";
-  return base;
+  return detail === "simple" ? "guided" : "standard";
 }
 
 /* ============================ default data ============================ */
@@ -302,6 +297,9 @@ export const defaultProfile = {
   // again in the same month updates that month's entry rather than adding
   // a duplicate.
   spendingSnapshots: [],
+  // Tracks which tabs' first-visit tip banner has been dismissed, so the
+  // one-time "what to add and why" explainer never nags on repeat visits.
+  seenTabTips: [],
 };
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a
@@ -315,7 +313,7 @@ export function mergeWithDefaults(saved) {
   nestedObjectKeys.forEach((k) => {
     merged[k] = { ...defaultProfile[k], ...(saved[k] && typeof saved[k] === "object" ? saved[k] : {}) };
   });
-  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals", "lifeEvents", "scenarios", "spendingSnapshots"];
+  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals", "lifeEvents", "scenarios", "spendingSnapshots", "seenTabTips"];
   arrayKeys.forEach((k) => {
     merged[k] = Array.isArray(saved[k]) ? saved[k] : defaultProfile[k];
   });
@@ -330,6 +328,12 @@ export function mergeWithDefaults(saved) {
     merged.incomes = defaultProfile.incomes;
   }
   delete merged.income;
+
+  // "advanced" mode was removed (it never actually behaved differently from
+  // "standard" anywhere in the app) — anyone who'd previously picked it
+  // lands on "standard" instead, rather than an option that no longer exists.
+  if (merged.preferredMode === "advanced") merged.preferredMode = "standard";
+  if (merged.recommendedMode === "advanced") merged.recommendedMode = "standard";
 
   // migrate the old single-pot `pension` object (pre-multi-pension) into the
   // new `pensions` list, same pattern as incomes above. currentAge,

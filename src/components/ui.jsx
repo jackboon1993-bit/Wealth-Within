@@ -511,8 +511,8 @@ export function NavIcon({ name }) {
     case "education":
       return (
         <svg {...common}>
-          <path d="M4 19.2A2.4 2.4 0 0 1 6.4 17H20" />
-          <path d="M6.4 3H20v18H6.4A2.4 2.4 0 0 1 4 18.6V5.4A2.4 2.4 0 0 1 6.4 3z" />
+          <path d="M2 4.5h6.5a4 4 0 0 1 4 4v13.5a3 3 0 0 0-3-3H2z" />
+          <path d="M22 4.5h-6.5a4 4 0 0 0-4 4v13.5a3 3 0 0 1 3-3H22z" />
         </svg>
       );
     case "more":
@@ -542,6 +542,26 @@ export function BrandMark({ size = 34 }) {
       <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
     </svg>
+  );
+}
+
+
+export function TabTip({ tab, seen, onDismiss }) {
+  const message = MASCOT_MESSAGES[tab];
+  if (seen || !message) return null;
+
+  return (
+    <div className="wmg-tab-tip" role="note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="wmg-tab-tip-icon" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 16v-5" />
+        <circle cx="12" cy="8.2" r="0.9" fill="currentColor" stroke="none" />
+      </svg>
+      <p className="wmg-tab-tip-text">{message}</p>
+      <button type="button" className="wmg-tab-tip-close" onClick={onDismiss} aria-label="Got it, don't show this again">
+        Got it
+      </button>
+    </div>
   );
 }
 

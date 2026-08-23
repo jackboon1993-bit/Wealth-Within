@@ -7,9 +7,9 @@ export const NAV = [
   { key: "import", label: "Import from Bank CSV", icon: "import" },
 ];
 
-// Every reachable tab gets a title here, including ones only reached via an
-// Overview box tap (income/debts/goals) rather than the bottom bar — NAV
-// alone isn't enough any more since those three keys aren't in it.
+// "income" is reachable via its relabelled Overview tile, not the nav bar,
+// so it still needs its title listed explicitly here — NAV alone isn't
+// enough to cover every reachable tab.
 
 export const TAB_TITLES = {
   ...Object.fromEntries(NAV.map((n) => [n.key, n.label])),

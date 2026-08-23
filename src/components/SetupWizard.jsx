@@ -350,8 +350,7 @@ export function SetupWizard({ onFinish }) {
             <div className="wmg-wizard-mode-options" style={{ marginBottom: 12 }}>
               {[
                 { key: "simple", label: "Keep things simple and tell me what matters" },
-                { key: "detail-explained", label: "Show me the detail, but explain things when needed" },
-                { key: "all-numbers", label: "Give me all the numbers and let me explore" },
+                { key: "detailed", label: "Show me the detail and the numbers behind it" },
               ].map((opt) => (
                 <button
                   key={opt.key}
@@ -370,7 +369,6 @@ export function SetupWizard({ onFinish }) {
                 We recommend <strong>{MODE_LABELS[deriveRecommendedMode(comfortLevel, detailPreference)]}</strong> mode.
                 {deriveRecommendedMode(comfortLevel, detailPreference) === "guided" && " We'll keep things simple, explain financial terms when they appear, and focus on what matters most."}
                 {deriveRecommendedMode(comfortLevel, detailPreference) === "standard" && " We'll show the key numbers with explanations where useful, and more detail is always a tap away."}
-                {deriveRecommendedMode(comfortLevel, detailPreference) === "advanced" && " We'll show more detail and the numbers behind it by default."}
                 {" "}You can see more detail whenever you want, or change this at any time in Settings.
               </div>
             )}

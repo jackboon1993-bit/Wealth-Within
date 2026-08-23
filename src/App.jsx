@@ -18,7 +18,7 @@ import {
   runForecast,
 } from "./lib/finance";
 import { NAV, TAB_TITLES } from "./lib/constants";
-import { useCountUp, NavIcon, BrandMark, Mascot } from "./components/ui";
+import { useCountUp, NavIcon, BrandMark, Mascot, TabTip } from "./components/ui";
 import { AccountPanel } from "./components/AccountPanel";
 import { SetupWizard } from "./components/SetupWizard";
 
@@ -462,6 +462,9 @@ export default function App() {
       return clone;
     });
   };
+
+  const dismissTabTip = (tabKey) =>
+    setProfile((p) => ({ ...p, seenTabTips: p.seenTabTips.includes(tabKey) ? p.seenTabTips : [...p.seenTabTips, tabKey] }));
 
   const addCategory = () =>
     setProfile((p) => ({
@@ -1082,6 +1085,11 @@ export default function App() {
         .wmg-pill-input { display: inline-block; width: 76px; background: var(--coral-soft); color: var(--coral-text); border: 1.5px solid var(--coral); border-radius: 8px; padding: 1px 8px; font-size: inherit; font-weight: 700; font-family: inherit; text-align: center; }
         .wmg-sentence-card { font-size: 14.5px; line-height: 1.85; color: var(--paper); }
         .wmg-guided-summary-card { background: var(--brand-soft); border: 1px solid var(--brand); font-size: 14.5px; line-height: 1.7; margin-bottom: 14px; }
+        .wmg-tab-tip { display: flex; align-items: flex-start; gap: 10px; background: var(--brand-soft); border: 1px solid var(--brand); border-radius: 16px; padding: 12px 14px; margin-bottom: 14px; }
+        .wmg-tab-tip-icon { flex-shrink: 0; margin-top: 2px; color: var(--brand); }
+        .wmg-tab-tip-text { flex: 1; margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--paper); }
+        .wmg-tab-tip-close { flex-shrink: 0; background: var(--brand); color: #FFFFFF; border: none; border-radius: 999px; padding: 6px 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .wmg-tab-tip-close:hover { background: var(--brand-dark, var(--brand)); opacity: 0.9; }
         .wmg-sentence-name-input { background: transparent; border: none; border-bottom: 1.5px dashed var(--hair); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; color: var(--paper); padding: 2px 0; margin-bottom: 6px; width: 100%; }
         .wmg-sentence-name-input:focus { outline: none; border-bottom-color: var(--brand-2); }
         .wmg-sentence-row { display: flex; align-items: flex-start; gap: 10px; }
@@ -1442,6 +1450,7 @@ export default function App() {
           </div>
 
           <div className="wmg-content" key={tab}>
+          <TabTip tab={tab} seen={profile.seenTabTips.includes(tab)} onDismiss={() => dismissTabTip(tab)} />
           <Suspense fallback={<div className="wmg-tab-loading">Loading…</div>}>
             {tab === "overview" && (
               <OverviewTab

@@ -383,7 +383,7 @@ export function AccountPanel({
             Choose how much detail the app shows by default. This never changes your figures — only how they're presented.
           </p>
           <div className="wmg-mode-toggle" role="group" aria-label="App experience">
-            {["guided", "standard", "advanced"].map((m) => (
+            {["guided", "standard"].map((m) => (
               <button
                 key={m}
                 type="button"

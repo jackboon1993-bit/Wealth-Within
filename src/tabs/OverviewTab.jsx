@@ -15,7 +15,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const heroStats = [
-    { label: "Available", value: gbp(totals.available), tone: "brand", tab: "income" },
+    { label: "Income & Expenditure", value: `${gbp(totals.available)} left`, tone: "brand", tab: "income" },
     { label: "Debt", value: gbp(totals.totalDebt), tone: "coral", tab: "debts" },
     { label: "Savings", value: gbp(profile.savings.balance), tone: "sage", tab: "goals" },
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts" },
@@ -76,7 +76,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             className="wmg-stat-tile wmg-stat-tile-clickable"
             key={s.label}
             onClick={() => onNavigate?.(s.tab)}
-            aria-label={`${s.label}: ${s.value}. Go to ${s.tab === "income" ? "Income & Spending" : s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`}
+            aria-label={
+              s.tab === "income"
+                ? `${s.label}: ${s.value}`
+                : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
+            }
           >
             <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
             <div className="wmg-stat-tile-label">{s.label}</div>
