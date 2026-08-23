@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { gbp, monthKey, formatMonthKey, getActiveMode } from "../lib/finance";
+import { gbp, monthKey, formatMonthKey, getActiveMode, nextId } from "../lib/finance";
 import { Card, ProgressBar, InlinePill, CategoryTooltip } from "../components/ui";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
 
 
-export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove }) {
-  const [expanded, setExpanded] = useState(false);
+export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, startEditing = false }) {
+  const [expanded, setExpanded] = useState(startEditing);
   const tone = SUB_AVATAR_TONES[index % SUB_AVATAR_TONES.length];
   const initial = (sub.name || "?").trim().charAt(0).toUpperCase() || "?";
 
@@ -130,12 +130,16 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
         <div className="wmg-cat-budget-info">
           <div className="wmg-cat-budget-label">
             <span className={subtotal > cat.budget ? "wmg-cat-budget-over" : ""}>{gbp(subtotal)}</span> of{" "}
-            <InlinePill
-              value={cat.budget}
-              onChange={(v) => onUpdateCategoryField(cat.id, "budget", v)}
-              formatter={(v) => gbp(v)}
-              ariaLabel={`${cat.name} monthly budget`}
-            />{" "}
+            {expanded ? (
+              <InlinePill
+                value={cat.budget}
+                onChange={(v) => onUpdateCategoryField(cat.id, "budget", v)}
+                formatter={(v) => gbp(v)}
+                ariaLabel={`${cat.name} monthly budget`}
+              />
+            ) : (
+              gbp(cat.budget)
+            )}{" "}
             budget · {itemCount} {itemCount === 1 ? "item" : "items"}
           </div>
           <ProgressBar value={subtotal} max={cat.budget} tone={subtotal > cat.budget ? "rust" : "sage"} />
@@ -258,7 +262,74 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
 }
 
 
-export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, removeArrayItem, saveSpendingSnapshot }) {
+export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayItem, startEditing = false }) {
+  const [editing, setEditing] = useState(startEditing);
+  return (
+    <div className="wmg-life-event-card">
+      <div className="wmg-life-event-row-top">
+        {editing ? (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="wmg-field-label">Name</div>
+            <input
+              className="wmg-input"
+              value={inc.name}
+              onChange={(e) => updateArrayItem("incomes")(inc.id, "name", e.target.value)}
+            />
+          </div>
+        ) : (
+          <span className="wmg-entry-title" style={{ fontSize: 15.5 }}>{inc.name}</span>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="wmg-entry-edit-btn" onClick={() => setEditing((e) => !e)} aria-label={editing ? "Done editing income source" : "Edit income source"}>
+            {editing ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            )}
+          </button>
+          {canRemove && (
+            <button className="wmg-icon-btn" onClick={() => removeArrayItem("incomes")(inc.id)} aria-label="Remove">
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+      {editing ? (
+        <div className="wmg-life-event-row-bottom">
+          <div>
+            <div className="wmg-field-label">Monthly amount</div>
+            <input
+              className="wmg-input"
+              type="number"
+              value={inc.amount}
+              onChange={(e) => updateArrayItem("incomes")(inc.id, "amount", Number(e.target.value))}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>{gbp(inc.amount)}/mo</div>
+      )}
+    </div>
+  );
+}
+
+
+export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, saveSpendingSnapshot }) {
+  const [justAddedIncomeId, setJustAddedIncomeId] = useState(null);
+  const handleAddIncome = () => {
+    const id = nextId();
+    addArrayItemWithId("incomes", { id, name: "New income", amount: 0 })();
+    setJustAddedIncomeId(id);
+  };
+  const [justAddedSubId, setJustAddedSubId] = useState(null);
+  const handleAddSubscription = () => {
+    const id = nextId();
+    addArrayItemWithId("subscriptions", { id, name: "New subscription", amount: 0, flagged: false, cancelled: false })();
+    setJustAddedSubId(id);
+  };
   const activeMode = getActiveMode(profile);
   const [editSpendingOpen, setEditSpendingOpen] = useState(false);
   const [billCheckStatus, setBillCheckStatus] = useState("idle"); // idle | loading | done | error
@@ -406,38 +477,18 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
       </Card>
       <Card>
         {profile.incomes.map((inc) => (
-          <div className="wmg-life-event-card" key={inc.id}>
-            <div className="wmg-life-event-row-top">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="wmg-field-label">Name</div>
-                <input
-                  className="wmg-input"
-                  value={inc.name}
-                  onChange={(e) => updateArrayItem("incomes")(inc.id, "name", e.target.value)}
-                />
-              </div>
-              {profile.incomes.length > 1 && (
-                <button className="wmg-icon-btn" onClick={() => removeArrayItem("incomes")(inc.id)} aria-label="Remove">
-                  ✕
-                </button>
-              )}
-            </div>
-            <div className="wmg-life-event-row-bottom">
-              <div>
-                <div className="wmg-field-label">Monthly amount</div>
-                <input
-                  className="wmg-input"
-                  type="number"
-                  value={inc.amount}
-                  onChange={(e) => updateArrayItem("incomes")(inc.id, "amount", Number(e.target.value))}
-                />
-              </div>
-            </div>
-          </div>
+          <IncomeSourceCard
+            key={inc.id}
+            inc={inc}
+            canRemove={profile.incomes.length > 1}
+            updateArrayItem={updateArrayItem}
+            removeArrayItem={removeArrayItem}
+            startEditing={inc.id === justAddedIncomeId}
+          />
         ))}
         <button
           className="wmg-add-btn"
-          onClick={addArrayItem("incomes", { name: "New income", amount: 0 })}
+          onClick={handleAddIncome}
         >
           + Add income source
         </button>
@@ -752,10 +803,11 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
               onEdit={(field, value) => updateArrayItem("subscriptions")(s.id, field, value)}
               onToggleCancel={() => toggleSub(s.id)}
               onRemove={() => removeArrayItem("subscriptions")(s.id)}
+              startEditing={s.id === justAddedSubId}
             />
           ))}
         </div>
-        <button className="wmg-add-btn" onClick={addArrayItem("subscriptions", { name: "New subscription", amount: 0, flagged: false, cancelled: false })} style={{ marginTop: 10 }}>
+        <button className="wmg-add-btn" onClick={handleAddSubscription} style={{ marginTop: 10 }}>
           + Add subscription
         </button>
         <div className="wmg-subs-total">

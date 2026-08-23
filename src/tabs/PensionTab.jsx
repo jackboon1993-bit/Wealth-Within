@@ -1,12 +1,120 @@
-import React from "react";
+import React, { useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { gbp, gbpApprox, getActiveMode } from "../lib/finance";
+import { gbp, gbpApprox, getActiveMode, nextId } from "../lib/finance";
 import { Card, WhyItMatters, DisclosureSection, Field, ChartTooltip } from "../components/ui";
 
-export function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire, totals, updateArrayItem, addArrayItem, removeArrayItem }) {
+export function PensionPotCard({ pot, canRemove, activeMode, updateArrayItem, removeArrayItem, startEditing = false }) {
+  const [editing, setEditing] = useState(startEditing);
+  return (
+    <div className="wmg-life-event-card">
+      <div className="wmg-life-event-row-top">
+        {editing ? (
+          <div>
+            <div className="wmg-field-label">Name</div>
+            <input
+              className="wmg-input"
+              value={pot.name}
+              onChange={(e) => updateArrayItem("pensions")(pot.id, "name", e.target.value)}
+            />
+          </div>
+        ) : (
+          <span className="wmg-entry-title" style={{ fontSize: 15.5 }}>{pot.name}</span>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="wmg-entry-edit-btn" onClick={() => setEditing((e) => !e)} aria-label={editing ? "Done editing pension" : "Edit pension"}>
+            {editing ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            )}
+          </button>
+          {canRemove && (
+            <button className="wmg-icon-btn" onClick={() => removeArrayItem("pensions")(pot.id)} aria-label="Remove">
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {editing ? (
+        <>
+          <div className="wmg-life-event-row-bottom">
+            <div>
+              <div className="wmg-field-label">Current pot value</div>
+              <input
+                className="wmg-input"
+                type="number"
+                value={pot.balance}
+                onChange={(e) => updateArrayItem("pensions")(pot.id, "balance", Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <div className="wmg-field-label">Monthly contribution (you + employer)</div>
+              <input
+                className="wmg-input"
+                type="number"
+                value={pot.contribution}
+                onChange={(e) => updateArrayItem("pensions")(pot.id, "contribution", Number(e.target.value))}
+              />
+            </div>
+          </div>
+          <DisclosureSection label="Growth scenarios for this pot" defaultOpen={activeMode !== "guided"}>
+            <div className="wmg-life-event-row-bottom">
+              <div>
+                <div className="wmg-field-label">Low growth (%/yr)</div>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  step="0.1"
+                  value={pot.growthLow}
+                  onChange={(e) => updateArrayItem("pensions")(pot.id, "growthLow", Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <div className="wmg-field-label">Medium growth (%/yr)</div>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  step="0.1"
+                  value={pot.growthMedium}
+                  onChange={(e) => updateArrayItem("pensions")(pot.id, "growthMedium", Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <div className="wmg-field-label">High growth (%/yr)</div>
+                <input
+                  className="wmg-input"
+                  type="number"
+                  step="0.1"
+                  value={pot.growthHigh}
+                  onChange={(e) => updateArrayItem("pensions")(pot.id, "growthHigh", Number(e.target.value))}
+                />
+              </div>
+            </div>
+          </DisclosureSection>
+        </>
+      ) : (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>
+          {gbp(pot.balance)} pot · {gbp(pot.contribution)}/mo contribution
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PensionTab({ profile, setField, pensionScenarios, pensionYearsToRetire, totals, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem }) {
   const activeMode = getActiveMode(profile);
   const projectedAtRetirement = pensionScenarios?.series?.[pensionScenarios.series.length - 1];
   const pots = profile.pensions;
+  const [justAddedId, setJustAddedId] = useState(null);
+  const handleAddPot = () => {
+    const id = nextId();
+    addArrayItemWithId("pensions", { id, name: "New pension", balance: 0, contribution: 0, growthLow: 3, growthMedium: 5, growthHigh: 7 })();
+    setJustAddedId(id);
+  };
 
   return (
     <>
@@ -38,82 +146,17 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
       </Card>
       <Card>
         {pots.map((pot) => (
-          <div className="wmg-life-event-card" key={pot.id}>
-            <div className="wmg-life-event-row-top">
-              <div>
-                <div className="wmg-field-label">Name</div>
-                <input
-                  className="wmg-input"
-                  value={pot.name}
-                  onChange={(e) => updateArrayItem("pensions")(pot.id, "name", e.target.value)}
-                />
-              </div>
-              {pots.length > 1 && (
-                <button className="wmg-icon-btn" onClick={() => removeArrayItem("pensions")(pot.id)} aria-label="Remove">
-                  ✕
-                </button>
-              )}
-            </div>
-            <div className="wmg-life-event-row-bottom">
-              <div>
-                <div className="wmg-field-label">Current pot value</div>
-                <input
-                  className="wmg-input"
-                  type="number"
-                  value={pot.balance}
-                  onChange={(e) => updateArrayItem("pensions")(pot.id, "balance", Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <div className="wmg-field-label">Monthly contribution (you + employer)</div>
-                <input
-                  className="wmg-input"
-                  type="number"
-                  value={pot.contribution}
-                  onChange={(e) => updateArrayItem("pensions")(pot.id, "contribution", Number(e.target.value))}
-                />
-              </div>
-            </div>
-            <DisclosureSection label="Growth scenarios for this pot" defaultOpen={activeMode !== "guided"}>
-              <div className="wmg-life-event-row-bottom">
-                <div>
-                  <div className="wmg-field-label">Low growth (%/yr)</div>
-                  <input
-                    className="wmg-input"
-                    type="number"
-                    step="0.1"
-                    value={pot.growthLow}
-                    onChange={(e) => updateArrayItem("pensions")(pot.id, "growthLow", Number(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <div className="wmg-field-label">Medium growth (%/yr)</div>
-                  <input
-                    className="wmg-input"
-                    type="number"
-                    step="0.1"
-                    value={pot.growthMedium}
-                    onChange={(e) => updateArrayItem("pensions")(pot.id, "growthMedium", Number(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <div className="wmg-field-label">High growth (%/yr)</div>
-                  <input
-                    className="wmg-input"
-                    type="number"
-                    step="0.1"
-                    value={pot.growthHigh}
-                    onChange={(e) => updateArrayItem("pensions")(pot.id, "growthHigh", Number(e.target.value))}
-                  />
-                </div>
-              </div>
-            </DisclosureSection>
-          </div>
+          <PensionPotCard
+            key={pot.id}
+            pot={pot}
+            canRemove={pots.length > 1}
+            activeMode={activeMode}
+            updateArrayItem={updateArrayItem}
+            removeArrayItem={removeArrayItem}
+            startEditing={pot.id === justAddedId}
+          />
         ))}
-        <button
-          className="wmg-add-btn"
-          onClick={addArrayItem("pensions", { name: "New pension", balance: 0, contribution: 0, growthLow: 3, growthMedium: 5, growthHigh: 7 })}
-        >
+        <button className="wmg-add-btn" onClick={handleAddPot}>
           + Add pension pot
         </button>
       </Card>

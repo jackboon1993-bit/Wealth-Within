@@ -69,56 +69,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      <div className="wmg-stat-grid">
-        {heroStats.map((s) => (
-          <button
-            type="button"
-            className="wmg-stat-tile wmg-stat-tile-clickable"
-            key={s.label}
-            onClick={() => onNavigate?.(s.tab)}
-            aria-label={
-              s.tab === "income"
-                ? `${s.label}: ${s.value}`
-                : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
-            }
-          >
-            <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
-            <div className="wmg-stat-tile-label">{s.label}</div>
-            <div className="wmg-stat-tile-val">{s.value}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="wmg-section-title">This month</div>
-      <Card>
-        <div className="wmg-flow-income-row">
-          <div className="wmg-flow-income-label">Income</div>
-          <div className="wmg-flow-income-val">{gbp(totals.income)}</div>
-        </div>
-        <div className="wmg-category-chart-row">
-          <div style={{ width: 140, height: 140, flexShrink: 0 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={flowSegments} dataKey="value" nameKey="label" innerRadius={42} outerRadius={68} paddingAngle={2} strokeWidth={0}>
-                  {flowSegments.map((seg) => (
-                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#8B5CF6"} />
-                  ))}
-                </Pie>
-                <Tooltip content={<CategoryTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="wmg-flow-legend">
-            {flowSegments.map((seg) => (
-              <div className="wmg-flow-legend-item" key={seg.key}>
-                <span className="wmg-swatch" style={{ background: `var(--${seg.tone}-fill)` }} />
-                {seg.label} <span className="wmg-flow-legend-val">{gbp(seg.value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
       {inFinancialHardship ? (
         <>
           <div className="wmg-section-title">Some real help</div>
@@ -182,6 +132,56 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           )}
         </>
       )}
+
+      <div className="wmg-stat-grid">
+        {heroStats.map((s) => (
+          <button
+            type="button"
+            className="wmg-stat-tile wmg-stat-tile-clickable"
+            key={s.label}
+            onClick={() => onNavigate?.(s.tab)}
+            aria-label={
+              s.tab === "income"
+                ? `${s.label}: ${s.value}`
+                : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
+            }
+          >
+            <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
+            <div className="wmg-stat-tile-label">{s.label}</div>
+            <div className="wmg-stat-tile-val">{s.value}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="wmg-section-title">This month</div>
+      <Card>
+        <div className="wmg-flow-income-row">
+          <div className="wmg-flow-income-label">Income</div>
+          <div className="wmg-flow-income-val">{gbp(totals.income)}</div>
+        </div>
+        <div className="wmg-category-chart-row">
+          <div style={{ width: 140, height: 140, flexShrink: 0 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={flowSegments} dataKey="value" nameKey="label" innerRadius={42} outerRadius={68} paddingAngle={2} strokeWidth={0}>
+                  {flowSegments.map((seg) => (
+                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#8B5CF6"} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CategoryTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="wmg-flow-legend">
+            {flowSegments.map((seg) => (
+              <div className="wmg-flow-legend-item" key={seg.key}>
+                <span className="wmg-swatch" style={{ background: `var(--${seg.tone}-fill)` }} />
+                {seg.label} <span className="wmg-flow-legend-val">{gbp(seg.value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
     </>
   );
 }

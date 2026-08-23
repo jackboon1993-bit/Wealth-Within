@@ -10,6 +10,50 @@ export function Card({ children, className = "", style = {} }) {
   );
 }
 
+/* Shows entered data as a read-only summary "bubble" by default — name,
+   badge, and a one-line detail string — with a pencil button that reveals
+   the real editable fields (passed as children). A "Done" button collapses
+   it back into the summary. New/blank entries start open via
+   startEditing, since there's nothing to summarize yet. */
+
+export function EditableEntry({ badge, title, detail, children, onRemove, startEditing = false, removeLabel = "Remove" }) {
+  const [editing, setEditing] = useState(startEditing);
+
+  if (!editing) {
+    return (
+      <Card className="wmg-entry-card">
+        <div className="wmg-entry-view">
+          {badge}
+          <div className="wmg-entry-view-text">
+            <div className="wmg-entry-title">{title}</div>
+            {detail && <div className="wmg-entry-detail">{detail}</div>}
+          </div>
+          <button type="button" className="wmg-entry-edit-btn" onClick={() => setEditing(true)} aria-label={`Edit ${title}`}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="wmg-entry-card">
+      <div className="wmg-entry-edit">
+        {children}
+        <div className="wmg-entry-edit-actions">
+          {onRemove && (
+            <button type="button" className="wmg-icon-btn" onClick={onRemove} aria-label={removeLabel}>✕</button>
+          )}
+          <button type="button" className="wmg-entry-done-btn" onClick={() => setEditing(false)}>Done</button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 /* Quest-style gradient progress ring — a single thick gradient stroke over a
    soft track, matching the Overview badge-circle palette. `progress` is 0–1. */
 
@@ -511,9 +555,9 @@ export function NavIcon({ name }) {
     case "education":
       return (
         <svg {...common}>
-          <path d="M2 9.5 12 4l10 5.5-10 5.5-10-5.5Z" />
-          <path d="M6.5 11.8v4.7c0 1.5 2.5 2.7 5.5 2.7s5.5-1.2 5.5-2.7v-4.7" />
-          <path d="M21 10v6" />
+          <path d="M2 8 12 2.5l10 5.5-10 5.5L2 8Z" />
+          <path d="M5.5 10.3v7.7c0 1.7 2.9 3 6.5 3s6.5-1.3 6.5-3v-7.7" />
+          <path d="M21 8.5v7" />
         </svg>
       );
     case "more":

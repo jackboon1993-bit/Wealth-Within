@@ -34,10 +34,9 @@ const PensionTab = lazy(() => import("./tabs/PensionTab").then((m) => ({ default
 const ForecastTab = lazy(() => import("./tabs/ForecastTab").then((m) => ({ default: m.ForecastTab })));
 const EducationTab = lazy(() => import("./tabs/EducationTab").then((m) => ({ default: m.EducationTab })));
 
-// Thin wrappers so BankTab/PensionReaderTab/ImportTab (three named exports
-// from one chunk) can each still be lazy-loaded individually without
-// fetching the whole BankImportTab chunk three times.
-const BankTab = lazy(() => import("./tabs/BankImportTab").then((m) => ({ default: m.BankTab })));
+// Thin wrappers so PensionReaderTab/ImportTab (two named exports from one
+// chunk) can each still be lazy-loaded individually without fetching the
+// whole BankImportTab chunk twice.
 const PensionReaderTab = lazy(() => import("./tabs/BankImportTab").then((m) => ({ default: m.PensionReaderTab })));
 const ImportTab = lazy(() => import("./tabs/BankImportTab").then((m) => ({ default: m.ImportTab })));
 
@@ -421,6 +420,12 @@ export default function App() {
   };
   const addArrayItem = (arrKey, blank) => () =>
     setProfile((p) => ({ ...p, [arrKey]: [...p[arrKey], { id: nextId(), ...blank }] }));
+  // Same as addArrayItem, but the caller supplies the id up front (via
+  // nextId()) so it can track which entry was just added and open it
+  // straight into edit mode — new entries shouldn't appear as a collapsed,
+  // blank-looking summary bubble.
+  const addArrayItemWithId = (arrKey, itemWithId) => () =>
+    setProfile((p) => ({ ...p, [arrKey]: [...p[arrKey], itemWithId] }));
   const addBulkItems = (arrKey, rows) =>
     setProfile((p) => ({ ...p, [arrKey]: [...p[arrKey], ...rows.map((r) => ({ id: nextId(), ...r }))] }));
   const removeArrayItem = (arrKey) => (id) =>
@@ -530,6 +535,8 @@ export default function App() {
     setProfile((p) => ({ ...p, goals: p.goals.map((g) => (g.id === id ? { ...g, [field]: value } : g)) }));
   const addGoal = () =>
     setProfile((p) => ({ ...p, goals: [...p.goals, { id: nextId(), name: "New goal", target: 1000, current: 0, monthlyContribution: 50, desiredMonths: null }] }));
+  const addGoalWithId = (goalWithId) => () =>
+    setProfile((p) => ({ ...p, goals: [...p.goals, goalWithId] }));
   const removeGoal = (id) => setProfile((p) => ({ ...p, goals: p.goals.filter((g) => g.id !== id) }));
 
   const updateLifeEvent = (id, field, value) =>
@@ -982,6 +989,15 @@ export default function App() {
         .wmg-array-title { font-size: 11.5px; color: var(--paper-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif;}
         .wmg-array-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
         .wmg-icon-btn { background: var(--rust-soft); border: none; color: var(--rust); border-radius: 15px; width: 34px; height: 34px; cursor: pointer; flex-shrink: 0; font-weight: 700; }
+        .wmg-entry-card { padding: 12px 14px; }
+        .wmg-entry-view { display: flex; align-items: center; gap: 10px; }
+        .wmg-entry-view-text { flex: 1; min-width: 0; }
+        .wmg-entry-title { font-size: 14.5px; font-weight: 700; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wmg-entry-detail { font-size: 12px; color: var(--paper-dim); margin-top: 2px; }
+        .wmg-entry-edit-btn { flex-shrink: 0; background: var(--brand-soft); border: none; color: var(--brand); border-radius: 15px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .wmg-entry-edit { display: flex; flex-direction: column; gap: 10px; }
+        .wmg-entry-edit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+        .wmg-entry-done-btn { background: var(--brand); color: #FFFFFF; border: none; border-radius: 18px; padding: 9px 18px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; }
         .wmg-add-btn { background: transparent; border: 1.5px dashed var(--hair); color: var(--paper-dim); border-radius: 18px; padding: 10px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; width: 100%; font-family: 'Plus Jakarta Sans', sans-serif; }
         .wmg-add-btn:hover { border-color: var(--brand); color: var(--brand); }
 
@@ -1483,6 +1499,7 @@ export default function App() {
                 toggleSub={toggleSub}
                 updateArrayItem={updateArrayItem}
                 addArrayItem={addArrayItem}
+                addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
                 saveSpendingSnapshot={saveSpendingSnapshot}
               />
@@ -1491,8 +1508,6 @@ export default function App() {
             {tab === "import" && (
               <ImportTab profile={profile} addBulkItems={addBulkItems} onApplyImportedSpending={applyImportedSpending} />
             )}
-
-            {tab === "bank" && <BankTab />}
 
             {tab === "debts" && (
               <DebtsTab
@@ -1503,6 +1518,7 @@ export default function App() {
                 confirmBalance={confirmBalance}
                 confirmMortgageBalance={confirmMortgageBalance}
                 addArrayItem={addArrayItem}
+                addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
                 allDebts={allDebts}
                 mortgageMonths={mortgageMonths}
@@ -1523,6 +1539,7 @@ export default function App() {
                 setField={setField}
                 updateGoal={updateGoal}
                 addGoal={addGoal}
+                addGoalWithId={addGoalWithId}
                 removeGoal={removeGoal}
               />
             )}
@@ -1536,6 +1553,7 @@ export default function App() {
                 totals={totals}
                 updateArrayItem={updateArrayItem}
                 addArrayItem={addArrayItem}
+                addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
               />
             )}

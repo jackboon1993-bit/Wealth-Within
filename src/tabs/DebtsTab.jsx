@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { gbp, clamp, daysSince, estimateBalanceToday, addMonths, getActiveMode } from "../lib/finance";
+import { gbp, clamp, daysSince, estimateBalanceToday, addMonths, getActiveMode, nextId } from "../lib/finance";
 import { Card, GrowthRing, WhyItMatters, InfoTip, DisclosureSection, Field, InlinePill } from "../components/ui";
 import { QuickImport } from "../components/SetupWizard";
 
@@ -12,9 +12,10 @@ export const DEBT_TYPE_LABELS = {
 };
 
 
-export function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
+export function DebtCard({ debt, onEdit, onConfirm, onRemove, startEditing = false }) {
   const [editing, setEditing] = useState(false);
   const [draftBalance, setDraftBalance] = useState(debt.balance);
+  const [detailsEditing, setDetailsEditing] = useState(startEditing);
   const estimatedToday = estimateBalanceToday(debt.balance, debt.rate, debt.payment, debt.lastConfirmedAt);
   const original = debt.originalBalance || debt.balance || 1;
   const progress = clamp(1 - estimatedToday / original, 0, 1);
@@ -36,20 +37,27 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
           <div className="wmg-debt-ring-label">{Math.round(progress * 100)}%</div>
         </GrowthRing>
         <div className="wmg-debt-card-info">
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <input className="wmg-goal-name-input" value={debt.name} onChange={(e) => onEdit("name", e.target.value)} />
-            <select
-              className="wmg-select"
-              style={{ fontSize: 11, padding: "4px 8px" }}
-              value={debtType}
-              onChange={(e) => onEdit("debtType", e.target.value)}
-              aria-label="Debt type"
-            >
-              {Object.entries(DEBT_TYPE_LABELS).map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
-          </div>
+          {detailsEditing ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <input className="wmg-goal-name-input" value={debt.name} onChange={(e) => onEdit("name", e.target.value)} />
+              <select
+                className="wmg-select"
+                style={{ fontSize: 11, padding: "4px 8px" }}
+                value={debtType}
+                onChange={(e) => onEdit("debtType", e.target.value)}
+                aria-label="Debt type"
+              >
+                {Object.entries(DEBT_TYPE_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span className="wmg-entry-title" style={{ fontSize: 15.5 }}>{debt.name}</span>
+              <span className="wmg-tag" style={{ fontSize: 10.5 }}>{DEBT_TYPE_LABELS[debtType]}</span>
+            </div>
+          )}
           <div className="wmg-debt-card-balance">
             {editing ? (
               <>
@@ -83,17 +91,33 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
             {gbp(debt.balance)} {days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"} ago`}
           </div>
         </div>
+        <button type="button" className="wmg-entry-edit-btn" onClick={() => setDetailsEditing((e) => !e)} aria-label={detailsEditing ? "Done editing debt details" : "Edit debt details"}>
+          {detailsEditing ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          )}
+        </button>
         <button className="wmg-icon-btn" onClick={onRemove} aria-label="Remove">✕</button>
       </div>
 
-      <div className="wmg-sentence-card" style={{ marginTop: 12 }}>
-        Charging{" "}
-        <InlinePill value={debt.rate} onChange={(v) => onEdit("rate", v)} step="0.1" formatter={(v) => `${v}%`} ariaLabel="Interest rate" />{" "}
-        <InfoTip text="The interest rate this debt charges each year — sometimes called APR. You'll find it on your credit agreement, statement, or the provider's app." />{" "}
-        interest, you pay{" "}
-        <InlinePill value={debt.payment} onChange={(v) => onEdit("payment", v)} formatter={(v) => gbp(v)} ariaLabel="Monthly payment" />{" "}
-        a month.
-      </div>
+      {detailsEditing ? (
+        <div className="wmg-sentence-card" style={{ marginTop: 12 }}>
+          Charging{" "}
+          <InlinePill value={debt.rate} onChange={(v) => onEdit("rate", v)} step="0.1" formatter={(v) => `${v}%`} ariaLabel="Interest rate" />{" "}
+          <InfoTip text="The interest rate this debt charges each year — sometimes called APR. You'll find it on your credit agreement, statement, or the provider's app." />{" "}
+          interest, you pay{" "}
+          <InlinePill value={debt.payment} onChange={(v) => onEdit("payment", v)} formatter={(v) => gbp(v)} ariaLabel="Monthly payment" />{" "}
+          a month.
+        </div>
+      ) : (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>
+          {debt.rate}% APR · {gbp(debt.payment)}/mo
+        </div>
+      )}
 
       {debtType === "car-finance" && (
         <div className="wmg-sub" style={{ marginTop: 8 }}>
@@ -133,7 +157,13 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove }) {
 }
 
 
-export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems }) {
+export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, addArrayItemWithId, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems }) {
+  const [justAddedDebtId, setJustAddedDebtId] = useState(null);
+  const handleAddDebt = (arrKey, blank) => () => {
+    const id = nextId();
+    addArrayItemWithId(arrKey, { id, ...blank })();
+    setJustAddedDebtId(id);
+  };
   const activeMode = getActiveMode(profile);
   const selectedDebt = allDebts.find((d) => d.id === selectedDebtId) || allDebts[0];
   const [celebration, setCelebration] = useState(null);
@@ -302,18 +332,19 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
             confirmBalance("loans")(loan.id, newBalance);
           }}
           onRemove={() => removeArrayItem("loans")(loan.id)}
+          startEditing={loan.id === justAddedDebtId}
         />
       ))}
       <button
         className="wmg-add-btn"
-        onClick={addArrayItem("loans", { name: "New loan", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "loan" })}
+        onClick={handleAddDebt("loans", { name: "New loan", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "loan" })}
       >
         + Add loan
       </button>
       <button
         className="wmg-add-btn"
         style={{ marginTop: 8 }}
-        onClick={addArrayItem("loans", { name: "Car finance", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "car-finance" })}
+        onClick={handleAddDebt("loans", { name: "Car finance", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "car-finance" })}
       >
         + Add car finance (PCP / HP)
       </button>
@@ -333,18 +364,19 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
             confirmBalance("cards")(card.id, newBalance);
           }}
           onRemove={() => removeArrayItem("cards")(card.id)}
+          startEditing={card.id === justAddedDebtId}
         />
       ))}
       <button
         className="wmg-add-btn"
-        onClick={addArrayItem("cards", { name: "New card", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "card" })}
+        onClick={handleAddDebt("cards", { name: "New card", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "card" })}
       >
         + Add credit card
       </button>
       <button
         className="wmg-add-btn"
         style={{ marginTop: 8 }}
-        onClick={addArrayItem("cards", { name: "Overdraft", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "overdraft" })}
+        onClick={handleAddDebt("cards", { name: "Overdraft", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "overdraft" })}
       >
         + Add overdraft
       </button>
