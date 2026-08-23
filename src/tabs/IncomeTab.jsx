@@ -97,6 +97,34 @@ export const COMMON_BILLS = [
    a glance, but the individual line items (the real source of visual clutter
    on this tab) stay hidden until you tap to expand. */
 
+function ItemRow({ item, onUpdateItem, onRemoveItem }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return (
+      <div className="wmg-item-line">
+        <span style={{ flex: 1, fontSize: 13.5, color: "var(--paper)" }}>{item.name}</span>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--paper)" }}>{gbp(item.amount)}</span>
+        <button type="button" className="wmg-item-remove-btn" onClick={() => setEditing(true)} aria-label={`Edit ${item.name}`}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="wmg-item-line">
+      <InlinePill value={item.name} type="text" onChange={(v) => onUpdateItem(item.id, "name", v)} ariaLabel="Item name" fill />
+      <InlinePill value={item.amount} onChange={(v) => onUpdateItem(item.id, "amount", v)} formatter={(v) => gbp(v)} ariaLabel={`${item.name} monthly cost`} fill align="right" />
+      <button type="button" className="wmg-item-remove-btn" onClick={() => setEditing(false)} aria-label="Done editing item">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+      </button>
+      <button type="button" className="wmg-item-remove-btn" onClick={() => onRemoveItem(item.id)} aria-label="Remove item">✕</button>
+    </div>
+  );
+}
+
 export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCategory, onAddItem, onRemoveItem, onUpdateItem }) {
   const [expanded, setExpanded] = useState(false);
   const itemCount = cat.items.length;
@@ -121,7 +149,6 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
         <span className={`wmg-cat-badge tone-${cat.type === "essential" ? "brand" : "coral"}`}>{initial}</span>
         <span className="wmg-cat-summary-name-wrap">
           <span className="wmg-cat-summary-name">{cat.name}</span>
-          <span className={`wmg-tag ${cat.type}`}>{cat.type}</span>
         </span>
         <span className={`wmg-sub-chevron ${expanded ? "open" : ""}`} aria-hidden="true">›</span>
       </button>
@@ -156,42 +183,10 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
               ariaLabel="Category name"
               minWidth={100}
             />
-            <select
-              className="wmg-select wmg-cat-type-select"
-              value={cat.type}
-              onChange={(e) => onUpdateCategoryField(cat.id, "type", e.target.value)}
-            >
-              <option value="essential">Essential</option>
-              <option value="lifestyle">Lifestyle</option>
-            </select>
-            <button className="wmg-icon-btn" onClick={onRemoveCategory} aria-label="Remove category">✕</button>
+            <button type="button" className="wmg-item-remove-btn" onClick={onRemoveCategory} aria-label="Remove category">✕</button>
           </div>
-          {cat.items.length > 0 && (
-            <div className="wmg-item-grid-head">
-              <span>Item</span>
-              <span style={{ textAlign: "right" }}>Monthly cost</span>
-              <span />
-            </div>
-          )}
           {cat.items.map((item) => (
-            <div className="wmg-item-line" key={item.id}>
-              <InlinePill
-                value={item.name}
-                type="text"
-                onChange={(v) => onUpdateItem(item.id, "name", v)}
-                ariaLabel="Item name"
-                fill
-              />
-              <InlinePill
-                value={item.amount}
-                onChange={(v) => onUpdateItem(item.id, "amount", v)}
-                formatter={(v) => gbp(v)}
-                ariaLabel={`${item.name} monthly cost`}
-                fill
-                align="right"
-              />
-              <button className="wmg-icon-btn" onClick={() => onRemoveItem(item.id)} aria-label="Remove item">✕</button>
-            </div>
+            <ItemRow key={item.id} item={item} onUpdateItem={onUpdateItem} onRemoveItem={onRemoveItem} />
           ))}
           <button className="wmg-add-btn" onClick={onAddItem}>+ Add item</button>
           {cat.items.length > 1 && (
@@ -207,6 +202,8 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
 
 
 export function EditSpendingSheet({ profile, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, addArrayItem, onboardingEstimateItem, onClose }) {
+  const [activeCatType, setActiveCatType] = useState("essential");
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
@@ -214,6 +211,8 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const visibleCategories = profile.expenseCategories.filter((c) => c.type === activeCatType);
 
   return (
     <div className="wmg-more-sheet-backdrop" onClick={onClose}>
@@ -224,8 +223,9 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
           <button className="wmg-icon-btn" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <div className="wmg-section-desc">
-          Add what applies to your household — item by item for detail, or just type one number per category and
-          combine the rest. Mark each category essential or lifestyle — this drives your score and cash flow.
+          {activeCatType === "essential"
+            ? "The everyday household costs most people have — add your amounts, or add more categories if something's missing."
+            : "Anything discretionary — eating out, hobbies, subscriptions, holidays. Add your own categories here."}
         </div>
         {onboardingEstimateItem && (
           <Card style={{ border: "1px dashed var(--gold)", background: "var(--gold-soft)" }}>
@@ -239,7 +239,17 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
             </div>
           </Card>
         )}
-        {profile.expenseCategories.map((cat) => {
+
+        <div className="wmg-cat-type-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={activeCatType === "essential"} className={`wmg-cat-type-tab ${activeCatType === "essential" ? "active" : ""}`} onClick={() => setActiveCatType("essential")}>
+            Essentials
+          </button>
+          <button type="button" role="tab" aria-selected={activeCatType === "lifestyle"} className={`wmg-cat-type-tab ${activeCatType === "lifestyle" ? "active" : ""}`} onClick={() => setActiveCatType("lifestyle")}>
+            Lifestyle
+          </button>
+        </div>
+
+        {visibleCategories.map((cat) => {
           const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
           return (
             <CategoryCard
@@ -254,7 +264,9 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
             />
           );
         })}
-        <button className="wmg-add-btn" onClick={addCategory} style={{ marginBottom: 8 }}>+ Add category</button>
+        <button className="wmg-add-btn" onClick={() => addCategory(activeCatType)} style={{ marginBottom: 8 }}>
+          + Add {activeCatType === "essential" ? "essential category" : "lifestyle category"}
+        </button>
         <button className="wmg-btn-primary" style={{ marginTop: 12 }} onClick={onClose}>Done</button>
       </div>
     </div>

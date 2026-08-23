@@ -113,6 +113,14 @@ export function StatIcon({ name }) {
           <circle cx="12" cy="12" r="3.4" />
         </svg>
       );
+    case "wallet":
+      return (
+        <svg {...common}>
+          <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a1 1 0 0 1 1 1v1.2" />
+          <path d="M4 7.5v10A2.5 2.5 0 0 0 6.5 20H19a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H6.5A2.5 2.5 0 0 1 4 6.5" />
+          <circle cx="16.2" cy="13.5" r="1.1" fill="currentColor" stroke="none" />
+        </svg>
+      );
     case "debt":
       return (
         <svg {...common}>
@@ -188,8 +196,8 @@ export function Gauge({ score, variant = "light" }) {
   const nx = cx + (r - 12) * Math.cos(theta);
   const ny = cy - (r - 12) * Math.sin(theta);
   const isHero = variant === "hero";
-  const trackColor = isHero ? "rgba(255,255,255,0.28)" : "#2A2A5C";
-  const needleColor = isHero ? "#FFFFFF" : "#F3F1FF";
+  const trackColor = isHero ? "rgba(255,255,255,0.28)" : "var(--ink-3)";
+  const needleColor = isHero ? "#FFFFFF" : "var(--paper)";
   const hubFill = isHero ? "#FF9166" : "#8B5CF6";
   const hubStroke = "#FFFFFF";
   const gradId = isHero ? "gaugeGradHero" : "gaugeGrad";
@@ -611,38 +619,37 @@ export function TabTip({ tab, seen, onDismiss }) {
 }
 
 
-export function Mascot({ tab, coachTips = [], inFinancialHardship = false, onNavigate }) {
+export function Mascot({ tab, coachTips, inFinancialHardship, onNavigate }) {
   const [open, setOpen] = useState(false);
-  // The hardship card stays directly visible on the Overview page itself —
-  // never gated behind this popover — so when someone's in that state the
-  // mascot just falls back to its normal per-tab blurb instead of tips.
-  const showTips = tab === "overview" && !inFinancialHardship;
+  const showCoach = tab === "overview" && (coachTips || inFinancialHardship);
   const message = MASCOT_MESSAGES[tab] || MASCOT_MESSAGES.default;
 
   return (
     <div className="wmg-mascot-wrap">
       {open && (
-        <div className="wmg-mascot-bubble" role="dialog" aria-label={showTips ? "Your coach tips" : "About this app"}>
+        <div className="wmg-mascot-bubble" role="dialog" aria-label={showCoach ? "Your coach" : "About this app"}>
           <button type="button" className="wmg-mascot-bubble-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
-          {showTips ? (
-            coachTips.length === 0 ? (
+          {showCoach ? (
+            inFinancialHardship ? (
+              <p>
+                Right now your essential costs alone come to more than your income. There's real, free help
+                available today — StepChange, National Debtline, Citizens Advice, or MoneyHelper.
+              </p>
+            ) : coachTips.length === 0 ? (
               <p>Everything's in decent shape. Keep going.</p>
             ) : (
-              <div className="wmg-mascot-tips">
-                {coachTips.map((tip, i) => (
+              <div className="wmg-mascot-coach-list">
+                {coachTips.slice(0, 3).map((tip, i) => (
                   <button
                     type="button"
+                    className="wmg-mascot-coach-tip"
                     key={i}
-                    className={`wmg-mascot-tip tone-${tip.tone}`}
                     onClick={() => {
-                      onNavigate?.(tip.tab);
                       setOpen(false);
+                      onNavigate?.(tip.tab);
                     }}
                   >
-                    <span className={`wmg-mascot-tip-badge tone-${tip.tone}`} aria-hidden="true">
-                      {tip.tone === "rust" ? "!" : tip.tone === "sage" ? "✓" : "i"}
-                    </span>
-                    <span className="wmg-mascot-tip-text">{tip.text}</span>
+                    {tip.text}
                   </button>
                 ))}
               </div>
@@ -652,7 +659,7 @@ export function Mascot({ tab, coachTips = [], inFinancialHardship = false, onNav
           )}
         </div>
       )}
-      <button type="button" className="wmg-mascot-face" onClick={() => setOpen((o) => !o)} aria-label={showTips ? "See your coach tips" : "What does this app do?"} aria-expanded={open}>
+      <button type="button" className="wmg-mascot-face" onClick={() => setOpen((o) => !o)} aria-label={showCoach ? "Your coach — tips for you" : "What does this app do?"} aria-expanded={open}>
         <svg width="26" height="26" viewBox="0 0 26 26">
           <circle cx="9" cy="12" r="1.9" fill="#FFFFFF" />
           <circle cx="17" cy="12" r="1.9" fill="#FFFFFF" />

@@ -457,10 +457,10 @@ export default function App() {
   const dismissTabTip = (tabKey) =>
     setProfile((p) => ({ ...p, seenTabTips: p.seenTabTips.includes(tabKey) ? p.seenTabTips : [...p.seenTabTips, tabKey] }));
 
-  const addCategory = () =>
+  const addCategory = (type = "essential") =>
     setProfile((p) => ({
       ...p,
-      expenseCategories: [...p.expenseCategories, { id: nextId(), name: "New category", type: "essential", budget: 0, items: [] }],
+      expenseCategories: [...p.expenseCategories, { id: nextId(), name: type === "lifestyle" ? "New lifestyle item" : "New essential", type, budget: 0, items: [] }],
     }));
   const removeCategory = (catId) =>
     setProfile((p) => ({ ...p, expenseCategories: p.expenseCategories.filter((c) => c.id !== catId) }));
@@ -598,11 +598,11 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .wmg-root {
-          --ink: #1A1A3D;
-          --ink-2: #21214A;
-          --ink-3: #2A2A5C;
-          --paper: #F3F1FF;
-          --paper-dim: #9C97C4;
+          --ink: #1B212C;
+          --ink-2: #242B38;
+          --ink-3: #2E3646;
+          --paper: #F2F3F5;
+          --paper-dim: #8A93A6;
           --brand: #8B5CF6;
           --brand-2: #FF6FA5;
           --brand-deep: #6C4CE0;
@@ -617,7 +617,7 @@ export default function App() {
           --rust-soft: #3D2030;
           --slate: #A6A3D6;
           --slate-soft: #2A2A5C;
-          --hair: #363068;
+          --hair: #38415A;
           --gold-fill: #FFCE6B;
           --sage-fill: #4FD1C5;
           --rust-fill: #FF8FA6;
@@ -681,6 +681,9 @@ export default function App() {
         .wmg-more-sheet-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
         .wmg-more-sheet-divider { height: 1px; background: var(--hair); margin: 8px 6px; }
         .wmg-more-sheet-title { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; color: var(--paper); padding: 4px 6px 12px; }
+        .wmg-cat-type-tabs { display: flex; gap: 6px; background: var(--surface-1, rgba(255,255,255,0.04)); border-radius: 16px; padding: 4px; margin: 10px 0 14px; }
+        .wmg-cat-type-tab { flex: 1; background: transparent; border: none; border-radius: 12px; padding: 9px 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; color: var(--paper-dim); cursor: pointer; }
+        .wmg-cat-type-tab.active { background: var(--brand); color: #FFFFFF; }
         .wmg-account-sheet { max-height: 82vh; overflow-y: auto; }
         .wmg-account-panel { font-size: 11px; color: var(--paper-dim); line-height: 1.6; }
         .wmg-account-divider { height: 1px; background: var(--hair); margin: 14px 0; }
@@ -782,6 +785,14 @@ export default function App() {
         .wmg-stat-dot.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
         .wmg-stat-dot.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
         .wmg-stat-dot.tone-slate { background: var(--slate); }
+        .wmg-stat-tile-gradient { border: none; color: #FFFFFF; }
+        .wmg-stat-tile-gradient.tone-brand { background: linear-gradient(150deg, #A79EEA, #7C74D6); }
+        .wmg-stat-tile-gradient.tone-coral { background: linear-gradient(150deg, #6FA8FF, #3B82F6); }
+        .wmg-stat-tile-gradient.tone-sage { background: linear-gradient(150deg, #6EE7B7, #34D399); }
+        .wmg-stat-tile-gradient:hover { filter: brightness(1.06); background: inherit; border-color: transparent; }
+        .wmg-stat-tile-gradient .wmg-stat-tile-label { color: rgba(255,255,255,0.85); }
+        .wmg-stat-tile-gradient .wmg-stat-tile-val { color: #FFFFFF; }
+        .wmg-stat-tile-icon-badge { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.22); margin-bottom: 8px; }
         .wmg-stat-tile-label { font-size: 11.5px; color: var(--paper-dim); font-weight: 600; margin-bottom: 2px; }
         .wmg-stat-tile-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; color: var(--paper); }
         .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 6px; padding: 2px 2px 6px; }
@@ -970,7 +981,6 @@ export default function App() {
         .wmg-add-btn:hover { border-color: var(--brand); color: var(--brand); }
 
         .wmg-cat-card { margin-bottom: 14px; }
-        .wmg-cat-type-select { flex: 1; min-width: 90px; }
         .wmg-cat-summary-toggle { width: 100%; display: flex; align-items: center; gap: 12px; background: transparent; border: none; padding: 0 0 12px; cursor: pointer; text-align: left; font-family: inherit; }
         .wmg-cat-summary-name-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; }
         .wmg-cat-summary-name { font-size: 15px; font-weight: 700; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1078,11 +1088,9 @@ export default function App() {
         .wmg-sentence-name-input:focus { outline: none; border-bottom-color: var(--brand-2); }
         .wmg-sentence-row { display: flex; align-items: flex-start; gap: 10px; }
         .wmg-sentence-row-main { flex: 1; min-width: 0; }
-        .wmg-item-grid-head { display: flex; gap: 8px; padding: 0 0 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--paper-dim); }
-        .wmg-item-grid-head span:first-child { flex: 1; }
-        .wmg-item-grid-head span:nth-child(2) { width: 100px; flex-shrink: 0; }
-        .wmg-item-grid-head span:last-child { width: 28px; flex-shrink: 0; }
         .wmg-item-line { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hair); }
+        .wmg-item-remove-btn { background: transparent; border: none; color: var(--paper-dim); border-radius: 10px; width: 26px; height: 26px; cursor: pointer; flex-shrink: 0; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+        .wmg-item-remove-btn:hover { background: var(--rust-soft); color: var(--rust); }
         .wmg-item-line:last-of-type { border-bottom: none; }
         .wmg-item-line-costs { font-size: 12.5px; color: var(--paper-dim); flex-shrink: 0; }
         .wmg-pill-fill { display: block; width: 100%; box-sizing: border-box; text-align: left; }
@@ -1096,7 +1104,7 @@ export default function App() {
         .wmg-mascot-face:hover { animation-play-state: paused; transform: scale(1.05); }
         @keyframes wmgMascotBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         @media (prefers-reduced-motion: reduce) { .wmg-mascot-face { animation: none; } }
-        .wmg-mascot-bubble { position: absolute; bottom: calc(100% + 12px); left: 0; width: 240px; background: var(--paper); color: var(--ink); border-radius: 18px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; box-shadow: 0 12px 28px rgba(10,8,35,0.35); }
+        .wmg-mascot-bubble { position: absolute; bottom: calc(100% + 12px); left: 0; width: 270px; background: var(--paper); color: var(--ink); border-radius: 18px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; box-shadow: 0 12px 28px rgba(10,8,35,0.35); }
         .wmg-mascot-bubble::after { content: ""; position: absolute; top: 100%; left: 18px; border: 7px solid transparent; border-top-color: var(--paper); }
         @media (max-width: 880px) {
           .wmg-mascot-bubble { left: auto; right: 0; }
@@ -1105,14 +1113,9 @@ export default function App() {
         .wmg-mascot-bubble-close { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: var(--ink); opacity: 0.6; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px; }
         .wmg-mascot-bubble-close:hover { opacity: 1; }
         .wmg-mascot-bubble p { margin: 0; padding-right: 10px; }
-        .wmg-mascot-tips { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; padding-right: 10px; }
-        .wmg-mascot-tip { display: flex; align-items: flex-start; gap: 8px; text-align: left; background: transparent; border: none; padding: 4px 0; cursor: pointer; font-family: inherit; }
-        .wmg-mascot-tip-badge { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
-        .wmg-mascot-tip-badge.tone-gold { background: var(--gold); color: var(--ink); }
-        .wmg-mascot-tip-badge.tone-sage { background: var(--sage); color: var(--ink); }
-        .wmg-mascot-tip-badge.tone-rust { background: var(--rust); color: #FFFFFF; }
-        .wmg-mascot-tip-text { font-size: 12.5px; line-height: 1.5; }
-        .wmg-mascot-tip:hover .wmg-mascot-tip-text { text-decoration: underline; }
+        .wmg-mascot-coach-list { display: flex; flex-direction: column; gap: 8px; padding-right: 10px; }
+        .wmg-mascot-coach-tip { text-align: left; background: rgba(124,77,255,0.08); border: none; border-radius: 12px; padding: 9px 10px; font-size: 12px; line-height: 1.45; color: var(--ink); cursor: pointer; }
+        .wmg-mascot-coach-tip:hover { background: rgba(124,77,255,0.14); }
 
         .wmg-life-event-card { padding: 12px; background: var(--ink-3); border: 1px solid var(--hair); border-radius: 14px; margin-bottom: 10px; }
         .wmg-life-event-row-top { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
@@ -1436,6 +1439,7 @@ export default function App() {
                 mortgageMonths={mortgageMonths}
                 flowSegments={flowSegments}
                 flowTotal={flowTotal}
+                coachTips={coachTips}
                 inFinancialHardship={inFinancialHardship}
                 onNavigate={setTab}
               />

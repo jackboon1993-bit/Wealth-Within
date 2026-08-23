@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 import { gbp, gbpApprox, addMonths, runForecast, getActiveMode } from "../lib/finance";
-import { Card, Field, ChartTooltip } from "../components/ui";
+import { Card, Field, ChartTooltip, InfoTip, WhyItMatters } from "../components/ui";
 
 export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocationPct, forecast, interestSavedFromAllocation, totals, profile, setField, updateLifeEvent, addLifeEvent, removeLifeEvent, addScenario, updateScenario, removeScenario }) {
   const activeMode = getActiveMode(profile);
@@ -52,10 +52,16 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
     <>
       <div className="wmg-section-title">Cash flow forecast</div>
       <div className="wmg-section-desc">
-        Projects your net worth, debt, savings & investments, and pension forward from today, growing your income and
-        spending with the pay-rise and inflation assumptions below. Choose how your monthly surplus is split between
-        overpaying debt (highest interest first) and saving/investing the rest.
+        This takes everything you've entered elsewhere — your income, spending, debts, savings, and pension — and
+        projects it forward in time, so you can see roughly where you'd end up rather than just where you stand
+        today.
       </div>
+      <WhyItMatters>
+        Every month you have some money left over after essentials and debt payments — your "surplus." This
+        forecast asks: what happens to your net worth over time if that surplus goes toward debt, toward savings,
+        or some mix of both? Move the sliders below to see the difference. Nothing here changes your real numbers —
+        it's a "what if," not a plan you're locked into.
+      </WhyItMatters>
 
       {activeMode === "guided" && last && (
         <Card className="wmg-guided-summary-card">
@@ -71,14 +77,18 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
       <Card>
         <div className="wmg-three-col">
           <div>
-            <label className="wmg-field-label">Forecast horizon</label>
+            <label className="wmg-field-label">
+              Forecast horizon <InfoTip text="How many years ahead to project. Try a shorter horizon (2-5 years) for something that feels concrete, or a longer one to see the full picture toward retirement." />
+            </label>
             <div className="wmg-slider-row">
               <input type="range" min="1" max="30" step="1" value={horizonYears} className="wmg-slider" onChange={(e) => setHorizonYears(Number(e.target.value))} />
               <div className="wmg-slider-val">{horizonYears} yrs</div>
             </div>
           </div>
           <div>
-            <label className="wmg-field-label">Surplus to debt vs. saving</label>
+            <label className="wmg-field-label">
+              Surplus to debt vs. saving <InfoTip text="Your leftover money each month, after bills and debt payments. 100% sends all of it toward your highest-interest debt first; 0% puts all of it into savings and investments instead. Try both ends to see the trade-off." />
+            </label>
             <div className="wmg-slider-row">
               <input type="range" min="0" max="100" step="5" value={allocationPct} className="wmg-slider" onChange={(e) => setAllocationPct(Number(e.target.value))} />
               <div className="wmg-slider-val">{allocationPct}%</div>
@@ -114,9 +124,9 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         <div style={{ width: "100%", height: 320, marginTop: 10 }}>
           <ResponsiveContainer>
             <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="#363068" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
-              <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
+              <CartesianGrid stroke="var(--hair)" vertical={false} />
+              <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+              <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
               <Legend
                 wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
                 itemSorter={(item) => [key("netWorthBand"), key("netWorth"), key("debt"), key("savingsInvest"), key("pension")].indexOf(item.dataKey)}
@@ -136,7 +146,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
               <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8B5CF6" strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#FF5C7A" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#4FD1C5" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="#9C97C4" strokeWidth={2} dot={false} strokeDasharray="4 3" />
+              <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="var(--paper-dim)" strokeWidth={2} dot={false} strokeDasharray="4 3" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -219,9 +229,9 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           <div style={{ width: "100%", height: 260, marginBottom: 16 }}>
             <ResponsiveContainer>
               <LineChart data={scenarioChartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="#363068" vertical={false} />
-                <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
-                <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
+                <CartesianGrid stroke="var(--hair)" vertical={false} />
+                <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+                <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
                 <Legend
                   wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
                   itemSorter={(item) => scenarioForecasts.findIndex((s) => `s_${s.id}` === item.dataKey)}

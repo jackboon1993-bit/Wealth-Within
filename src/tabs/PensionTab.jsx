@@ -198,17 +198,20 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
 
       <div className="wmg-section-title">State Pension</div>
       <div className="wmg-section-desc">
-        The full new State Pension is around £221.20/week (2024/25) if you have a full National Insurance record —
-        check your actual forecast at gov.uk/check-state-pension, since gaps in your NI record can reduce it.
+        The full new State Pension is a standard, published rate — the same for everyone with a full National
+        Insurance record. It's not something you enter, but gaps in your NI record can reduce it, so check your own
+        forecast at gov.uk/check-state-pension if you're not sure.
       </div>
       <Card>
         <div className="wmg-three-col">
-          <Field label="Weekly amount">
-            <input className="wmg-input" type="number" step="0.01" value={profile.statePension.weeklyAmount} onChange={(e) => setField(["statePension", "weeklyAmount"])(Number(e.target.value))} />
-          </Field>
-          <Field label="Age you can claim it">
-            <input className="wmg-input" type="number" value={profile.statePension.claimAge} onChange={(e) => setField(["statePension", "claimAge"])(Number(e.target.value))} />
-          </Field>
+          <div>
+            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Weekly amount</div>
+            <div className="wmg-figure tone-paper">{gbp(profile.statePension.weeklyAmount)}</div>
+          </div>
+          <div>
+            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Age you can claim it</div>
+            <div className="wmg-figure tone-paper">{profile.statePension.claimAge}</div>
+          </div>
           <div>
             <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Annual, in today's money</div>
             <div className="wmg-figure tone-paper">{gbp(profile.statePension.weeklyAmount * 52)}</div>
@@ -275,9 +278,9 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
             <LineChart data={pensionScenarios.series} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="#363068" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="#363068" />
-              <YAxis tick={{ fill: "#9C97C4", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="#363068" width={54} />
+              <CartesianGrid stroke="var(--hair)" vertical={false} />
+              <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+              <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
               <Legend
                 wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
                 itemSorter={(item) => ["high", "medium", "low"].indexOf(item.dataKey)}

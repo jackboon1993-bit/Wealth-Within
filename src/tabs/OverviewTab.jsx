@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, addMonths, getActiveMode } from "../lib/finance";
 import { FLOW_TONE_COLORS } from "../lib/constants";
-import { Card, GrowthRing, useCountUp, CategoryTooltip } from "../components/ui";
+import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../components/ui";
 
-export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, inFinancialHardship, onNavigate }) {
+export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   const activeMode = getActiveMode(profile);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
@@ -14,9 +14,9 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const heroStats = [
-    { label: "Income & Expenditure", value: `${gbp(totals.available)} left`, tone: "brand", tab: "income" },
-    { label: "Debt", value: gbp(totals.totalDebt), tone: "coral", tab: "debts" },
-    { label: "Savings", value: gbp(profile.savings.balance), tone: "sage", tab: "goals" },
+    { label: "Income & Expenditure", value: `${gbp(totals.available)} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
+    { label: "Debt", value: gbp(totals.totalDebt), tone: "coral", tab: "debts", icon: "debt", gradient: true },
+    { label: "Savings", value: gbp(profile.savings.balance), tone: "sage", tab: "goals", icon: "savings", gradient: true },
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts" },
     { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—", tone: "gold", tab: "debts" },
     { label: "Home equity", value: gbp(totals.homeEquity), tone: "slate", tab: "debts" },
@@ -103,7 +103,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         {heroStats.map((s) => (
           <button
             type="button"
-            className="wmg-stat-tile wmg-stat-tile-clickable"
+            className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
             key={s.label}
             onClick={() => onNavigate?.(s.tab)}
             aria-label={
@@ -112,7 +112,13 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                 : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
             }
           >
-            <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
+            {s.gradient ? (
+              <span className="wmg-stat-tile-icon-badge" aria-hidden="true">
+                <StatIcon name={s.icon} />
+              </span>
+            ) : (
+              <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
+            )}
             <div className="wmg-stat-tile-label">{s.label}</div>
             <div className="wmg-stat-tile-val">{s.value}</div>
           </button>
