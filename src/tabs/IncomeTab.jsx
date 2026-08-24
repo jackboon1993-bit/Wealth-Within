@@ -124,6 +124,30 @@ function ItemRow({ item, onUpdateItem, onRemoveItem }) {
   );
 }
 
+// Shown when a category has real spending but no budget set yet (budget
+// defaults to 0 on every new category, and stays 0 until someone edits it —
+// which most people never do unprompted). Suggests current spend plus a
+// little headroom, rounded to a friendly number, as a one-tap starting
+// point rather than leaving them to type a figure from scratch. This also
+// unblocks the budget-threshold notification check, which skips any
+// category still sitting at a 0 budget.
+function suggestedBudgetFor(subtotal) {
+  const withHeadroom = subtotal * 1.1;
+  return Math.ceil(withHeadroom / 10) * 10;
+}
+
+function BudgetSuggestion({ subtotal, onApply }) {
+  const suggested = suggestedBudgetFor(subtotal);
+  return (
+    <div className="wmg-budget-suggestion">
+      <span className="wmg-sub">No budget set yet — try {gbp(suggested)}?</span>
+      <button type="button" className="wmg-onboard-skip" onClick={() => onApply(suggested)}>
+        Use {gbp(suggested)}
+      </button>
+    </div>
+  );
+}
+
 export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCategory, onAddItem, onRemoveItem, onUpdateItem }) {
   const [expanded, setExpanded] = useState(false);
   const itemCount = cat.items.length;
@@ -169,6 +193,9 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
             budget · {itemCount} {itemCount === 1 ? "item" : "items"}
           </div>
           <ProgressBar value={subtotal} max={cat.budget} tone={subtotal > cat.budget ? "rust" : "sage"} />
+          {cat.budget === 0 && subtotal > 0 && (
+            <BudgetSuggestion subtotal={subtotal} onApply={(v) => onUpdateCategoryField(cat.id, "budget", v)} />
+          )}
         </div>
       </div>
 

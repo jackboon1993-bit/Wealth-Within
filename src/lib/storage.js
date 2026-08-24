@@ -95,6 +95,43 @@ export async function deleteData() {
   localStorage.removeItem(LOCAL_KEY);
 }
 
+// Subscribes to live changes on this household's data row, so a second
+// person's edits show up without either of you reloading the app. Resolves
+// the household id internally (reusing the same cache as getData/setData),
+// then opens a Supabase Realtime channel filtered to just that row.
+// Requires Realtime replication to be enabled on household_data in the
+// Supabase dashboard (Database > Replication) — this is a project setting,
+// not something this function can turn on itself.
+//
+// onRemoteChange is called with the raw `data` payload whenever a change
+// arrives from anyone (including, harmlessly, this same client's own
+// writes echoing back). Returns an unsubscribe function.
+export function subscribeToHouseholdData(onRemoteChange) {
+  if (!supabase) return () => {};
+  let channel = null;
+  let cancelled = false;
+
+  resolveHouseholdId().then((householdId) => {
+    if (cancelled || !householdId) return;
+    channel = supabase
+      .channel(`household_data_${householdId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "household_data", filter: `household_id=eq.${householdId}` },
+        (payload) => {
+          const row = payload.new;
+          if (row && row.data) onRemoteChange(row.data);
+        }
+      )
+      .subscribe();
+  });
+
+  return () => {
+    cancelled = true;
+    if (channel) supabase.removeChannel(channel);
+  };
+}
+
 // true once Supabase is configured — used to decide whether to show the
 // sign-in screen at all, so the app still runs standalone without it.
 export const hasAccounts = Boolean(supabase);

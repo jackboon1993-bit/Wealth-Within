@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
 import { supabase } from "./lib/supabaseClient";
+import { isBiometricEnabled, verifyBiometric } from "./utils/biometrics";
 
 /**
  * Wraps the app with a sign-in / sign-up screen when Supabase is configured.
@@ -35,6 +37,35 @@ export default function AuthGate({ children }) {
     });
   }, [session]);
 
+  const [locked, setLocked] = useState(null); // null = not yet decided, true = needs unlock, false = clear to proceed
+
+  // Once we have a fully authenticated session (past MFA if it applies),
+  // decide whether the biometric lock screen should show. Re-runs whenever
+  // the session or MFA level changes — e.g. a fresh sign-in, or MFA just
+  // being cleared — but not on every render, since re-locking an already
+  // unlocked session on a stray re-render would be a bad surprise mid-use.
+  useEffect(() => {
+    if (!session || aal === null) return;
+    const stillNeedsChallenge = aal.current === "aal1" && aal.next === "aal2";
+    if (stillNeedsChallenge) return;
+    setLocked(isBiometricEnabled());
+  }, [session, aal]);
+
+  // Re-lock whenever the app comes back from the background — this is the
+  // part that actually makes it feel like a lock screen rather than a
+  // one-time login step. Only attaches the listener at all if the person
+  // has opted in, so it's a no-op for anyone who hasn't enabled it.
+  useEffect(() => {
+    if (!session || !isBiometricEnabled()) return undefined;
+    let handle;
+    CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) setLocked(true);
+    }).then((h) => {
+      handle = h;
+    });
+    return () => handle?.remove();
+  }, [session]);
+
   if (!supabase) return children;
   if (session === undefined) return <FullScreenMessage text="Loading…" />;
   if (!session) return <SignInScreen />;
@@ -46,6 +77,12 @@ export default function AuthGate({ children }) {
 
   const needsChallenge = aal.current === "aal1" && aal.next === "aal2";
   if (needsChallenge) return <MfaChallengeScreen onVerified={() => setAal({ current: "aal2", next: "aal2" })} />;
+
+  // locked === null briefly, right after the MFA check clears, while the
+  // effect above decides whether biometric is even enabled — treat that the
+  // same as "still loading" so the app doesn't flash open first.
+  if (locked === null) return <FullScreenMessage text="Loading…" />;
+  if (locked) return <LockScreen onUnlocked={() => setLocked(false)} />;
 
   const flaggedAt = session.user?.app_metadata?.inactivity_flagged_at;
   return (
@@ -132,6 +169,70 @@ function MfaChallengeScreen({ onVerified }) {
             {errorMsg}
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function LockScreen({ onUnlocked }) {
+  const [status, setStatus] = useState("idle"); // idle | checking | failed
+
+  const attempt = async () => {
+    setStatus("checking");
+    const ok = await verifyBiometric();
+    if (ok) onUnlocked();
+    else setStatus("failed");
+  };
+
+  // Try automatically the moment this screen appears, so most of the time
+  // it's a single Face ID glance rather than an extra tap.
+  useEffect(() => {
+    attempt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // No local PIN system exists, so the honest fallback if biometric fails
+  // or isn't available right now is the existing password flow — signing
+  // out clears the session and drops back to SignInScreen.
+  const usePasswordInstead = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return (
+    <div style={styles.page}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        .wwa-btn { width: 100%; background: linear-gradient(135deg, #8B5CF6, #FF6FA5); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 24px -10px rgba(60,30,140,0.6); }
+        .wwa-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .wwa-switch { background: none; border: none; color: #FF6FA5; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0; }
+      `}</style>
+      <div style={styles.card}>
+        <div style={styles.brandRow}>
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+            <defs>
+              <linearGradient id="lockBrandGrad" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#FF6FA5" />
+                <stop offset="100%" stopColor="#7C4DFF" />
+              </linearGradient>
+            </defs>
+            <rect width="34" height="34" rx="10" fill="url(#lockBrandGrad)" />
+            <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
+          </svg>
+          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#3D3A34" }}>
+            Wealth Within
+          </div>
+        </div>
+        <h2 style={styles.heading}>Welcome back</h2>
+        <p style={{ fontSize: 12.5, color: "#A69B8A", fontFamily: "'Plus Jakarta Sans', sans-serif", margin: "0 0 16px" }}>
+          {status === "failed" ? "That didn't go through — try again." : "Confirm it's you to continue."}
+        </p>
+        <button className="wwa-btn" onClick={attempt} disabled={status === "checking"}>
+          {status === "checking" ? "Checking…" : "Unlock with Face ID / fingerprint"}
+        </button>
+        <p style={{ marginTop: 18, fontSize: 12.5, fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#A69B8A" }}>
+          <button className="wwa-switch" onClick={usePasswordInstead}>Use password instead</button>
+        </p>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
-import { getData, setData, deleteData } from "./lib/storage";
+import { getData, setData, deleteData, subscribeToHouseholdData } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
 import {
@@ -21,6 +21,8 @@ import { NAV, TAB_TITLES } from "./lib/constants";
 import { useCountUp, NavIcon, BrandMark, Mascot, TabTip } from "./components/ui";
 import { AccountPanel } from "./components/AccountPanel";
 import { SetupWizard } from "./components/SetupWizard";
+import { checkCategoryBudgets, requestNotificationPermission } from "./utils/notifications";
+import { syncWidgetData } from "./utils/widgetSync";
 
 // Each tab is its own chunk, fetched only when the person actually visits
 // it, instead of all eight being bundled into the single ~800kB initial
@@ -50,6 +52,12 @@ export default function App() {
   const [storageStatus, setStorageStatus] = useState("loading"); // loading | ready | unavailable | saving | saved | error
   const hasLoaded = useRef(false);
   const saveTimer = useRef(null);
+  // Set right before applying a change that arrived from another household
+  // member, so the save effect below can skip writing it straight back to
+  // Supabase — without this, receiving a remote update would immediately
+  // re-save it, which re-notifies every subscriber, which re-applies it
+  // again, forever.
+  const applyingRemoteUpdate = useRef(false);
 
   // if we've just been redirected back from a bank's consent flow, jump
   // straight to the bank tab so it can finish confirming the connection
@@ -85,9 +93,27 @@ export default function App() {
     };
   }, []);
 
+  // Live sync: apply another household member's changes as they happen,
+  // rather than only picking them up on next reload. Subscribes once,
+  // independent of the initial load above, since subscribeToHouseholdData
+  // resolves the household id itself.
+  useEffect(() => {
+    const unsubscribe = subscribeToHouseholdData((remoteData) => {
+      const merged = mergeWithDefaults(remoteData);
+      applyingRemoteUpdate.current = true;
+      setProfile(merged);
+      if (merged.loans && merged.loans[0]) setSelectedDebtId(merged.loans[0].id);
+    });
+    return unsubscribe;
+  }, []);
+
   // save the household data whenever it changes, debounced, after the initial load completes
   useEffect(() => {
     if (!hasLoaded.current) return;
+    if (applyingRemoteUpdate.current) {
+      applyingRemoteUpdate.current = false;
+      return;
+    }
     setStorageStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
@@ -100,6 +126,27 @@ export default function App() {
     }, 600);
     return () => clearTimeout(saveTimer.current);
   }, [profile]);
+
+  // Ask for notification permission once the household's data has actually
+  // loaded — not on cold mount, so the prompt doesn't compete with the
+  // initial load spinner.
+  useEffect(() => {
+    if (storageStatus === "ready") requestNotificationPermission();
+  }, [storageStatus]);
+
+  // Re-check every budgeted category against its current spend whenever the
+  // categories change — covers edits from this tab, bulk bank import, and
+  // the "Use suggested budget" quick-apply all funnelling through the same
+  // profile state.
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    checkCategoryBudgets(profile.expenseCategories);
+  }, [profile.expenseCategories]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    syncWidgetData(totals);
+  }, [totals]);
 
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -880,6 +927,7 @@ export default function App() {
         .wmg-cat-budget-info { flex: 1; min-width: 0; }
         .wmg-cat-budget-label { font-size: 12.5px; color: var(--paper-dim); margin-bottom: 6px; }
         .wmg-cat-budget-over { color: var(--rust); font-weight: 700; }
+        .wmg-budget-suggestion { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 
         .wmg-sub-list { display: flex; flex-direction: column; gap: 8px; }
         .wmg-sub-card { background: var(--ink-3); border-radius: 19px; overflow: hidden; }
