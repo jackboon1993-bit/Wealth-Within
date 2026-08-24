@@ -1,10 +1,11 @@
-package com.wealthwithin.app.widget
+package com.jackboon.wealthwithin.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.widget.RemoteViews
-import com.wealthwithin.app.R
+import com.jackboon.wealthwithin.R
 
 // Reads the same SharedPreferences file @capacitor/preferences writes to
 // from the JS side (src/utils/widgetSync.js). Default file name is
@@ -42,9 +43,9 @@ class WealthWithinWidgetProvider : AppWidgetProvider() {
 
         // Tapping the widget opens the app — same as tapping the launcher icon.
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val pendingIntent = android.app.PendingIntent.getActivity(
+        val pendingIntent = PendingIntent.getActivity(
             context, 0, launchIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
