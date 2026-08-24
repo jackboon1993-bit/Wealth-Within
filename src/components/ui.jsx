@@ -411,6 +411,32 @@ export function ArrayEditor({ title, items, fields, onChange, onAdd, onRemove, a
 }
 
 
+// Fixes a bug in plain `<input type="number" value={n} onChange={...Number(e.target.value)}>`
+// patterns: clearing the field makes e.target.value "", Number("") is 0, so the
+// component immediately re-renders showing "0" while the user is still mid-edit —
+// the next digit they type then lands next to that "0" (typing "5" shows "05").
+// This keeps a local text buffer so the field can sit empty while being edited,
+// and only commits a parsed number to the model on a valid change or on blur.
+export function NumberInput({ value, onChange, ...props }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
+  return (
+    <input
+      {...props}
+      type="number"
+      value={text}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setText(raw);
+        if (raw !== "" && !isNaN(Number(raw))) onChange(Number(raw));
+      }}
+      onBlur={() => {
+        if (text === "" || isNaN(Number(text))) setText(String(value));
+      }}
+    />
+  );
+}
+
 export function useCountUp(target, duration = 700) {
   const [display, setDisplay] = useState(target);
   const prevRef = useRef(target);
@@ -423,9 +449,15 @@ export function useCountUp(target, duration = 700) {
       setDisplay(target);
       return;
     }
+    const prefersReducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const start = prevRef.current;
     const end = target;
     if (start === end) return;
+    if (prefersReducedMotion) {
+      prevRef.current = end;
+      setDisplay(end);
+      return;
+    }
     const startTime = performance.now();
     let frame;
     const tick = (now) => {

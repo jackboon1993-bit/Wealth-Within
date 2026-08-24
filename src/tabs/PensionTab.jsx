@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { gbp, gbpApprox, getActiveMode, nextId } from "../lib/finance";
-import { Card, WhyItMatters, DisclosureSection, Field, ChartTooltip } from "../components/ui";
+import { Card, WhyItMatters, DisclosureSection, Field, ChartTooltip, NumberInput } from "../components/ui";
 
 export function PensionPotCard({ pot, canRemove, activeMode, updateArrayItem, removeArrayItem, startEditing = false }) {
   const [editing, setEditing] = useState(startEditing);
@@ -44,20 +44,18 @@ export function PensionPotCard({ pot, canRemove, activeMode, updateArrayItem, re
           <div className="wmg-life-event-row-bottom">
             <div>
               <div className="wmg-field-label">Current pot value</div>
-              <input
+              <NumberInput
                 className="wmg-input"
-                type="number"
                 value={pot.balance}
-                onChange={(e) => updateArrayItem("pensions")(pot.id, "balance", Number(e.target.value))}
+                onChange={(v) => updateArrayItem("pensions")(pot.id, "balance", v)}
               />
             </div>
             <div>
               <div className="wmg-field-label">Monthly contribution (you + employer)</div>
-              <input
+              <NumberInput
                 className="wmg-input"
-                type="number"
                 value={pot.contribution}
-                onChange={(e) => updateArrayItem("pensions")(pot.id, "contribution", Number(e.target.value))}
+                onChange={(v) => updateArrayItem("pensions")(pot.id, "contribution", v)}
               />
             </div>
           </div>
@@ -65,32 +63,29 @@ export function PensionPotCard({ pot, canRemove, activeMode, updateArrayItem, re
             <div className="wmg-life-event-row-bottom">
               <div>
                 <div className="wmg-field-label">Low growth (%/yr)</div>
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   step="0.1"
                   value={pot.growthLow}
-                  onChange={(e) => updateArrayItem("pensions")(pot.id, "growthLow", Number(e.target.value))}
+                  onChange={(v) => updateArrayItem("pensions")(pot.id, "growthLow", v)}
                 />
               </div>
               <div>
                 <div className="wmg-field-label">Medium growth (%/yr)</div>
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   step="0.1"
                   value={pot.growthMedium}
-                  onChange={(e) => updateArrayItem("pensions")(pot.id, "growthMedium", Number(e.target.value))}
+                  onChange={(v) => updateArrayItem("pensions")(pot.id, "growthMedium", v)}
                 />
               </div>
               <div>
                 <div className="wmg-field-label">High growth (%/yr)</div>
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   step="0.1"
                   value={pot.growthHigh}
-                  onChange={(e) => updateArrayItem("pensions")(pot.id, "growthHigh", Number(e.target.value))}
+                  onChange={(v) => updateArrayItem("pensions")(pot.id, "growthHigh", v)}
                 />
               </div>
             </div>
@@ -163,28 +158,32 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
 
       <div className="wmg-section-title">Retirement assumptions</div>
       <div className="wmg-section-desc">
-        These apply to all your pots combined — your age and drawdown rate don't change depending on which pot
-        you're looking at.
+        Current age comes from your setup and drawdown rate is fixed at the standard 4% — retirement age is the
+        only one you can adjust here.
       </div>
       <Card>
         <div className="wmg-three-col">
-          <Field label="Current age">
-            <input className="wmg-input" type="number" value={profile.pensionSettings.currentAge} onChange={(e) => setField(["pensionSettings", "currentAge"])(Number(e.target.value))} />
-          </Field>
+          <div>
+            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Current age</div>
+            <div className="wmg-figure tone-paper">{profile.pensionSettings.currentAge}</div>
+          </div>
           <Field label="Target retirement age">
-            <input className="wmg-input" type="number" value={profile.pensionSettings.retirementAge} onChange={(e) => setField(["pensionSettings", "retirementAge"])(Number(e.target.value))} />
+            <NumberInput className="wmg-input" value={profile.pensionSettings.retirementAge} onChange={setField(["pensionSettings", "retirementAge"])} />
           </Field>
           <div>
             <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Years to retirement</div>
             <div className="wmg-figure tone-paper">{pensionYearsToRetire}</div>
           </div>
         </div>
-        <Field
-          label="Drawdown rate at retirement (%)"
-          hint="How much of your combined pots you plan to take out each year once retired. 4% is a commonly used starting point — take out much more and there's a real risk of running out; take out less and it lasts longer but gives you less to live on."
-        >
-          <input className="wmg-input" type="number" step="0.1" value={profile.pensionSettings.drawdownRate} onChange={(e) => setField(["pensionSettings", "drawdownRate"])(Number(e.target.value))} />
-        </Field>
+        <div>
+          <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Drawdown rate at retirement</div>
+          <div className="wmg-figure tone-paper">4%</div>
+          <div className="wmg-sub" style={{ marginTop: 6 }}>
+            Fixed at 4% — a standard, widely-used starting point for how much of your combined pots to take out
+            each year once retired. Take out much more and there's a real risk of running out; take out less and
+            it lasts longer but gives you less to live on.
+          </div>
+        </div>
       </Card>
 
       <div className="wmg-section-title">Combined pension total</div>
@@ -286,9 +285,9 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
                 itemSorter={(item) => ["high", "medium", "low"].indexOf(item.dataKey)}
               />
               <Tooltip content={<ChartTooltip />} />
-              <Line type="monotone" dataKey="high" name="High" stroke="#4FD1C5" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="medium" name="Medium" stroke="#FFCE6B" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="low" name="Low" stroke="#FF5C7A" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="high" name="High" stroke="#0E8F6C" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="medium" name="Medium" stroke="#C98A0C" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="low" name="Low" stroke="#D93A56" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { gbp, addMonths, nextId } from "../lib/finance";
-import { Card, GrowthRing, ProgressBar, WhyItMatters, InfoTip, InlinePill } from "../components/ui";
+import { Card, GrowthRing, ProgressBar, WhyItMatters, InfoTip, InlinePill, NumberInput } from "../components/ui";
 
 export function GoalCard({ goal: g, monthsAtPace, desired, requiredMonthly, extraNeeded, available, updateGoal, removeGoal, startEditing = false }) {
   const [editing, setEditing] = useState(startEditing);
@@ -43,11 +43,10 @@ export function GoalCard({ goal: g, monthsAtPace, desired, requiredMonthly, extr
             <span className="wmg-goal-plan-highlight">{isFinite(monthsAtPace) ? addMonths(monthsAtPace) : "—"}</span>.
             <br />
             Or, choose a timeframe: reach it in{" "}
-            <input
+            <NumberInput
               className="wmg-input wmg-inline-input"
-              type="number"
               value={g.desiredMonths ?? Math.max(1, Math.round(isFinite(monthsAtPace) ? monthsAtPace : 12))}
-              onChange={(e) => updateGoal(g.id, "desiredMonths", Number(e.target.value))}
+              onChange={(v) => updateGoal(g.id, "desiredMonths", v)}
               style={{ display: "inline-block", margin: "0 6px" }}
             />{" "}
             months by saving <span className="wmg-goal-plan-highlight">{gbp(Math.max(0, requiredMonthly))}</span>/month.

@@ -333,6 +333,11 @@ export function mergeWithDefaults(saved) {
   // "standard" anywhere in the app) — anyone who'd previously picked it
   // lands on "standard" instead, rather than an option that no longer exists.
   if (merged.preferredMode === "advanced") merged.preferredMode = "standard";
+
+  // Drawdown rate is no longer user-editable (fixed at the standard 4% —
+  // see PensionTab) — anyone with an old saved custom value gets normalised
+  // to 4 rather than silently keeping a stale figure the UI no longer shows.
+  merged.pensionSettings = { ...merged.pensionSettings, drawdownRate: defaultProfile.pensionSettings.drawdownRate };
   if (merged.recommendedMode === "advanced") merged.recommendedMode = "standard";
 
   // migrate the old single-pot `pension` object (pre-multi-pension) into the

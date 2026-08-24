@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, monthKey, formatMonthKey, getActiveMode, nextId } from "../lib/finance";
-import { Card, ProgressBar, InlinePill, CategoryTooltip } from "../components/ui";
+import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput } from "../components/ui";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
 
@@ -38,11 +38,10 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
             onChange={(e) => onEdit("name", e.target.value)}
           />
           <div className="wmg-sub-edit-row">
-            <input
+            <NumberInput
               className="wmg-input wmg-sub-amount-input"
-              type="number"
               value={sub.amount}
-              onChange={(e) => onEdit("amount", Number(e.target.value))}
+              onChange={(v) => onEdit("amount", v)}
             />
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--paper-dim)" }}>
               <input type="checkbox" checked={sub.flagged} onChange={(e) => onEdit("flagged", e.target.checked)} />
@@ -73,7 +72,7 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
 }
 
 
-export const CATEGORY_COLORS = ["#8B5CF6", "#FF9166", "#FFCE6B", "#A6A3D6", "#FF6FA5", "#4FD1C5", "#FF5C7A", "#6C4CE0", "#FF8FA6", "#9C97C4"];
+export const CATEGORY_COLORS = ["#7C74D6", "#E8703D", "#C98A0C", "#6259C4", "#E0578C", "#0E8F6C", "#D93A56", "#6C4CE0", "#D9557A", "#7972B5"];
 
 // Common UK household bills — used to nudge anyone entering their bills if
 // something obvious looks missing. Matched by loose substring against the
@@ -202,8 +201,6 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
 
 
 export function EditSpendingSheet({ profile, addCategory, removeCategory, updateCategoryField, addItem, removeItem, updateItem, addArrayItem, onboardingEstimateItem, onClose }) {
-  const [activeCatType, setActiveCatType] = useState("essential");
-
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
@@ -212,7 +209,7 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const visibleCategories = profile.expenseCategories.filter((c) => c.type === activeCatType);
+  const visibleCategories = profile.expenseCategories;
 
   return (
     <div className="wmg-more-sheet-backdrop" onClick={onClose}>
@@ -223,9 +220,8 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
           <button className="wmg-icon-btn" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <div className="wmg-section-desc">
-          {activeCatType === "essential"
-            ? "The everyday household costs most people have — add your amounts, or add more categories if something's missing."
-            : "Anything discretionary — eating out, hobbies, subscriptions, holidays. Add your own categories here."}
+          Everything you spend each month — everyday household costs and discretionary spending together. Add your
+          amounts, or add more categories if something's missing.
         </div>
         {onboardingEstimateItem && (
           <Card style={{ border: "1px dashed var(--gold)", background: "var(--gold-soft)" }}>
@@ -239,15 +235,6 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
             </div>
           </Card>
         )}
-
-        <div className="wmg-cat-type-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={activeCatType === "essential"} className={`wmg-cat-type-tab ${activeCatType === "essential" ? "active" : ""}`} onClick={() => setActiveCatType("essential")}>
-            Essentials
-          </button>
-          <button type="button" role="tab" aria-selected={activeCatType === "lifestyle"} className={`wmg-cat-type-tab ${activeCatType === "lifestyle" ? "active" : ""}`} onClick={() => setActiveCatType("lifestyle")}>
-            Lifestyle
-          </button>
-        </div>
 
         {visibleCategories.map((cat) => {
           const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
@@ -264,8 +251,8 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
             />
           );
         })}
-        <button className="wmg-add-btn" onClick={() => addCategory(activeCatType)} style={{ marginBottom: 8 }}>
-          + Add {activeCatType === "essential" ? "essential category" : "lifestyle category"}
+        <button className="wmg-add-btn" onClick={() => addCategory()} style={{ marginBottom: 8 }}>
+          + Add category
         </button>
         <button className="wmg-btn-primary" style={{ marginTop: 12 }} onClick={onClose}>Done</button>
       </div>
@@ -313,11 +300,10 @@ export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayI
         <div className="wmg-life-event-row-bottom">
           <div>
             <div className="wmg-field-label">Monthly amount</div>
-            <input
+            <NumberInput
               className="wmg-input"
-              type="number"
               value={inc.amount}
-              onChange={(e) => updateArrayItem("incomes")(inc.id, "amount", Number(e.target.value))}
+              onChange={(v) => updateArrayItem("incomes")(inc.id, "amount", v)}
             />
           </div>
         </div>
@@ -474,7 +460,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
             {profile.incomes.length > 1 ? ` across ${profile.incomes.length} income sources` : ""}.
           </div>
           <div>
-            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>This month, total spend</div>
+            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>This month, total outgoings</div>
             <div className="wmg-figure tone-paper">{gbp(totals.essential + totals.debtPayments + totals.lifestyle)}</div>
           </div>
         </div>
@@ -652,6 +638,10 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
       {categoryChartData.length > 0 ? (
         <>
           <div className="wmg-section-title">Where it actually goes</div>
+          <div className="wmg-section-desc">
+            Your day-to-day category spending — mortgage/rent, debt repayments and subscriptions are tracked
+            separately, so they're not counted here.
+          </div>
           <Card>
             <div className="wmg-category-chart-row">
               <div style={{ width: 160, height: 160, flexShrink: 0 }}>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 import { gbp, gbpApprox, addMonths, runForecast, getActiveMode } from "../lib/finance";
-import { Card, Field, ChartTooltip, InfoTip, WhyItMatters } from "../components/ui";
+import { Card, Field, ChartTooltip, InfoTip, WhyItMatters, NumberInput } from "../components/ui";
 
 export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocationPct, forecast, interestSavedFromAllocation, totals, profile, setField, updateLifeEvent, addLifeEvent, removeLifeEvent, addScenario, updateScenario, removeScenario }) {
   const activeMode = getActiveMode(profile);
@@ -34,7 +34,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
     };
   });
 
-  const SCENARIO_COLORS = ["#8B5CF6", "#FF9166", "#FFCE6B", "#4FD1C5", "#FF5C7A", "#A6A3D6"];
+  const SCENARIO_COLORS = ["#7C74D6", "#E8703D", "#C98A0C", "#0E8F6C", "#D93A56", "#6259C4"];
   const scenarioForecasts = useMemo(
     () => profile.scenarios.map((s) => ({ ...s, result: runForecast(profile, totals, horizonYears, s.allocationPct, 0) })),
     [profile, totals, horizonYears]
@@ -108,16 +108,16 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
 
         <div className="wmg-three-col" style={{ marginTop: 4 }}>
           <Field label="Assumed annual pay growth (%)">
-            <input className="wmg-input" type="number" step="0.1" value={profile.assumptions.incomeGrowth} onChange={(e) => setField(["assumptions", "incomeGrowth"])(Number(e.target.value))} />
+            <NumberInput className="wmg-input" step="0.1" value={profile.assumptions.incomeGrowth} onChange={setField(["assumptions", "incomeGrowth"])} />
           </Field>
           <Field label="Assumed annual inflation (%)">
-            <input className="wmg-input" type="number" step="0.1" value={profile.assumptions.inflation} onChange={(e) => setField(["assumptions", "inflation"])(Number(e.target.value))} />
+            <NumberInput className="wmg-input" step="0.1" value={profile.assumptions.inflation} onChange={setField(["assumptions", "inflation"])} />
           </Field>
           <Field
             label="Growth uncertainty (± percentage points)"
             hint="Controls the shaded band around the net worth line in the chart below — how far off your actual results might be from the growth rates you've set elsewhere, in either direction."
           >
-            <input className="wmg-input" type="number" step="0.5" min="0" value={profile.assumptions.growthUncertaintyPct} onChange={(e) => setField(["assumptions", "growthUncertaintyPct"])(Number(e.target.value))} />
+            <NumberInput className="wmg-input" step="0.5" min="0" value={profile.assumptions.growthUncertaintyPct} onChange={setField(["assumptions", "growthUncertaintyPct"])} />
           </Field>
         </div>
 
@@ -136,16 +136,16 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                 <ReferenceLine
                   key={e.id}
                   x={Math.round((e.month / 12) * 10) / 10}
-                  stroke={e.type === "expense" ? "#FF5C7A" : "#4FD1C5"}
+                  stroke={e.type === "expense" ? "#D93A56" : "#0E8F6C"}
                   strokeDasharray="3 3"
-                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#FF5C7A" : "#4FD1C5" }}
+                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D93A56" : "#0E8F6C" }}
                 />
               ))}
               <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#8B5CF6" fillOpacity={0.15} isAnimationActive={false} />
-              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8B5CF6" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#FF5C7A" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#4FD1C5" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#7C74D6" fillOpacity={0.15} isAnimationActive={false} />
+              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#7C74D6" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#D93A56" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#0E8F6C" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="var(--paper-dim)" strokeWidth={2} dot={false} strokeDasharray="4 3" />
             </ComposedChart>
           </ResponsiveContainer>
@@ -274,13 +274,12 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
               <div className="wmg-life-event-row-bottom">
                 <div>
                   <div className="wmg-field-label">% to debt</div>
-                  <input
+                  <NumberInput
                     className="wmg-input"
-                    type="number"
                     min="0"
                     max="100"
                     value={s.allocationPct}
-                    onChange={(e) => updateScenario(s.id, "allocationPct", Number(e.target.value))}
+                    onChange={(v) => updateScenario(s.id, "allocationPct", v)}
                   />
                 </div>
                 <div>
@@ -337,22 +336,20 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
               </div>
               <div>
                 <div className="wmg-field-label">Amount</div>
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   value={e.amount}
-                  onChange={(ev) => updateLifeEvent(e.id, "amount", Number(ev.target.value))}
+                  onChange={(v) => updateLifeEvent(e.id, "amount", v)}
                 />
               </div>
               <div>
                 <div className="wmg-field-label">In (years)</div>
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   step="0.5"
                   title="Years from now"
                   value={e.yearsFromNow}
-                  onChange={(ev) => updateLifeEvent(e.id, "yearsFromNow", Number(ev.target.value))}
+                  onChange={(v) => updateLifeEvent(e.id, "yearsFromNow", v)}
                 />
               </div>
             </div>

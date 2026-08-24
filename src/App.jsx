@@ -598,31 +598,31 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .wmg-root {
-          --ink: #1B212C;
-          --ink-2: #242B38;
-          --ink-3: #2E3646;
-          --paper: #F2F3F5;
-          --paper-dim: #8A93A6;
-          --brand: #8B5CF6;
-          --brand-2: #FF6FA5;
+          --ink: #F7F8FA;
+          --ink-2: #FFFFFF;
+          --ink-3: #F1F2F5;
+          --paper: #1E2430;
+          --paper-dim: #6B7280;
+          --brand: #7C74D6;
+          --brand-2: #E0578C;
           --brand-deep: #6C4CE0;
-          --brand-soft: #322C63;
-          --coral: #FF9166;
-          --coral-soft: #3D2A22;
-          --gold: #FFCE6B;
-          --gold-soft: #3D3320;
-          --sage: #4FD1C5;
-          --sage-soft: #1F3A38;
-          --rust: #FF5C7A;
-          --rust-soft: #3D2030;
-          --slate: #A6A3D6;
-          --slate-soft: #2A2A5C;
-          --hair: #38415A;
+          --brand-soft: #EEEDFE;
+          --coral: #D2571F;
+          --coral-soft: #FDEEE3;
+          --gold: #A8710A;
+          --gold-soft: #FBF1DC;
+          --sage: #0E8F6C;
+          --sage-soft: #E3F5EF;
+          --rust: #D93A56;
+          --rust-soft: #FCE9ED;
+          --slate: #6259C4;
+          --slate-soft: #EEECFB;
+          --hair: #E3E5EA;
           --gold-fill: #FFCE6B;
           --sage-fill: #4FD1C5;
           --rust-fill: #FF8FA6;
           --slate-fill: #A6A3D6;
-          --coral-text: #FFB899;
+          --coral-text: #9C3D14;
           background: var(--ink);
           color: var(--paper);
           font-family: 'Plus Jakarta Sans', sans-serif;
@@ -681,9 +681,6 @@ export default function App() {
         .wmg-more-sheet-item.active .wmg-nav-icon-badge { background: var(--brand); color: #FFFFFF; }
         .wmg-more-sheet-divider { height: 1px; background: var(--hair); margin: 8px 6px; }
         .wmg-more-sheet-title { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 800; color: var(--paper); padding: 4px 6px 12px; }
-        .wmg-cat-type-tabs { display: flex; gap: 6px; background: var(--surface-1, rgba(255,255,255,0.04)); border-radius: 16px; padding: 4px; margin: 10px 0 14px; }
-        .wmg-cat-type-tab { flex: 1; background: transparent; border: none; border-radius: 12px; padding: 9px 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; color: var(--paper-dim); cursor: pointer; }
-        .wmg-cat-type-tab.active { background: var(--brand); color: #FFFFFF; }
         .wmg-account-sheet { max-height: 82vh; overflow-y: auto; }
         .wmg-account-panel { font-size: 11px; color: var(--paper-dim); line-height: 1.6; }
         .wmg-account-divider { height: 1px; background: var(--hair); margin: 14px 0; }
@@ -1203,6 +1200,16 @@ export default function App() {
         .wmg-feedback-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
         .wmg-feedback-cat { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11.5px; font-weight: 700; border: 1px solid var(--hair); background: transparent; color: var(--paper-dim); padding: 7px 12px; border-radius: 999px; cursor: pointer; }
         .wmg-feedback-cat.active { background: var(--brand); border-color: var(--brand); color: #FFFFFF; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .wmg-growth-ring svg circle { transition: none; }
+          .wmg-stat-tile-clickable { transition: background .15s ease, border-color .15s ease; }
+          .wmg-stat-tile-clickable:hover { transform: none; }
+          .wmg-coach-clickable { transition: box-shadow .12s ease; }
+          .wmg-coach-clickable:hover { transform: none; }
+          .wmg-celebration { animation: none; }
+          .wmg-onboard-next:hover, .wmg-onboard-next:active { transform: none; }
+        }
       `}</style>
 
       {storageStatus !== "loading" && !profile.onboarded ? (

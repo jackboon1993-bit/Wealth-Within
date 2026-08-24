@@ -10,18 +10,25 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
+  const animatedAvailable = useCountUp(totals.available);
+  const animatedTotalDebt = useCountUp(totals.totalDebt);
+  const animatedSavings = useCountUp(profile.savings.balance);
+  const animatedHomeEquity = useCountUp(totals.homeEquity);
+  const animatedPension = useCountUp(totals.pensionBalance);
+  const animatedInvestments = useCountUp(profile.investments.balance);
+  const animatedIncome = useCountUp(totals.income);
   const scoreExplainer =
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const heroStats = [
-    { label: "Income & Expenditure", value: `${gbp(totals.available)} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
-    { label: "Debt", value: gbp(totals.totalDebt), tone: "coral", tab: "debts", icon: "debt", gradient: true },
-    { label: "Savings", value: gbp(profile.savings.balance), tone: "sage", tab: "goals", icon: "savings", gradient: true },
+    { label: "Income & Expenditure", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
+    { label: "Debt", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", icon: "debt", gradient: true },
+    { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "goals", icon: "savings", gradient: true },
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts" },
     { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—", tone: "gold", tab: "debts" },
-    { label: "Home equity", value: gbp(totals.homeEquity), tone: "slate", tab: "debts" },
-    { label: "Pension", value: gbp(totals.pensionBalance), tone: "slate", tab: "pension" },
-    { label: "Investments", value: gbp(profile.investments.balance), tone: "slate", tab: "goals" },
+    { label: "Home equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts" },
+    { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "slate", tab: "pension" },
+    { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "goals" },
   ];
 
   return (
@@ -129,7 +136,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       <Card>
         <div className="wmg-flow-income-row">
           <div className="wmg-flow-income-label">Income</div>
-          <div className="wmg-flow-income-val">{gbp(totals.income)}</div>
+          <div className="wmg-flow-income-val">{gbp(Math.round(animatedIncome))}</div>
         </div>
         <div className="wmg-category-chart-row">
           <div style={{ width: 140, height: 140, flexShrink: 0 }}>
@@ -137,7 +144,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               <PieChart>
                 <Pie data={flowSegments} dataKey="value" nameKey="label" innerRadius={42} outerRadius={68} paddingAngle={2} strokeWidth={0}>
                   {flowSegments.map((seg) => (
-                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#8B5CF6"} />
+                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#7C74D6"} />
                   ))}
                 </Pie>
                 <Tooltip content={<CategoryTooltip />} />

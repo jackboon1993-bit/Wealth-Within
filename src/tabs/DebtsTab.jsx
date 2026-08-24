@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { gbp, clamp, daysSince, estimateBalanceToday, addMonths, getActiveMode, nextId } from "../lib/finance";
-import { Card, GrowthRing, WhyItMatters, InfoTip, DisclosureSection, Field, InlinePill } from "../components/ui";
+import { Card, GrowthRing, WhyItMatters, InfoTip, DisclosureSection, Field, InlinePill, NumberInput } from "../components/ui";
 import { QuickImport } from "../components/SetupWizard";
 
 export const DEBT_TYPE_LABELS = {
@@ -61,12 +61,11 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove, startEditing = fal
           <div className="wmg-debt-card-balance">
             {editing ? (
               <>
-                <input
+                <NumberInput
                   className="wmg-input wmg-inline-input"
-                  type="number"
                   autoFocus
                   value={draftBalance}
-                  onChange={(e) => setDraftBalance(Number(e.target.value))}
+                  onChange={setDraftBalance}
                   onKeyDown={(e) => e.key === "Enter" && finishConfirm()}
                 />
                 <button className="wmg-debt-card-edit" onClick={finishConfirm}>Save</button>
@@ -219,12 +218,11 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
             <label className="wmg-field-label">Balance outstanding</label>
             {editingMortgage ? (
               <div style={{ display: "flex", gap: 8 }}>
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   autoFocus
                   value={mortgageDraft}
-                  onChange={(e) => setMortgageDraft(Number(e.target.value))}
+                  onChange={setMortgageDraft}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       confirmMortgageBalance(mortgageDraft);
@@ -244,11 +242,10 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
               </div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   value={profile.mortgage.balance}
-                  onChange={(e) => confirmMortgageBalance(Number(e.target.value))}
+                  onChange={confirmMortgageBalance}
                 />
                 <button
                   className="wmg-debt-card-edit"
@@ -267,7 +264,7 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
             </div>
           </div>
           <Field label="Monthly payment">
-            <input className="wmg-input" type="number" value={profile.mortgage.payment} onChange={(e) => setField(["mortgage", "payment"])(Number(e.target.value))} />
+            <NumberInput className="wmg-input" value={profile.mortgage.payment} onChange={setField(["mortgage", "payment"])} />
           </Field>
           <div>
             <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Mortgage-free</div>
@@ -278,13 +275,13 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
         <DisclosureSection label="See more details" defaultOpen={activeMode !== "guided"}>
           <div className="wmg-three-col">
             <Field label="Interest rate (%)">
-              <input className="wmg-input" type="number" step="0.1" value={profile.mortgage.rate} onChange={(e) => setField(["mortgage", "rate"])(Number(e.target.value))} />
+              <NumberInput className="wmg-input" step="0.1" value={profile.mortgage.rate} onChange={setField(["mortgage", "rate"])} />
             </Field>
             <Field label="Estimated home value">
-              <input className="wmg-input" type="number" value={profile.homeValue} onChange={(e) => setField(["homeValue"])(Number(e.target.value))} />
+              <NumberInput className="wmg-input" value={profile.homeValue} onChange={setField(["homeValue"])} />
             </Field>
             <Field label="Assumed annual house price growth (%)">
-              <input className="wmg-input" type="number" step="0.1" value={profile.homeValueGrowth} onChange={(e) => setField(["homeValueGrowth"])(Number(e.target.value))} />
+              <NumberInput className="wmg-input" step="0.1" value={profile.homeValueGrowth} onChange={setField(["homeValueGrowth"])} />
             </Field>
           </div>
           <div className="wmg-two-col" style={{ marginTop: 4 }}>
@@ -301,12 +298,11 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
                 label="Penalty-free overpayment allowance (% of balance/year)"
                 hint="Most mortgages let you pay extra off the balance up to a limit each year — usually 10% — without being charged a fee. Check your mortgage documents or ask your lender for your actual limit."
               >
-                <input
+                <NumberInput
                   className="wmg-input"
-                  type="number"
                   step="1"
                   value={profile.mortgage.overpaymentCapPct}
-                  onChange={(e) => setField(["mortgage", "overpaymentCapPct"])(Number(e.target.value))}
+                  onChange={setField(["mortgage", "overpaymentCapPct"])}
                 />
               </Field>
             )}

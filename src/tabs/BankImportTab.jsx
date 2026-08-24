@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { parseTransactionsCSV, parseDebtsCSV } from "../lib/csv";
 import { gbp } from "../lib/finance";
-import { Card } from "../components/ui";
+import { Card, NumberInput } from "../components/ui";
 
 export function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -410,10 +410,9 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
               <div className="wmg-chip">
                 <div className="wmg-chip-label">Estimated monthly income (from this file)</div>
                 <div className="wmg-chip-value">
-                  <input
-                    type="number"
+                  <NumberInput
                     value={incomeEstimate}
-                    onChange={(e) => setIncomeEstimate(Number(e.target.value) || 0)}
+                    onChange={(v) => setIncomeEstimate(v || 0)}
                     style={{ width: 100 }}
                   />
                 </div>
@@ -429,7 +428,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
             {Object.entries(categoryTotals).map(([cat, amount]) => (
               <div key={cat} className="wmg-chip-row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
                 <span>{cat}</span>
-                <input type="number" value={amount} onChange={(e) => updateCategoryTotal(cat, e.target.value)} style={{ width: 90 }} />
+                <NumberInput value={amount} onChange={(v) => updateCategoryTotal(cat, v)} style={{ width: 90 }} />
               </div>
             ))}
           </Card>
@@ -549,7 +548,7 @@ export function DebtsImport({ addBulkItems, readFileText }) {
             {rows.map((r, i) => (
               <div key={i} className="wmg-chip-row" style={{ marginBottom: 8, alignItems: "center" }}>
                 <input value={r.name} onChange={(e) => updateRow(i, "name", e.target.value)} style={{ flex: 2 }} />
-                <input type="number" value={r.balance} onChange={(e) => updateRow(i, "balance", e.target.value)} style={{ width: 90 }} />
+                <NumberInput value={r.balance} onChange={(v) => updateRow(i, "balance", v)} style={{ width: 90 }} />
                 <select value={r.type} onChange={(e) => updateRow(i, "type", e.target.value)}>
                   <option value="loan">Loan</option>
                   <option value="card">Card</option>

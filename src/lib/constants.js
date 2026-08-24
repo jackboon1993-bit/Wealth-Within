@@ -32,5 +32,5 @@ export const MASCOT_MESSAGES = {
 };
 
 
-export const FLOW_TONE_COLORS = { slate: "#A6A3D6", rust: "#FF8FA6", gold: "#FFCE6B", sage: "#4FD1C5" };
+export const FLOW_TONE_COLORS = { slate: "#6259C4", rust: "#D9557A", gold: "#C98A0C", sage: "#0E8F6C" };
 
