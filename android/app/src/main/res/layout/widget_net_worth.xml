@@ -5,22 +5,41 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
-    android:background="#FBF7F0">
+    android:background="@drawable/widget_background">
 
-    <TextView
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Net worth"
-        android:textSize="12sp"
-        android:textColor="#A69B8A" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:background="@drawable/widget_logo_badge"
+            android:text="W"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Net worth"
+            android:textSize="12sp"
+            android:textColor="#A69B8A" />
+
+    </LinearLayout>
 
     <TextView
         android:id="@+id/widget_net_worth_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="6dp"
         android:text="£0"
-        android:textSize="24sp"
+        android:textSize="26sp"
         android:textStyle="bold"
         android:textColor="#3D3A34" />
 
@@ -31,6 +50,7 @@
         android:layout_marginTop="6dp"
         android:text="£0/mo left"
         android:textSize="13sp"
+        android:textStyle="bold"
         android:textColor="#8B5CF6" />
 
 </LinearLayout>

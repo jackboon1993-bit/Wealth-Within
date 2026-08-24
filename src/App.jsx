@@ -143,11 +143,6 @@ export default function App() {
     checkCategoryBudgets(profile.expenseCategories);
   }, [profile.expenseCategories]);
 
-  useEffect(() => {
-    if (!hasLoaded.current) return;
-    syncWidgetData(totals);
-  }, [totals]);
-
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -270,6 +265,15 @@ export default function App() {
       pensionContribution,
     };
   }, [profile]);
+
+  // Must live below the totals declaration above — this effect's dependency
+  // array reads `totals` directly during render (not just inside the
+  // callback), so placing it any earlier throws a "Cannot access 'totals'
+  // before initialization" error the moment the component renders.
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    syncWidgetData(totals);
+  }, [totals]);
 
   const score = useMemo(() => {
     const annualIncome = totals.income * 12 || 1;
