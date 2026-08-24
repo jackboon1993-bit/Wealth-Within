@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { MODE_LABELS, getActiveMode } from "../lib/finance";
 import { getHouseholdInfo, renameHousehold, createInvite, joinHousehold, leaveHousehold } from "../lib/household";
+import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, verifyBiometric } from "../utils/biometrics";
 
 export function HouseholdSection({ onHouseholdChanged }) {
   const [info, setInfo] = useState(null); // null = loading
@@ -353,6 +354,64 @@ export function MfaSection() {
   );
 }
 
+/* Device-local biometric lock toggle. Deliberately hidden entirely on devices
+   with no Face ID/fingerprint enrolled — no point showing a setting that can't
+   work. Turning it ON requires passing a real biometric check first, since
+   there's no PIN fallback if it's enabled but never actually verified. */
+export function BiometricSection() {
+  const [available, setAvailable] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const avail = await isBiometricAvailable();
+      setAvailable(avail);
+      setEnabled(isBiometricEnabled());
+      setChecking(false);
+    })();
+  }, []);
+
+  if (checking) return null;
+  if (!available) return null;
+
+  const toggle = async () => {
+    setErrorMsg("");
+    if (enabled) {
+      setBiometricEnabled(false);
+      setEnabled(false);
+      return;
+    }
+    setBusy(true);
+    const ok = await verifyBiometric();
+    setBusy(false);
+    if (ok) {
+      setBiometricEnabled(true);
+      setEnabled(true);
+    } else {
+      setErrorMsg("Couldn't verify — try again.");
+    }
+  };
+
+  return (
+    <div className="wmg-biometric-section">
+      <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>App lock</div>
+      <p className="wmg-sub" style={{ margin: "0 0 8px" }}>
+        {enabled
+          ? "Face ID or fingerprint is required to open the app, on top of your password."
+          : "Require Face ID or fingerprint to open the app, on top of your password."}
+      </p>
+      {errorMsg && <p className="wmg-sub" style={{ color: "var(--rust)", margin: "0 0 8px" }}>{errorMsg}</p>}
+      <button className="wmg-reset-btn" disabled={busy} onClick={toggle}>
+        {busy ? "Checking…" : enabled ? "Turn off biometric lock" : "Turn on biometric lock"}
+      </button>
+      <div className="wmg-account-divider" />
+    </div>
+  );
+}
+
 /* Account settings — sync status, feedback, MFA, reset, sign out, and account
    deletion. Rendered in two places (desktop sidebar, mobile account modal) so
    these actions are reachable regardless of screen size. */
@@ -437,6 +496,7 @@ export function AccountPanel({
           <div className="wmg-account-divider" />
           <MfaSection />
           <div className="wmg-account-divider" />
+          <BiometricSection />
           <button className="wmg-reset-btn" onClick={() => supabase.auth.signOut()}>
             Sign out
           </button>
