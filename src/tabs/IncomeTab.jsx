@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { gbp, monthKey, formatMonthKey, getActiveMode, nextId } from "../lib/finance";
+import { gbp, getActiveMode, nextId } from "../lib/finance";
 import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput } from "../components/ui";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
@@ -72,7 +72,7 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
 }
 
 
-export const CATEGORY_COLORS = ["#7C74D6", "#E8703D", "#C98A0C", "#6259C4", "#E0578C", "#0E8F6C", "#D93A56", "#6C4CE0", "#D9557A", "#7972B5"];
+export const CATEGORY_COLORS = ["#8A7FC9", "#B5652F", "#97701A", "#5C6BA3", "#C97099", "#4A7A3A", "#B2504F", "#6C5FB0", "#C9708F", "#7972B5"];
 
 // Common UK household bills — used to nudge anyone entering their bills if
 // something obvious looks missing. Matched by loose substring against the
@@ -315,7 +315,7 @@ export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayI
 }
 
 
-export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, saveSpendingSnapshot }) {
+export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem }) {
   const [justAddedIncomeId, setJustAddedIncomeId] = useState(null);
   const handleAddIncome = () => {
     const id = nextId();
@@ -353,24 +353,6 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     return rows.sort((a, b) => b.value - a.value);
   }, [profile.expenseCategories, totals.subsTotal]);
   const categoryChartTotal = categoryChartData.reduce((s, r) => s + r.value, 0) || 1;
-
-  // Spending history: sorted oldest-to-newest for the trend chart, plus
-  // whether the CURRENT calendar month has already been saved (so the nudge
-  // only shows when there's actually something new to save).
-  const sortedSnapshots = useMemo(
-    () => [...profile.spendingSnapshots].sort((a, b) => (a.month > b.month ? 1 : a.month < b.month ? -1 : 0)),
-    [profile.spendingSnapshots]
-  );
-  const currentMonthKey = monthKey();
-  const currentMonthSnapshot = sortedSnapshots.find((s) => s.month === currentMonthKey);
-  const previousSnapshot = sortedSnapshots.length ? sortedSnapshots[sortedSnapshots.length - 1] : null;
-  const previousSnapshotIsCurrentMonth = previousSnapshot?.month === currentMonthKey;
-  // The most recent snapshot that ISN'T this month — the genuine "last
-  // saved period" to compare against, whether or not this month has also
-  // been saved yet.
-  const comparisonSnapshot = previousSnapshotIsCurrentMonth
-    ? sortedSnapshots[sortedSnapshots.length - 2] || null
-    : previousSnapshot;
 
   // Bills: the "Housing & utilities" and "Insurance & protection" categories
   // (or any category the person has explicitly flagged as isBills) treated
@@ -433,11 +415,6 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
         body: JSON.stringify({
           categories: categoryChartData.map((r) => ({ name: r.name, value: r.value })),
           income: totals.income,
-          // Only sent when a real prior snapshot exists — never fabricated,
-          // see saveSpendingSnapshot's comment on why this can't be inferred.
-          previousPeriod: comparisonSnapshot
-            ? { month: formatMonthKey(comparisonSnapshot.month), totalSpending: comparisonSnapshot.totalSpending }
-            : null,
         }),
       });
       const data = await resp.json();
@@ -691,71 +668,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                   <div key={i} className="wmg-sub" style={{ marginBottom: 6 }}>• {line}</div>
                 ))}
                 <div className="wmg-sub" style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
-                  {comparisonSnapshot
-                    ? `Includes a genuine comparison to your saved ${formatMonthKey(comparisonSnapshot.month)} snapshot — total spending only, not a category-by-category comparison.`
-                    : "Based on this month's snapshot only — save a spending snapshot below to unlock a genuine month-over-month comparison next time."}
-                </div>
-              </div>
-            )}
-          </Card>
-
-          <div className="wmg-section-title">Spending history</div>
-          <Card style={{ marginBottom: 20 }}>
-            {!currentMonthSnapshot ? (
-              <>
-                <div className="wmg-sentence-card" style={{ marginBottom: 10 }}>
-                  {sortedSnapshots.length === 0
-                    ? "Save a snapshot of this month's spending to start building a real history — future months can then be compared honestly, not guessed."
-                    : `You haven't saved a snapshot for ${formatMonthKey(currentMonthKey)} yet.`}
-                </div>
-                <button className="wmg-add-btn" onClick={saveSpendingSnapshot}>
-                  Save this month's snapshot ({gbp(categoryChartTotal)})
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="wmg-sentence-card" style={{ marginBottom: 10 }}>
-                  {formatMonthKey(currentMonthKey)} saved: <strong style={{ color: "var(--paper)" }}>{gbp(currentMonthSnapshot.totalSpending)}</strong>
-                  {comparisonSnapshot && (
-                    <>
-                      {" "}— {currentMonthSnapshot.totalSpending >= comparisonSnapshot.totalSpending ? "up" : "down"}{" "}
-                      {gbp(Math.abs(currentMonthSnapshot.totalSpending - comparisonSnapshot.totalSpending))} vs{" "}
-                      {formatMonthKey(comparisonSnapshot.month)}
-                    </>
-                  )}
-                </div>
-                <button className="wmg-add-btn" onClick={saveSpendingSnapshot}>
-                  Update this month's snapshot ({gbp(categoryChartTotal)})
-                </button>
-              </>
-            )}
-
-            {sortedSnapshots.length >= 2 && (
-              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--hair)" }}>
-                <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Total spending over time</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {sortedSnapshots.map((s, i) => {
-                    const prev = i > 0 ? sortedSnapshots[i - 1] : null;
-                    const barPct = Math.round((s.totalSpending / Math.max(...sortedSnapshots.map((x) => x.totalSpending), 1)) * 100);
-                    return (
-                      <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span className="wmg-sub" style={{ width: 64, flexShrink: 0 }}>{formatMonthKey(s.month)}</span>
-                        <div style={{ flex: 1, background: "var(--ink-3)", borderRadius: 6, overflow: "hidden", height: 18 }}>
-                          <div style={{ width: `${Math.max(barPct, 4)}%`, height: "100%", background: "var(--brand)", borderRadius: 6 }} />
-                        </div>
-                        <span className="wmg-mono" style={{ width: 76, textAlign: "right", flexShrink: 0, fontSize: 12.5 }}>{gbp(s.totalSpending)}</span>
-                        {prev && (
-                          <span
-                            className="wmg-sub"
-                            style={{ width: 60, textAlign: "right", flexShrink: 0, fontSize: 11, color: s.totalSpending > prev.totalSpending ? "var(--rust)" : "var(--sage)" }}
-                          >
-                            {s.totalSpending > prev.totalSpending ? "▲" : s.totalSpending < prev.totalSpending ? "▼" : "—"}{" "}
-                            {gbp(Math.abs(s.totalSpending - prev.totalSpending))}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                  Based on this month's category breakdown.
                 </div>
               </div>
             )}

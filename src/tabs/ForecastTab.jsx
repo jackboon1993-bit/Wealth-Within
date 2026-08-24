@@ -34,7 +34,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
     };
   });
 
-  const SCENARIO_COLORS = ["#7C74D6", "#E8703D", "#C98A0C", "#0E8F6C", "#D93A56", "#6259C4"];
+  const SCENARIO_COLORS = ["#8A7FC9", "#B5652F", "#97701A", "#4A7A3A", "#B2504F", "#5C6BA3"];
   const scenarioForecasts = useMemo(
     () => profile.scenarios.map((s) => ({ ...s, result: runForecast(profile, totals, horizonYears, s.allocationPct, 0) })),
     [profile, totals, horizonYears]
@@ -136,16 +136,16 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                 <ReferenceLine
                   key={e.id}
                   x={Math.round((e.month / 12) * 10) / 10}
-                  stroke={e.type === "expense" ? "#D93A56" : "#0E8F6C"}
+                  stroke={e.type === "expense" ? "#B2504F" : "#4A7A3A"}
                   strokeDasharray="3 3"
-                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#D93A56" : "#0E8F6C" }}
+                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#B2504F" : "#4A7A3A" }}
                 />
               ))}
               <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#7C74D6" fillOpacity={0.15} isAnimationActive={false} />
-              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#7C74D6" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#D93A56" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#0E8F6C" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#8A7FC9" fillOpacity={0.15} isAnimationActive={false} />
+              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8A7FC9" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#B2504F" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#4A7A3A" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="var(--paper-dim)" strokeWidth={2} dot={false} strokeDasharray="4 3" />
             </ComposedChart>
           </ResponsiveContainer>

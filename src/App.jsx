@@ -420,30 +420,6 @@ export default function App() {
   const toggleSub = (id) =>
     setProfile((p) => ({ ...p, subscriptions: p.subscriptions.map((s) => (s.id === id ? { ...s, cancelled: !s.cancelled } : s)) }));
 
-  // Saves (or updates) a snapshot of the CURRENT month's spending — same
-  // category total definition as the Income & Spending pie chart (essential
-  // + lifestyle category items; mortgage/debt payments and subscriptions
-  // are tracked separately, so deliberately excluded here too, for
-  // consistency). Explicit action, not inferred from calendar rollover —
-  // see the comment on defaultProfile.spendingSnapshots for why.
-  const saveSpendingSnapshot = () => {
-    setProfile((p) => {
-      const byCategory = p.expenseCategories
-        .filter((c) => c.type === "essential" || c.type === "lifestyle")
-        .map((c) => ({ id: c.id, name: c.name, amount: c.items.reduce((s, i) => s + Number(i.amount || 0), 0) }))
-        .filter((c) => c.amount > 0);
-      const totalSpending = byCategory.reduce((s, c) => s + c.amount, 0);
-      const key = monthKey();
-      const snapshot = { id: nextId(), month: key, savedAt: new Date().toISOString(), income: totalIncome(p), totalSpending, byCategory };
-      const existingIdx = p.spendingSnapshots.findIndex((s) => s.month === key);
-      const spendingSnapshots =
-        existingIdx >= 0
-          ? p.spendingSnapshots.map((s, i) => (i === existingIdx ? { ...snapshot, id: s.id } : s))
-          : [...p.spendingSnapshots, snapshot];
-      return { ...p, spendingSnapshots };
-    });
-  };
-
   const setField = (path) => (value) => {
     setProfile((p) => {
       const clone = structuredClone(p);
@@ -595,34 +571,34 @@ export default function App() {
   return (
     <div className="wmg-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&display=swap');
 
         .wmg-root {
-          --ink: #F7F8FA;
-          --ink-2: #FFFFFF;
-          --ink-3: #F1F2F5;
-          --paper: #1E2430;
-          --paper-dim: #6B7280;
-          --brand: #7C74D6;
-          --brand-2: #E0578C;
-          --brand-deep: #6C4CE0;
-          --brand-soft: #EEEDFE;
-          --coral: #D2571F;
-          --coral-soft: #FDEEE3;
-          --gold: #A8710A;
-          --gold-soft: #FBF1DC;
-          --sage: #0E8F6C;
-          --sage-soft: #E3F5EF;
-          --rust: #D93A56;
-          --rust-soft: #FCE9ED;
-          --slate: #6259C4;
-          --slate-soft: #EEECFB;
-          --hair: #E3E5EA;
-          --gold-fill: #FFCE6B;
-          --sage-fill: #4FD1C5;
-          --rust-fill: #FF8FA6;
-          --slate-fill: #A6A3D6;
-          --coral-text: #9C3D14;
+          --ink: #FBF7F0;
+          --ink-2: #FFFDF9;
+          --ink-3: #F5EEE0;
+          --paper: #3D3A34;
+          --paper-dim: #A69B8A;
+          --brand: #8A7FC9;
+          --brand-2: #C97099;
+          --brand-deep: #6C5FB0;
+          --brand-soft: #EDEAFB;
+          --coral: #B5652F;
+          --coral-soft: #F7D9C4;
+          --gold: #97701A;
+          --gold-soft: #F5E6C8;
+          --sage: #4A7A3A;
+          --sage-soft: #D9E4D0;
+          --rust: #B2504F;
+          --rust-soft: #F5DEDE;
+          --slate: #5C6BA3;
+          --slate-soft: #DCE0F0;
+          --hair: #EDE4D3;
+          --gold-fill: #F0C878;
+          --sage-fill: #A8C99A;
+          --rust-fill: #E0A0A0;
+          --slate-fill: #AEB8DD;
+          --coral-text: #6B3D1F;
           background: var(--ink);
           color: var(--paper);
           font-family: 'Plus Jakarta Sans', sans-serif;
@@ -632,7 +608,7 @@ export default function App() {
         }
         .wmg-root * { box-sizing: border-box; }
         .wmg-mono { font-family: 'Plus Jakarta Sans', sans-serif; font-variant-numeric: tabular-nums; }
-        .wmg-serif { font-family: 'Baloo 2', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+        .wmg-serif { font-family: 'Fraunces', serif; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 
         .wmg-app { display: flex; min-height: 100vh; align-items: flex-start; }
         @media (max-width: 880px) { .wmg-app { flex-direction: column; align-items: stretch; } }
@@ -727,7 +703,7 @@ export default function App() {
         @media (prefers-reduced-motion: reduce) { .wmg-content { animation: none; } }
         @media (max-width: 880px) { .wmg-content { padding: 4px 18px 0; } }
 
-        .wmg-card { background: var(--ink-2); border: 1px solid var(--hair); border-radius: 23px; padding: 22px; box-shadow: 0 1px 2px rgba(15,15,45,0.03), 0 10px 24px -12px rgba(15,15,45,0.10); }
+        .wmg-card { background: var(--ink-2); border: 1px solid rgba(30,36,48,0.06); border-radius: 23px; padding: 22px; box-shadow: 0 1px 2px rgba(15,15,45,0.02), 0 20px 40px -20px rgba(15,15,45,0.14); }
 
         .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(60,30,140,0.5); margin-bottom: 16px; position: relative; }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
@@ -735,7 +711,7 @@ export default function App() {
         .wmg-hero-label strong { font-weight: 800; }
         .wmg-hero-main-row { display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
-        .wmg-hero-net-val { font-family: 'Baloo 2', sans-serif; font-size: 27px; font-weight: 700; }
+        .wmg-hero-net-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: 27px; font-variant-numeric: tabular-nums; }
         .wmg-hero-net-sub { font-size: 10.5px; opacity: 0.75; margin-top: 2px; }
         .wmg-hero-score-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 800; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,0.2); }
 
@@ -756,14 +732,14 @@ export default function App() {
 
         .wmg-root { background-image: radial-gradient(circle at 8% 4%, var(--brand-soft) 0%, transparent 34%), radial-gradient(circle at 96% 22%, var(--coral-soft) 0%, transparent 28%), radial-gradient(circle at 50% 100%, var(--gold-soft) 0%, transparent 30%); background-attachment: fixed; background-repeat: no-repeat; }
 
-        .wmg-mosaic-hero { background: linear-gradient(150deg, #FF6FA5 0%, #8B5CF6 55%, #6C4CE0 100%); border-radius: 24px; padding: 18px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; min-height: 110px; position: relative; overflow: hidden; margin-bottom: 14px; }
+        .wmg-mosaic-hero { background: linear-gradient(150deg, #F7D9C4 0%, #F4D9E0 50%, #DCE0F0 100%); border-radius: 24px; padding: 18px; color: var(--paper); display: flex; flex-direction: column; justify-content: space-between; min-height: 110px; position: relative; overflow: hidden; margin-bottom: 14px; }
         .wmg-mosaic-hero::after { content: ""; position: absolute; top: -50px; right: -50px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%); pointer-events: none; }
         .wmg-mosaic-hero-top { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-mosaic-hero-label { font-size: 12.5px; opacity: 0.8; }
-        .wmg-mosaic-hero-val { font-family: 'Baloo 2', sans-serif; font-size: 27px; font-weight: 700; line-height: 1.1; position: relative; z-index: 1; }
+        .wmg-mosaic-hero-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: 27px; line-height: 1.1; position: relative; z-index: 1; font-variant-numeric: tabular-nums; }
         .wmg-mosaic-hero-sub { font-size: 12.5px; opacity: 0.85; margin-top: 4px; position: relative; z-index: 1; }
-        .wmg-mosaic-hero-score { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.16); border: none; border-radius: 999px; padding: 4px 10px 4px 6px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 13px; color: #FFFFFF; }
-        .wmg-mosaic-hero-score:hover { background: rgba(255,255,255,0.26); }
+        .wmg-mosaic-hero-score { display: flex; align-items: center; gap: 6px; background: rgba(61,58,52,0.08); border: none; border-radius: 999px; padding: 4px 10px 4px 6px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 13px; color: var(--paper); }
+        .wmg-mosaic-hero-score:hover { background: rgba(61,58,52,0.14); }
         .wmg-score-explainer-card { margin-bottom: 10px; }
         .wmg-score-explainer-head { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 800; color: var(--paper); margin-bottom: 8px; }
         .wmg-score-explainer-close { background: transparent; border: none; color: var(--paper-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
@@ -782,16 +758,24 @@ export default function App() {
         .wmg-stat-dot.tone-sage { background: linear-gradient(150deg, #4FD1C5, #17A398); }
         .wmg-stat-dot.tone-gold { background: linear-gradient(150deg, #FFCE6B, #FFA400); }
         .wmg-stat-dot.tone-slate { background: var(--slate); }
-        .wmg-stat-tile-gradient { border: none; color: #FFFFFF; }
-        .wmg-stat-tile-gradient.tone-brand { background: linear-gradient(150deg, #A79EEA, #7C74D6); }
-        .wmg-stat-tile-gradient.tone-coral { background: linear-gradient(150deg, #6FA8FF, #3B82F6); }
-        .wmg-stat-tile-gradient.tone-sage { background: linear-gradient(150deg, #6EE7B7, #34D399); }
-        .wmg-stat-tile-gradient:hover { filter: brightness(1.06); background: inherit; border-color: transparent; }
-        .wmg-stat-tile-gradient .wmg-stat-tile-label { color: rgba(255,255,255,0.85); }
-        .wmg-stat-tile-gradient .wmg-stat-tile-val { color: #FFFFFF; }
-        .wmg-stat-tile-icon-badge { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.22); margin-bottom: 8px; }
+        .wmg-stat-tile-gradient { border: none; }
+        .wmg-stat-tile-gradient.tone-brand { background: var(--brand-soft); }
+        .wmg-stat-tile-gradient.tone-coral { background: var(--coral-soft); }
+        .wmg-stat-tile-gradient.tone-sage { background: var(--sage-soft); }
+        .wmg-stat-tile-gradient.tone-gold { background: var(--gold-soft); }
+        .wmg-stat-tile-gradient.tone-slate { background: var(--slate-soft); }
+        .wmg-stat-tile-gradient { box-shadow: 0 1px 2px rgba(90,60,20,0.03), 0 10px 22px -14px rgba(90,60,20,0.16); }
+        .wmg-stat-tile-gradient:hover { filter: brightness(0.98); background: inherit; border-color: transparent; }
+        .wmg-stat-tile-gradient.tone-brand .wmg-stat-tile-icon-badge { color: var(--brand-deep); }
+        .wmg-stat-tile-gradient.tone-coral .wmg-stat-tile-icon-badge { color: var(--coral-text); }
+        .wmg-stat-tile-gradient.tone-sage .wmg-stat-tile-icon-badge { color: var(--sage); }
+        .wmg-stat-tile-gradient.tone-gold .wmg-stat-tile-icon-badge { color: var(--gold); }
+        .wmg-stat-tile-gradient.tone-slate .wmg-stat-tile-icon-badge { color: var(--slate); }
+        .wmg-stat-tile-gradient .wmg-stat-tile-label { color: var(--paper-dim); }
+        .wmg-stat-tile-gradient .wmg-stat-tile-val { color: var(--paper); }
+        .wmg-stat-tile-icon-badge { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.6); margin-bottom: 8px; }
         .wmg-stat-tile-label { font-size: 11.5px; color: var(--paper-dim); font-weight: 600; margin-bottom: 2px; }
-        .wmg-stat-tile-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; color: var(--paper); }
+        .wmg-stat-tile-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; color: var(--paper); font-variant-numeric: tabular-nums; }
         .wmg-chip-row { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 6px; padding: 2px 2px 6px; }
         .wmg-chip { flex: 0 0 auto; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 19px; padding: 9px 13px; min-width: 92px; }
         .wmg-chip-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--paper-dim); white-space: nowrap; }
@@ -824,6 +808,7 @@ export default function App() {
         @media (max-width: 900px) { .wmg-nw-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 560px) { .wmg-nw-grid { grid-template-columns: repeat(2, 1fr); } }
         .wmg-stat { padding: 18px 18px; position: relative; }
+        .wmg-eyebrow { color: var(--paper-dim); margin-bottom: 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
         .wmg-stat .wmg-eyebrow { color: var(--paper-dim); margin-bottom: 6px; font-size: 10.5px; font-weight: 600; }
         .wmg-stat-icon-badge { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 16px; margin-bottom: 12px; }
         .wmg-stat-icon-badge.tone-gold { background: var(--gold-soft); color: var(--gold); }
@@ -831,7 +816,7 @@ export default function App() {
         .wmg-stat-icon-badge.tone-rust { background: var(--rust-soft); color: var(--rust); }
         .wmg-stat-icon-badge.tone-brand { background: var(--brand-soft); color: var(--brand); }
         .wmg-stat-icon-badge.tone-slate { background: var(--slate-soft); color: var(--slate); }
-        .wmg-figure { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 700; }
+        .wmg-figure { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .wmg-sub { font-size: 11px; color: var(--paper-dim); margin-top: 4px; }
         .tone-paper { color: var(--paper); }
         .tone-gold { color: var(--gold); }
@@ -878,7 +863,7 @@ export default function App() {
         .wmg-calc-item-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; color: var(--sage); }
 
         .wmg-ef-ring-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-        .wmg-ef-ring-val { font-family: 'Baloo 2', sans-serif; font-size: 19px; font-weight: 700; color: var(--paper); line-height: 1.1; }
+        .wmg-ef-ring-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: 19px; color: var(--paper); line-height: 1.1; font-variant-numeric: tabular-nums; }
         .wmg-ef-ring-label { font-size: 11px; color: var(--paper-dim); margin-top: 2px; }
         .wmg-ef-ring-side { display: flex; flex-direction: column; gap: 2px; }
         .wmg-ef-ring-side-label { font-size: 12.5px; color: var(--paper-dim); font-weight: 600; }
@@ -1469,7 +1454,6 @@ export default function App() {
                 addArrayItem={addArrayItem}
                 addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
-                saveSpendingSnapshot={saveSpendingSnapshot}
               />
             )}
 

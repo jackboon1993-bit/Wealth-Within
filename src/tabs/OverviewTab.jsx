@@ -24,11 +24,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     { label: "Income & Expenditure", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
     { label: "Debt", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", icon: "debt", gradient: true },
     { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "goals", icon: "savings", gradient: true },
-    { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts" },
-    { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—", tone: "gold", tab: "debts" },
-    { label: "Home equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts" },
-    { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "slate", tab: "pension" },
-    { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "goals" },
+    { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts", icon: "calendar", gradient: true },
+    { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—", tone: "gold", tab: "debts", icon: "calendar", gradient: true },
+    { label: "Home equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts", icon: "home", gradient: true },
+    { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "slate", tab: "pension", icon: "pension", gradient: true },
+    { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "goals", icon: "invest", gradient: true },
   ];
 
   return (
@@ -144,7 +144,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               <PieChart>
                 <Pie data={flowSegments} dataKey="value" nameKey="label" innerRadius={42} outerRadius={68} paddingAngle={2} strokeWidth={0}>
                   {flowSegments.map((seg) => (
-                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#7C74D6"} />
+                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#8A7FC9"} />
                   ))}
                 </Pie>
                 <Tooltip content={<CategoryTooltip />} />

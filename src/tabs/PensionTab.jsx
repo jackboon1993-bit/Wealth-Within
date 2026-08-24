@@ -285,9 +285,9 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
                 itemSorter={(item) => ["high", "medium", "low"].indexOf(item.dataKey)}
               />
               <Tooltip content={<ChartTooltip />} />
-              <Line type="monotone" dataKey="high" name="High" stroke="#0E8F6C" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="medium" name="Medium" stroke="#C98A0C" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="low" name="Low" stroke="#D93A56" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="high" name="High" stroke="#4A7A3A" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="medium" name="Medium" stroke="#97701A" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="low" name="Low" stroke="#B2504F" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

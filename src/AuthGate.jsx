@@ -85,7 +85,7 @@ function MfaChallengeScreen({ onVerified }) {
     <div style={styles.page}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        .wwa-input { width: 100%; box-sizing: border-box; background: #F1F2F5; color: #1E2430; border: 1px solid #E3E5EA; border-radius: 14px; padding: 12px 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; margin-bottom: 12px; letter-spacing: 0.1em; text-align: center; }
+        .wwa-input { width: 100%; box-sizing: border-box; background: #F5EEE0; color: #3D3A34; border: 1px solid #EDE4D3; border-radius: 14px; padding: 12px 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; margin-bottom: 12px; letter-spacing: 0.1em; text-align: center; }
         .wwa-input:focus { outline: 2px solid #8B5CF6; outline-offset: 1px; }
         .wwa-btn { width: 100%; background: linear-gradient(135deg, #8B5CF6, #FF6FA5); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 24px -10px rgba(60,30,140,0.6); }
         .wwa-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -104,13 +104,13 @@ function MfaChallengeScreen({ onVerified }) {
             <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
           </svg>
           <div>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#1E2430" }}>
+            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#3D3A34" }}>
               Wealth Within
             </div>
           </div>
         </div>
         <h2 style={styles.heading}>Enter your code</h2>
-        <p style={{ fontSize: 12.5, color: "#6B7280", fontFamily: "'Plus Jakarta Sans', sans-serif", margin: "0 0 16px" }}>
+        <p style={{ fontSize: 12.5, color: "#A69B8A", fontFamily: "'Plus Jakarta Sans', sans-serif", margin: "0 0 16px" }}>
           Open your authenticator app and enter the 6-digit code for Wealth Within.
         </p>
         <form onSubmit={submit}>
@@ -128,7 +128,7 @@ function MfaChallengeScreen({ onVerified }) {
           </button>
         </form>
         {status === "error" && (
-          <p style={{ fontSize: 12.5, marginTop: 12, color: "#D93A56", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <p style={{ fontSize: 12.5, marginTop: 12, color: "#B2504F", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {errorMsg}
           </p>
         )}
@@ -156,7 +156,7 @@ function FullScreenMessage({ text }) {
   return (
     <div style={styles.page}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');`}</style>
-      <p style={{ color: "#6B7280", fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14 }}>{text}</p>
+      <p style={{ color: "#A69B8A", fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14 }}>{text}</p>
     </div>
   );
 }
@@ -165,7 +165,7 @@ function ReaderPreviewCard() {
   return (
     <div style={styles.previewCard}>
       <div style={styles.previewTag}>Example — AI pension reader</div>
-      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 13.5, color: "#1E2430", marginTop: 10 }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 13.5, color: "#3D3A34", marginTop: 10 }}>
         Legal &amp; General Workplace Pension
       </div>
       <div style={styles.previewChipRow}>
@@ -201,7 +201,7 @@ function BenefitsPanel() {
           <path d="M8 21.5 13.2 15l4 4.2L26 10" stroke="#FFFFFF" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           <circle cx="26" cy="10" r="1.9" fill="#FFCE6B" />
         </svg>
-        <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#1E2430" }}>
+        <div style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em", color: "#3D3A34" }}>
           Wealth Within
         </div>
       </div>
@@ -267,8 +267,8 @@ function SignInScreen() {
     <div style={styles.page}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        .wwa-input { width: 100%; box-sizing: border-box; background: #F1F2F5; color: #1E2430; border: 1px solid #E3E5EA; border-radius: 14px; padding: 12px 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; margin-bottom: 12px; }
-        .wwa-input::placeholder { color: #6B7280; }
+        .wwa-input { width: 100%; box-sizing: border-box; background: #F5EEE0; color: #3D3A34; border: 1px solid #EDE4D3; border-radius: 14px; padding: 12px 14px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; margin-bottom: 12px; }
+        .wwa-input::placeholder { color: #A69B8A; }
         .wwa-input:focus { outline: 2px solid #8B5CF6; outline-offset: 1px; }
         .wwa-btn { width: 100%; background: linear-gradient(135deg, #8B5CF6, #FF6FA5); color: #FFFFFF; border: none; border-radius: 999px; padding: 13px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 24px -10px rgba(60,30,140,0.6); transition: filter .15s ease, transform .15s ease; }
         .wwa-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
@@ -317,12 +317,12 @@ function SignInScreen() {
           </form>
 
           {status.message && (
-            <p style={{ fontSize: 12.5, marginTop: 12, color: status.type === "error" ? "#D93A56" : "#0E8F6C", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <p style={{ fontSize: 12.5, marginTop: 12, color: status.type === "error" ? "#B2504F" : "#4A7A3A", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               {status.message}
             </p>
           )}
 
-          <p style={{ marginTop: 18, fontSize: 12.5, fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#6B7280" }}>
+          <p style={{ marginTop: 18, fontSize: 12.5, fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#A69B8A" }}>
             {mode === "signup" ? "Already have an account?" : "New here?"}{" "}
             <button className="wwa-switch" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>
               {mode === "signup" ? "Sign in" : "Create an account"}
@@ -348,41 +348,41 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#F7F8FA",
+    background: "#FBF7F0",
     padding: 20,
   },
   card: {
     width: "100%",
     maxWidth: 380,
     background: "#FFFFFF",
-    border: "1px solid #E3E5EA",
+    border: "1px solid #EDE4D3",
     borderRadius: 22,
     padding: 28,
     boxShadow: "0 1px 2px rgba(15,15,45,0.2), 0 20px 40px -12px rgba(15,15,45,0.5)",
   },
   brandRow: { display: "flex", alignItems: "center", gap: 11, marginBottom: 22 },
-  heading: { fontFamily: "'Baloo 2', sans-serif", fontSize: 18, fontWeight: 700, color: "#1E2430", margin: "0 0 16px" },
-  benefits: { color: "#1E2430" },
+  heading: { fontFamily: "'Baloo 2', sans-serif", fontSize: 18, fontWeight: 700, color: "#3D3A34", margin: "0 0 16px" },
+  benefits: { color: "#3D3A34" },
   headline: {
     fontFamily: "'Baloo 2', sans-serif",
     fontWeight: 800,
     fontSize: "clamp(24px, 3.4vw, 32px)",
     lineHeight: 1.15,
     letterSpacing: "-0.01em",
-    color: "#1E2430",
+    color: "#3D3A34",
     margin: "0 0 10px",
   },
   subhead: {
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     fontSize: 14.5,
     lineHeight: 1.5,
-    color: "#5B54B0",
+    color: "#6C5FB0",
     margin: "0 0 22px",
     maxWidth: 440,
   },
   previewCard: {
     background: "#FFFFFF",
-    border: "1px solid #E3E5EA",
+    border: "1px solid #EDE4D3",
     borderRadius: 18,
     padding: "16px 18px",
     maxWidth: 400,
@@ -395,27 +395,27 @@ const styles = {
     fontWeight: 700,
     letterSpacing: "0.04em",
     textTransform: "uppercase",
-    color: "#99235A",
+    color: "#7A3D5C",
     background: "rgba(255,111,165,0.12)",
     borderRadius: 999,
     padding: "3px 10px",
   },
   previewChipRow: { display: "flex", gap: 10, marginTop: 12 },
-  previewChip: { background: "#F1F2F5", borderRadius: 12, padding: "8px 12px", flex: 1 },
-  previewChipLabel: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 10.5, color: "#6B7280" },
-  previewChipValue: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 15, fontWeight: 700, color: "#1E2430", marginTop: 2 },
+  previewChip: { background: "#F5EEE0", borderRadius: 12, padding: "8px 12px", flex: 1 },
+  previewChipLabel: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 10.5, color: "#A69B8A" },
+  previewChipValue: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 15, fontWeight: 700, color: "#3D3A34", marginTop: 2 },
   previewVerdict: {
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     fontSize: 12.5,
     fontStyle: "italic",
-    color: "#5B54B0",
+    color: "#6C5FB0",
     lineHeight: 1.5,
     margin: "12px 0 0",
   },
   previewCaption: {
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     fontSize: 12,
-    color: "#6B7280",
+    color: "#A69B8A",
     lineHeight: 1.5,
     maxWidth: 400,
     margin: "10px 0 20px",
@@ -428,7 +428,7 @@ const styles = {
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     fontSize: 13,
     lineHeight: 1.5,
-    color: "#4A4394",
+    color: "#564A8A",
     maxWidth: 420,
   },
   bulletDot: {
