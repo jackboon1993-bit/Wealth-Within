@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY // server-only — never expose this key to the client
 );
 
-const TOKEN_URL = "https://auth.truelayer.com/connect/token"; // sandbox: auth.truelayer-sandbox.com
+const TOKEN_URL = "https://auth.truelayer-sandbox.com/connect/token"; // switch to https://auth.truelayer.com/connect/token when moving to a Live app
 
 export default async function handler(req, res) {
   const { code, state: householdId, error } = req.query;

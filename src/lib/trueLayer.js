@@ -6,7 +6,7 @@ import { Browser } from "@capacitor/browser";
 // SECRET must never appear in client code — it only ever lives server-side
 // (see api/truelayer-callback.js), used to exchange the returned code for
 // tokens.
-const TRUELAYER_AUTH_URL = "https://auth.truelayer.com"; // sandbox: auth.truelayer-sandbox.com
+const TRUELAYER_AUTH_URL = "https://auth.truelayer-sandbox.com"; // switch to https://auth.truelayer.com when moving to a Live app
 const CLIENT_ID = import.meta.env.VITE_TRUELAYER_CLIENT_ID;
 // Must exactly match a redirect URI registered in your TrueLayer console.
 // Pointing this at your deployed web domain (not a custom app:// scheme)
