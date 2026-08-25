@@ -37,5 +37,6 @@ export function buildTrueLayerAuthUrl(householdId) {
 
 export async function connectBank(householdId) {
   const url = buildTrueLayerAuthUrl(householdId);
+  console.log("TrueLayer auth URL:", url); // TEMPORARY — remove once diagnosed
   await Browser.open({ url });
 }
