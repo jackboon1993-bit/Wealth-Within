@@ -11,8 +11,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY // server-only — never expose this key to the client
+  (process.env.SUPABASE_URL || "").trim(),
+  (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim() // server-only — never expose this key to the client
 );
 
 const TOKEN_URL = "https://auth.truelayer-sandbox.com/connect/token"; // switch to https://auth.truelayer.com/connect/token when moving to a Live app
