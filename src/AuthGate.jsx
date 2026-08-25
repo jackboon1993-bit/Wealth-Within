@@ -56,14 +56,26 @@ export default function AuthGate({ children }) {
   // one-time login step. Only attaches the listener at all if the person
   // has opted in, so it's a no-op for anyone who hasn't enabled it.
   useEffect(() => {
-    if (!session || !isBiometricEnabled()) return undefined;
+    if (!session) return undefined;
+    // addListener() is async — on a fresh mount its promise can still be
+    // pending when the very next resume happens, silently missing that
+    // first resume (previously required backgrounding twice to catch).
+    // `removed` guards against a listener attaching after cleanup already
+    // ran. Checking isBiometricEnabled() inside the callback (rather than
+    // gating the whole effect on it) also means toggling the setting
+    // mid-session takes effect immediately, without needing a fresh sign-in.
+    let removed = false;
     let handle;
     CapacitorApp.addListener("appStateChange", ({ isActive }) => {
-      if (isActive) setLocked(true);
+      if (isActive && isBiometricEnabled()) setLocked(true);
     }).then((h) => {
-      handle = h;
+      if (removed) h.remove();
+      else handle = h;
     });
-    return () => handle?.remove();
+    return () => {
+      removed = true;
+      handle?.remove();
+    };
   }, [session]);
 
   if (!supabase) return children;
@@ -194,8 +206,24 @@ function LockScreen({ onUnlocked }) {
   // No local PIN system exists, so the honest fallback if biometric fails
   // or isn't available right now is the existing password flow — signing
   // out clears the session and drops back to SignInScreen.
+  //
+  // scope: "local" clears the session on-device immediately without
+  // waiting on a network round-trip to invalidate it server-side first.
+  // The default ("global") scope was the likely cause of this button
+  // appearing to do nothing — a slow or stalled network call meant the
+  // sign-out just never visibly completed. Wrapped in try/catch with a
+  // busy state so any failure is visible (Logcat/console) instead of
+  // silently doing nothing.
+  const [signingOut, setSigningOut] = useState(false);
   const usePasswordInstead = async () => {
-    await supabase.auth.signOut();
+    setSigningOut(true);
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (err) {
+      console.error("Sign out failed:", err);
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   return (
@@ -231,7 +259,9 @@ function LockScreen({ onUnlocked }) {
           {status === "checking" ? "Checking…" : "Unlock with Face ID / fingerprint"}
         </button>
         <p style={{ marginTop: 18, fontSize: 12.5, fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#A69B8A" }}>
-          <button className="wwa-switch" onClick={usePasswordInstead}>Use password instead</button>
+          <button className="wwa-switch" onClick={usePasswordInstead} disabled={signingOut}>
+            {signingOut ? "Signing out…" : "Use password instead"}
+          </button>
         </p>
       </div>
     </div>
