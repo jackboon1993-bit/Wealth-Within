@@ -364,18 +364,32 @@ export function BiometricSection() {
   const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [debugInfo, setDebugInfo] = useState(""); // TEMPORARY — remove once diagnosed
 
   useEffect(() => {
     (async () => {
-      const avail = await isBiometricAvailable();
-      setAvailable(avail);
+      try {
+        const avail = await isBiometricAvailable();
+        setDebugInfo(`isBiometricAvailable() returned: ${JSON.stringify(avail)}`);
+        setAvailable(avail);
+      } catch (e) {
+        setDebugInfo(`isBiometricAvailable() threw: ${e?.message || String(e)}`);
+        setAvailable(false);
+      }
       setEnabled(isBiometricEnabled());
       setChecking(false);
     })();
   }, []);
 
   if (checking) return null;
-  if (!available) return null;
+  if (!available) {
+    // TEMPORARY — remove this block once diagnosed, restore to `return null;`
+    return (
+      <div style={{ padding: 8, fontSize: 11, color: "#B2504F", border: "1px dashed #B2504F", borderRadius: 8, margin: "8px 0" }}>
+        DEBUG: {debugInfo}
+      </div>
+    );
+  }
 
   const toggle = async () => {
     setErrorMsg("");

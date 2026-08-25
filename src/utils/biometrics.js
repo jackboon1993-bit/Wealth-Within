@@ -34,17 +34,31 @@ export async function isBiometricAvailable() {
   }
 }
 
+// Some devices/OS versions can leave the native verifyIdentity() call
+// hanging indefinitely — it never resolves or rejects — typically when the
+// prompt fires before the resumed Activity has full focus. Root cause not
+// confirmed; this timeout is a safety net so the person is never stuck on
+// a "Checking…" screen, not a fix for the underlying hang.
+const VERIFY_TIMEOUT_MS = 5000;
+
+function timeout(ms) {
+  return new Promise((resolve) => setTimeout(() => resolve("timeout"), ms));
+}
+
 // Prompts Face ID / fingerprint. Resolves true only on a real successful
-// match — any cancellation, failure, or platform error resolves false
-// rather than throwing, so callers can treat it as a simple pass/fail.
+// match — any cancellation, failure, platform error, or timeout resolves
+// false rather than throwing, so callers can treat it as a simple pass/fail.
 export async function verifyBiometric() {
   try {
-    await NativeBiometric.verifyIdentity({
-      reason: "Unlock Wealth Within",
-      title: "Unlock",
-      subtitle: "Use Face ID or fingerprint to continue",
-    });
-    return true;
+    const result = await Promise.race([
+      NativeBiometric.verifyIdentity({
+        reason: "Unlock Wealth Within",
+        title: "Unlock",
+        subtitle: "Use Face ID or fingerprint to continue",
+      }).then(() => "success"),
+      timeout(VERIFY_TIMEOUT_MS),
+    ]);
+    return result === "success";
   } catch {
     return false;
   }
