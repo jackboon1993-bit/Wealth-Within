@@ -22,7 +22,12 @@ export function buildTrueLayerAuthUrl(householdId) {
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     scope: "info accounts balance transactions offline_access",
-    providers: "uk-ob-all uk-oauth-all",
+    // Sandbox apps can only authenticate against TrueLayer's fake "Mock
+    // Bank" (uk-cs-mock) — the real production bank list (uk-ob-all
+    // uk-oauth-all) isn't valid here and causes an "Unknown client or
+    // client not enabled" error from TrueLayer's auth server. Switch this
+    // to "uk-ob-all uk-oauth-all" when moving to a Live app.
+    providers: "uk-cs-mock",
     // Carries the household id through the redirect so the callback knows
     // whose row to attach the resulting tokens to.
     state: householdId,
