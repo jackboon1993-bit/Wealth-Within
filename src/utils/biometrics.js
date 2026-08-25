@@ -1,5 +1,28 @@
 import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 
+// ============================================================================
+// TEMPORARILY DISABLED — see handover notes for details.
+//
+// The underlying native plugin (both capacitor-native-biometric and its
+// @capgo fork) has a bug where the biometric prompt's success result never
+// makes it back to the JS side on this device/Android version — Capacitor's
+// bridge logs "Unable to find a Capacitor plugin to handle requestCode" right
+// after a successful fingerprint scan. This happens with two independent
+// plugin implementations, so it's a deeper native/bridge-routing issue, not
+// something fixable from this file. Needs either a different biometric
+// plugin (one that shows the prompt as a dialog on the existing activity
+// instead of launching a separate Activity) or a native Android patch.
+//
+// Setting this to false hides the toggle entirely (isBiometricAvailable
+// always reports unavailable) and forces the lock screen off even for
+// accounts that already had it switched on from before (isBiometricEnabled
+// always reports off) — so no one can get stuck on a broken lock screen.
+//
+// To re-enable once a fix is in place: set this back to true and remove the
+// two early-return short-circuits below.
+// ============================================================================
+const BIOMETRIC_FEATURE_ENABLED = false;
+
 // Whether the person has opted into a biometric lock screen on top of their
 // existing Supabase session. This is a device-local security preference —
 // deliberately NOT stored in profile/Supabase, since it should apply per
@@ -7,6 +30,7 @@ import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 const ENABLED_KEY = "wwa-biometric-enabled";
 
 export function isBiometricEnabled() {
+  if (!BIOMETRIC_FEATURE_ENABLED) return false;
   try {
     return localStorage.getItem(ENABLED_KEY) === "1";
   } catch {
@@ -26,6 +50,7 @@ export function setBiometricEnabled(enabled) {
 // point offering it on a device or simulator with no Face ID/fingerprint
 // enrolled.
 export async function isBiometricAvailable() {
+  if (!BIOMETRIC_FEATURE_ENABLED) return false;
   try {
     const result = await NativeBiometric.isAvailable();
     return !!result.isAvailable;
