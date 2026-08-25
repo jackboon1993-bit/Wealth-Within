@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { parseTransactionsCSV, parseDebtsCSV } from "../lib/csv";
 import { gbp } from "../lib/finance";
 import { Card, NumberInput } from "../components/ui";
+import { hasAccounts, getHouseholdId } from "../lib/storage";
+import { BankConnectPanel } from "./BankConnectPanel";
 
 export function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -206,6 +208,17 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 export function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
+  // Bank connecting needs a signed-in household to attach the connection
+  // to — null until resolved (or permanently null if accounts aren't
+  // configured at all, per hasAccounts below).
+  const [householdId, setHouseholdId] = useState(null);
+
+  useEffect(() => {
+    if (!hasAccounts) return;
+    getHouseholdId()
+      .then(setHouseholdId)
+      .catch(() => setHouseholdId(null));
+  }, []);
 
   const readFileText = (file) =>
     new Promise((resolve, reject) => {
@@ -217,6 +230,12 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
 
   return (
     <>
+      {hasAccounts && householdId && (
+        <div style={{ marginBottom: 20 }}>
+          <BankConnectPanel householdId={householdId} />
+        </div>
+      )}
+
       <div className="wmg-section-title">Import from a bank export</div>
       <div className="wmg-section-desc">
         Upload a CSV exported from your bank's statements page — or a simple debts list — instead of typing

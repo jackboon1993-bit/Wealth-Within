@@ -46,6 +46,11 @@ async function resolveHouseholdId() {
   return cachedHouseholdId;
 }
 
+// Exposed so UI components that need the household id directly (e.g.
+// BankConnectPanel, which passes it through to TrueLayer's `state` param)
+// can get it without duplicating the membership-lookup/create logic above.
+export { resolveHouseholdId as getHouseholdId };
+
 /**
  * Returns the signed-in user's saved profile object, or null if there is
  * none. Uses Supabase (data lives on the household, isolated by row-level
