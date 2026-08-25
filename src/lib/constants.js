@@ -4,18 +4,19 @@ export const NAV = [
   { key: "pension-reader", label: "AI Pension Reader", icon: "reader" },
   { key: "forecast", label: "Cash Flow Forecast", icon: "forecast" },
   { key: "education", label: "Education", icon: "education" },
-  { key: "import", label: "Import from Bank CSV", icon: "import" },
 ];
 
-// "income" is reachable via its relabelled Overview tile, not the nav bar,
-// so it still needs its title listed explicitly here — NAV alone isn't
-// enough to cover every reachable tab.
+// "income" and "import" are reachable via other entry points (Overview
+// tiles, the setup wizard), not the nav bar, so they still need titles
+// listed explicitly here — NAV alone isn't enough to cover every reachable
+// tab.
 
 export const TAB_TITLES = {
   ...Object.fromEntries(NAV.map((n) => [n.key, n.label])),
   income: "Income & Expenditure",
   debts: "Debts & Mortgage",
   goals: "Savings & Goals",
+  import: "Connect a Bank",
 };
 
 

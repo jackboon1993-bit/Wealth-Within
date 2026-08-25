@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, addMonths, getActiveMode } from "../lib/finance";
 import { FLOW_TONE_COLORS } from "../lib/constants";
+import { hasAccounts } from "../lib/storage";
 import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate }) {
@@ -60,6 +61,21 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             <button type="button" className="wmg-score-explainer-close" onClick={() => setScoreInfoOpen(false)} aria-label="Close">×</button>
           </div>
           <p>{scoreExplainer}</p>
+        </Card>
+      )}
+
+      {hasAccounts && (
+        <Card className="wmg-connect-bank-banner">
+          <div className="wmg-connect-bank-banner-text">
+            <div className="wmg-connect-bank-banner-title">Connect a bank</div>
+            <div className="wmg-connect-bank-banner-sub">
+              Link an account via Open Banking to pull in real balances automatically, instead of entering them by
+              hand. Read-only — this can't move money.
+            </div>
+          </div>
+          <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
+            Connect
+          </button>
         </Card>
       )}
 

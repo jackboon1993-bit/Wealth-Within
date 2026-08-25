@@ -1113,6 +1113,10 @@ export default function App() {
         .wmg-pill-input { display: inline-block; width: 76px; background: var(--coral-soft); color: var(--coral-text); border: 1.5px solid var(--coral); border-radius: 8px; padding: 1px 8px; font-size: inherit; font-weight: 700; font-family: inherit; text-align: center; }
         .wmg-sentence-card { font-size: 14.5px; line-height: 1.85; color: var(--paper); }
         .wmg-guided-summary-card { background: var(--brand-soft); border: 1px solid var(--brand); font-size: 14.5px; line-height: 1.7; margin-bottom: 14px; }
+        .wmg-connect-bank-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+        .wmg-connect-bank-banner-text { flex: 1 1 240px; min-width: 0; }
+        .wmg-connect-bank-banner-title { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14.5px; color: var(--paper); margin-bottom: 3px; }
+        .wmg-connect-bank-banner-sub { font-size: 12.5px; line-height: 1.5; color: var(--paper-dim); }
         .wmg-tab-tip { display: flex; align-items: flex-start; gap: 10px; background: var(--brand-soft); border: 1px solid var(--brand); border-radius: 16px; padding: 12px 14px; margin-bottom: 14px; }
         .wmg-tab-tip-icon { flex-shrink: 0; margin-top: 2px; color: var(--brand); }
         .wmg-tab-tip-text { flex: 1; margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--paper); }

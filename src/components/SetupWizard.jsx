@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { gbp, nextId, MODE_LABELS, deriveRecommendedMode, parseDebtLines } from "../lib/finance";
 import { Card, Field, NavIcon, InfoTip } from "./ui";
+import { hasAccounts, getHouseholdId } from "../lib/storage";
+import { BankConnectPanel } from "../tabs/BankConnectPanel";
 
 export function WizardNumberInput({ value, onChange, placeholder, style, disabled, ariaLabel }) {
   return (
@@ -120,7 +122,7 @@ export function QuickImport({ onAdd }) {
 
 export const WIZARD_DATA_STEPS = ["mode", "income", "debts", "savings", "pension"];
 
-export const WIZARD_STEPS = ["welcome", ...WIZARD_DATA_STEPS, "done"];
+export const WIZARD_STEPS = ["welcome", "connect", ...WIZARD_DATA_STEPS, "done"];
 
 
 export const blankLoan = () => ({ id: nextId(), name: "", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "loan" });
@@ -209,7 +211,16 @@ export function WizardListEditor({ items, setItems, fields, addLabel, emptyLabel
 export function SetupWizard({ onFinish }) {
   const [stepIdx, setStepIdx] = useState(0);
   const step = WIZARD_STEPS[stepIdx];
-  const dataStepPos = WIZARD_DATA_STEPS.indexOf(step); // -1 on welcome/done
+  const dataStepPos = WIZARD_DATA_STEPS.indexOf(step); // -1 on welcome/connect/done
+
+  // Only needed for the "connect" step's BankConnectPanel — resolved once,
+  // same pattern as BankImportTab, since AuthGate guarantees a signed-in
+  // session (and therefore a household) by the time this wizard can render.
+  const [householdId, setHouseholdId] = useState(null);
+  useEffect(() => {
+    if (!hasAccounts) return;
+    getHouseholdId().then(setHouseholdId).catch(() => setHouseholdId(null));
+  }, []);
 
   const [comfortLevel, setComfortLevel] = useState(null); // "getting-started" | "basics" | "confident" | null
   const [detailPreference, setDetailPreference] = useState(null); // "simple" | "detail-explained" | "all-numbers" | null
@@ -313,6 +324,22 @@ export function SetupWizard({ onFinish }) {
               dashboard reflects your real numbers from the start, not example data. It takes
               about two minutes, and you can skip at any point.
             </p>
+          </div>
+        )}
+
+        {step === "connect" && (
+          <div className="wmg-wizard-step">
+            <h2 className="wmg-wizard-step-title">Connect a bank</h2>
+            <p className="wmg-wizard-step-sub">
+              Optional — link an account via Open Banking now, or skip and enter your numbers by
+              hand on the next few screens instead. Read-only, and you can always connect later
+              from Overview.
+            </p>
+            {hasAccounts && householdId ? (
+              <BankConnectPanel householdId={householdId} />
+            ) : (
+              <p className="wmg-sub">Loading…</p>
+            )}
           </div>
         )}
 
