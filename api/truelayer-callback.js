@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
   (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim() // server-only — never expose this key to the client
 );
 
-const TOKEN_URL = "https://auth.truelayer-sandbox.com/connect/token"; // switch to https://auth.truelayer.com/connect/token when moving to a Live app
+const TOKEN_URL = "https://auth.truelayer.com/connect/token";
 
 export default async function handler(req, res) {
   const { code, state: householdId, error } = req.query;
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       body: new URLSearchParams({
         grant_type: "authorization_code",
         client_id: (process.env.TRUELAYER_CLIENT_ID || "").trim(),
-        client_secret: process.env.TRUELAYER_CLIENT_SECRET,
+        client_secret: (process.env.TRUELAYER_CLIENT_SECRET || "").trim(),
         redirect_uri: "https://wealth-within.vercel.app/api/truelayer-callback",
         code,
       }),

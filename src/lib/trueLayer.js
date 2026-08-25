@@ -6,7 +6,7 @@ import { Browser } from "@capacitor/browser";
 // SECRET must never appear in client code — it only ever lives server-side
 // (see api/truelayer-callback.js), used to exchange the returned code for
 // tokens.
-const TRUELAYER_AUTH_URL = "https://auth.truelayer-sandbox.com"; // switch to https://auth.truelayer.com when moving to a Live app
+const TRUELAYER_AUTH_URL = "https://auth.truelayer.com";
 const CLIENT_ID = (import.meta.env.VITE_TRUELAYER_CLIENT_ID || "").trim();
 // Must exactly match a redirect URI registered in your TrueLayer console.
 // Pointing this at your deployed web domain (not a custom app:// scheme)
@@ -22,12 +22,10 @@ export function buildTrueLayerAuthUrl(householdId) {
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     scope: "info accounts balance transactions offline_access",
-    // Sandbox apps can only authenticate against TrueLayer's fake "Mock
-    // Bank" (uk-cs-mock) — the real production bank list (uk-ob-all
-    // uk-oauth-all) isn't valid here and causes an "Unknown client or
-    // client not enabled" error from TrueLayer's auth server. Switch this
-    // to "uk-ob-all uk-oauth-all" when moving to a Live app.
-    providers: "uk-cs-mock",
+    // Real UK bank list for the Live app. (Sandbox apps could only use
+    // the fake "Mock Bank" provider, "uk-cs-mock" — that no longer
+    // applies now that this points at the Live TrueLayer app.)
+    providers: "uk-ob-all uk-oauth-all",
     // Carries the household id through the redirect so the callback knows
     // whose row to attach the resulting tokens to.
     state: householdId,

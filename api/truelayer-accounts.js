@@ -11,8 +11,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient((process.env.SUPABASE_URL || "").trim(), (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
-const TOKEN_URL = "https://auth.truelayer-sandbox.com/connect/token"; // switch to https://auth.truelayer.com/connect/token when moving to a Live app
-const API_BASE = "https://api.truelayer-sandbox.com/data/v1"; // switch to https://api.truelayer.com/data/v1 when moving to a Live app
+const TOKEN_URL = "https://auth.truelayer.com/connect/token";
+const API_BASE = "https://api.truelayer.com/data/v1";
 
 export default async function handler(req, res) {
   const authHeader = req.headers.authorization || "";
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       body: new URLSearchParams({
         grant_type: "refresh_token",
         client_id: (process.env.TRUELAYER_CLIENT_ID || "").trim(),
-        client_secret: process.env.TRUELAYER_CLIENT_SECRET,
+        client_secret: (process.env.TRUELAYER_CLIENT_SECRET || "").trim(),
         refresh_token: connection.refresh_token,
       }),
     });
