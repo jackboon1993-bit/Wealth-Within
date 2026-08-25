@@ -1,4 +1,4 @@
-import { NativeBiometric } from "capacitor-native-biometric";
+import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 
 // Whether the person has opted into a biometric lock screen on top of their
 // existing Supabase session. This is a device-local security preference —
