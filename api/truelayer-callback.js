@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "authorization_code",
-        client_id: process.env.TRUELAYER_CLIENT_ID,
+        client_id: (process.env.TRUELAYER_CLIENT_ID || "").trim(),
         client_secret: process.env.TRUELAYER_CLIENT_SECRET,
         redirect_uri: "https://wealth-within.vercel.app/api/truelayer-callback",
         code,

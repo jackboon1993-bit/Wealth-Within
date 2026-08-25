@@ -7,7 +7,7 @@ import { Browser } from "@capacitor/browser";
 // (see api/truelayer-callback.js), used to exchange the returned code for
 // tokens.
 const TRUELAYER_AUTH_URL = "https://auth.truelayer-sandbox.com"; // switch to https://auth.truelayer.com when moving to a Live app
-const CLIENT_ID = import.meta.env.VITE_TRUELAYER_CLIENT_ID;
+const CLIENT_ID = (import.meta.env.VITE_TRUELAYER_CLIENT_ID || "").trim();
 // Must exactly match a redirect URI registered in your TrueLayer console.
 // Pointing this at your deployed web domain (not a custom app:// scheme)
 // keeps the OAuth redirect itself simple — the domain's /api route does
@@ -37,6 +37,5 @@ export function buildTrueLayerAuthUrl(householdId) {
 
 export async function connectBank(householdId) {
   const url = buildTrueLayerAuthUrl(householdId);
-  console.log("TrueLayer auth URL:", url); // TEMPORARY — remove once diagnosed
   await Browser.open({ url });
 }
