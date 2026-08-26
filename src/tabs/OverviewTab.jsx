@@ -5,7 +5,7 @@ import { FLOW_TONE_COLORS } from "../lib/constants";
 import { hasAccounts } from "../lib/storage";
 import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../components/ui";
 
-export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate }) {
+export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
@@ -34,7 +34,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts", icon: "calendar", gradient: true },
     { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—", tone: "gold", tab: "debts", icon: "calendar", gradient: true },
     { label: "Home equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts", icon: "home", gradient: true },
-    { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "slate", tab: "pension", icon: "pension", gradient: true },
+    { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "rust", tab: "pension", icon: "pension", gradient: true },
     { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "goals", icon: "invest", gradient: true },
   ];
 
@@ -90,7 +90,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && (
+      {hasAccounts && !hasConnectedBank && !(pendingBankSync && !pendingSyncDismissed) && (
         <Card className="wmg-connect-bank-banner">
           <div className="wmg-connect-bank-banner-text">
             <div className="wmg-connect-bank-banner-title">Connect a bank</div>

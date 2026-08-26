@@ -207,7 +207,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
@@ -233,7 +233,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
     <>
       {hasAccounts && householdId && (
         <div style={{ marginBottom: 20 }}>
-          <BankConnectPanel householdId={householdId} />
+          <BankConnectPanel householdId={householdId} onAccountsChanged={onBankAccountsChanged} />
         </div>
       )}
 
@@ -257,7 +257,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
           profile={profile}
           onApplyImportedSpending={onApplyImportedSpending}
           readFileText={readFileText}
-          hasConnectedBank={hasAccounts && !!householdId}
+          hasConnectedBank={hasConnectedBank}
           pendingBankSync={profile.pendingBankSync}
           onBankSyncApplied={onBankSyncApplied}
           onDiscardPendingSync={onDiscardPendingSync}

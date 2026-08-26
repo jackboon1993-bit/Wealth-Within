@@ -353,6 +353,12 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                 />
               </div>
             </div>
+            {e.yearsFromNow > horizonYears && (
+              <div className="wmg-forecast-note" style={{ marginTop: 8 }}>
+                This falls beyond your current {horizonYears}-year forecast horizon, so it isn't shown on the chart
+                above yet — extend the horizon to see its effect.
+              </div>
+            )}
           </div>
         ))}
         <button className="wmg-add-btn" onClick={addLifeEvent}>

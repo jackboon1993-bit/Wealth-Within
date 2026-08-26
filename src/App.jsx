@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
-import { getData, setData, deleteData, subscribeToHouseholdData, getHouseholdId } from "./lib/storage";
+import { getData, setData, deleteData, subscribeToHouseholdData, getHouseholdId, hasAccounts } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
 import {
@@ -59,12 +59,54 @@ export default function App() {
   // again, forever.
   const applyingRemoteUpdate = useRef(false);
 
+  // Tracks whether this household actually has a bank connected — null
+  // until the first check completes, then either [] (checked, none
+  // connected) or the real account list. This is the single source of
+  // truth several screens need (Overview's banner, the Import tab's
+  // "pull transactions" button) — each used to guess at this from
+  // unrelated state (whether Supabase was configured, whether a
+  // household existed) rather than actually checking, so they'd stay
+  // stuck showing "Connect a bank" forever even after one was connected.
+  const [connectedBankAccounts, setConnectedBankAccounts] = useState(null);
+  const hasConnectedBank = Array.isArray(connectedBankAccounts) && connectedBankAccounts.length > 0;
+
+  const refreshConnectedBank = async () => {
+    if (!hasAccounts) return;
+    try {
+      const householdId = await getHouseholdId();
+      if (!householdId) return;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch("/api/truelayer-accounts", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (resp.status === 404) {
+        setConnectedBankAccounts([]);
+        return;
+      }
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error);
+      setConnectedBankAccounts(data.accounts || []);
+    } catch {
+      // Leave whatever we last knew as-is — a transient network failure
+      // here shouldn't flip a genuinely connected bank back to looking
+      // disconnected in the UI.
+    }
+  };
+
   // if we've just been redirected back from a bank's consent flow, jump
-  // straight to the bank tab so it can finish confirming the connection
+  // straight to the Import tab (where BankConnectPanel lives) so the
+  // person can see the connection confirmed, and re-check connection
+  // state now that it may have just changed.
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.search.includes("bank_callback=1")) {
-      setTab("bank");
+      setTab("import");
+      refreshConnectedBank();
+    } else {
+      refreshConnectedBank();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // load any previously saved household data once, on mount
@@ -683,7 +725,7 @@ export default function App() {
           --ink-2: #FFFDF9;
           --ink-3: #F5EEE0;
           --paper: #3D3A34;
-          --paper-dim: #A69B8A;
+          --paper-dim: #796D5C;
           --brand: #8A7FC9;
           --brand-2: #C97099;
           --brand-deep: #6C5FB0;
@@ -869,13 +911,14 @@ export default function App() {
         .wmg-stat-tile-gradient.tone-sage { background: var(--sage-soft); }
         .wmg-stat-tile-gradient.tone-gold { background: var(--gold-soft); }
         .wmg-stat-tile-gradient.tone-slate { background: var(--slate-soft); }
-        .wmg-stat-tile-gradient { box-shadow: 0 1px 2px rgba(90,60,20,0.03), 0 10px 22px -14px rgba(90,60,20,0.16); }
+        .wmg-stat-tile-gradient.tone-rust { background: var(--rust-soft); }
         .wmg-stat-tile-gradient:hover { filter: brightness(0.98); background: inherit; border-color: transparent; }
         .wmg-stat-tile-gradient.tone-brand .wmg-stat-tile-icon-badge { color: var(--brand-deep); }
         .wmg-stat-tile-gradient.tone-coral .wmg-stat-tile-icon-badge { color: var(--coral-text); }
         .wmg-stat-tile-gradient.tone-sage .wmg-stat-tile-icon-badge { color: var(--sage); }
         .wmg-stat-tile-gradient.tone-gold .wmg-stat-tile-icon-badge { color: var(--gold); }
         .wmg-stat-tile-gradient.tone-slate .wmg-stat-tile-icon-badge { color: var(--slate); }
+        .wmg-stat-tile-gradient.tone-rust .wmg-stat-tile-icon-badge { color: var(--rust); }
         .wmg-stat-tile-gradient .wmg-stat-tile-label { color: var(--paper-dim); }
         .wmg-stat-tile-gradient .wmg-stat-tile-val { color: var(--paper); }
         .wmg-stat-tile-icon-badge { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.6); margin-bottom: 8px; }
@@ -1544,6 +1587,7 @@ export default function App() {
                 coachTips={coachTips}
                 inFinancialHardship={inFinancialHardship}
                 onNavigate={setTab}
+                hasConnectedBank={hasConnectedBank}
               />
             )}
 
@@ -1576,6 +1620,8 @@ export default function App() {
                 onApplyImportedSpending={applyImportedSpending}
                 onBankSyncApplied={applyBankSync}
                 onDiscardPendingSync={discardPendingBankSync}
+                hasConnectedBank={hasConnectedBank}
+                onBankAccountsChanged={refreshConnectedBank}
               />
             )}
 
@@ -1677,8 +1723,8 @@ export default function App() {
           </Suspense>
 
             <div className="wmg-footnote">
-              This dashboard is illustrative and calculated entirely from the numbers you enter. It is not connected to
-              any bank or pension provider, and nothing here is financial advice. Data resets if you reload the page.
+              Figures come from what you've entered, plus your connected bank if you've linked one via Open Banking —
+              nothing here is financial advice. {supabase ? "Your data is saved to your account." : "Your data is saved on this device."}
             </div>
           </div>
         </div>

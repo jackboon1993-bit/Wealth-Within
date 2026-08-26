@@ -472,7 +472,7 @@ export function AccountPanel({
         </span>
       </div>
       <p style={{ margin: "10px 0" }}>
-        Figures are calculated from what you enter. Not connected to any bank, and not financial advice.
+        Figures are calculated from what you enter, plus your connected bank if you've linked one. Not financial advice.
       </p>
       <p style={{ margin: "0 0 10px" }}>
         <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: "var(--brand)", fontWeight: 600 }}>Privacy</a>

@@ -7,7 +7,7 @@ import { connectBank } from "../lib/trueLayer";
 // alternative, lower-effort path to the same place (populated spending
 // categories) rather than a replacement for manual entry, which stays the
 // fallback for anyone who'd rather not connect a bank at all.
-export function BankConnectPanel({ householdId }) {
+export function BankConnectPanel({ householdId, onAccountsChanged }) {
   const [accounts, setAccounts] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | connecting | loading | error
 
@@ -23,12 +23,14 @@ export function BankConnectPanel({ householdId }) {
       if (resp.status === 404) {
         setAccounts(null); // not connected yet — normal, not an error
         setStatus("idle");
+        onAccountsChanged?.();
         return;
       }
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error);
       setAccounts(data.accounts);
       setStatus("idle");
+      onAccountsChanged?.();
     } catch {
       setStatus("error");
     }
