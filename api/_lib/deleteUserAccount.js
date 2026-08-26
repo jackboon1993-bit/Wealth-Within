@@ -6,10 +6,20 @@
 
 export async function deleteUserAccount(admin, userId) {
   // Best-effort cleanup of app data. Wrapped individually so a missing
-  // table (e.g. bank_connections, if that SQL was never run) or an
-  // already-empty table never blocks the account deletion itself — the
-  // auth user being gone is the part that actually matters for erasure.
-  const tablesKeyedOnUserId = ["feedback", "bank_connections"];
+  // table or an already-empty table never blocks the account deletion
+  // itself — the auth user being gone is the part that actually matters
+  // for erasure.
+  //
+  // bank_connections is NOT listed here even though it holds this
+  // person's data — it doesn't have a user_id column at all (it's keyed
+  // on household_id, one connection per household, since the TrueLayer
+  // migration replaced the old Yapily-era schema that did have user_id).
+  // It's already cleaned up correctly below: it cascades from households
+  // (ON DELETE CASCADE), which the household-aware block only deletes
+  // once this person was the household's last member — exactly the
+  // right moment, since deleting it any earlier would break the
+  // connection for a still-active household partner.
+  const tablesKeyedOnUserId = ["feedback"];
   for (const table of tablesKeyedOnUserId) {
     try {
       await admin.from(table).delete().eq("user_id", userId);
