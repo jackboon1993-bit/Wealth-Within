@@ -3,6 +3,7 @@ import { parseTransactionsCSV, parseDebtsCSV } from "../lib/csv";
 import { gbp } from "../lib/finance";
 import { Card, NumberInput } from "../components/ui";
 import { hasAccounts, getHouseholdId } from "../lib/storage";
+import { supabase } from "../lib/supabaseClient";
 import { BankConnectPanel } from "./BankConnectPanel";
 
 export function fileToBase64(file) {
@@ -252,7 +253,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
       </div>
 
       {mode === "transactions" ? (
-        <TransactionsImport profile={profile} onApplyImportedSpending={onApplyImportedSpending} readFileText={readFileText} />
+        <TransactionsImport profile={profile} onApplyImportedSpending={onApplyImportedSpending} readFileText={readFileText} hasConnectedBank={hasAccounts && !!householdId} />
       ) : (
         <DebtsImport addBulkItems={addBulkItems} readFileText={readFileText} />
       )}
@@ -268,7 +269,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
 }
 
 
-export function TransactionsImport({ profile, onApplyImportedSpending, readFileText }) {
+export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank }) {
   const inputRef = useRef(null);
   const [status, setStatus] = useState("idle"); // idle | parsed | categorizing | reviewing | error
   const [errorMsg, setErrorMsg] = useState("");
@@ -277,6 +278,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
   const [categoryTotals, setCategoryTotals] = useState(null);
   const [incomeEstimate, setIncomeEstimate] = useState(null);
   const [applied, setApplied] = useState(false);
+  const [source, setSource] = useState(null); // "csv" | "bank" — which path produced parsedTx, for the summary line only
 
   const pickFile = async (f) => {
     if (!f) return;
@@ -297,6 +299,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         return;
       }
       setParsedTx(transactions);
+      setSource("csv");
       setStatus("parsed");
     } catch (e) {
       setStatus("error");
@@ -304,17 +307,65 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     }
   };
 
-  const categorize = async () => {
-    if (!parsedTx) return;
+  // Pulls a one-time transaction history from the household's connected
+  // bank (via api/truelayer-transactions) and feeds it into the exact same
+  // categorize/review/apply pipeline CSV import already uses — same
+  // review-before-save philosophy, just a different source for the rows.
+  const importFromBank = async () => {
+    setErrorMsg("");
+    setApplied(false);
+    setCategoryTotals(null);
+    setStatus("categorizing");
+    setProgress("Fetching transactions from your bank…");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch("/api/truelayer-transactions", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          throw new Error("No bank connected yet — connect one above first.");
+        }
+        throw new Error(data.error || "Couldn't fetch transactions from your bank.");
+      }
+      const transactions = (data.transactions || []).map((t) => ({
+        description: t.description,
+        amount: t.amount,
+        date: new Date(t.date),
+      }));
+      if (transactions.length === 0) {
+        setStatus("error");
+        setErrorMsg("No transactions found for your connected bank in the last 90 days.");
+        return;
+      }
+      setParsedTx(transactions);
+      setSource("bank");
+      await categorize(transactions);
+    } catch (e) {
+      setStatus("error");
+      setErrorMsg(e.message || "Something went wrong fetching transactions from your bank.");
+    }
+  };
+
+  // Accepts an explicit transaction list so importFromBank can call this
+  // directly with freshly-fetched rows, without waiting on a state update
+  // to land first (React state from setParsedTx isn't readable until the
+  // next render, so passing the rows straight through avoids a stale read).
+  const categorize = async (txsOverride) => {
+    const txs = txsOverride || parsedTx;
+    if (!txs) return;
     setStatus("categorizing");
     setErrorMsg("");
     const categories = profile.expenseCategories.map((c) => c.name);
     const batchSize = 150;
-    const results = new Array(parsedTx.length).fill(null);
+    const results = new Array(txs.length).fill(null);
     try {
-      for (let start = 0; start < parsedTx.length; start += batchSize) {
-        const batch = parsedTx.slice(start, start + batchSize);
-        setProgress(`Categorising ${start + 1}–${Math.min(start + batchSize, parsedTx.length)} of ${parsedTx.length}…`);
+      for (let start = 0; start < txs.length; start += batchSize) {
+        const batch = txs.slice(start, start + batchSize);
+        setProgress(`Categorising ${start + 1}–${Math.min(start + batchSize, txs.length)} of ${txs.length}…`);
         const resp = await fetch("/api/categorize-transactions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -330,7 +381,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         });
       }
 
-      const dates = parsedTx.map((t) => t.date.getTime());
+      const dates = txs.map((t) => t.date.getTime());
       const minDate = Math.min(...dates);
       const maxDate = Math.max(...dates);
       const spanDays = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24));
@@ -338,7 +389,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
 
       const totals = {};
       let incomeTotal = 0;
-      parsedTx.forEach((t, i) => {
+      txs.forEach((t, i) => {
         const r = results[i];
         if (!r) return;
         if (r.isIncome) {
@@ -379,6 +430,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     setCategoryTotals(null);
     setIncomeEstimate(null);
     setApplied(false);
+    setSource(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -414,9 +466,18 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
             )}
           </div>
           {status === "error" && <div className="wmg-reader-error">{errorMsg}</div>}
-          <button className="wmg-btn-primary wmg-reader-analyze" disabled={!parsedTx} onClick={categorize}>
+          <button className="wmg-btn-primary wmg-reader-analyze" disabled={!parsedTx} onClick={() => categorize()}>
             Categorise these transactions
           </button>
+
+          {hasConnectedBank && (
+            <>
+              <div className="wmg-sub" style={{ textAlign: "center", margin: "14px 0 10px" }}>or</div>
+              <button className="wmg-onboard-skip" style={{ width: "100%" }} onClick={importFromBank}>
+                Pull transactions from my connected bank
+              </button>
+            </>
+          )}
         </Card>
       )}
 
@@ -424,6 +485,11 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
 
       {status === "reviewing" && categoryTotals && (
         <>
+          {source === "bank" && (
+            <div className="wmg-sub" style={{ marginBottom: 8 }}>
+              Based on the last 90 days from your connected bank.
+            </div>
+          )}
           {incomeEstimate != null && (
             <Card>
               <div className="wmg-chip">
@@ -600,5 +666,3 @@ export function DebtsImport({ addBulkItems, readFileText }) {
     </>
   );
 }
-
-
