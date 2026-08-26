@@ -207,7 +207,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
@@ -253,7 +253,15 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
       </div>
 
       {mode === "transactions" ? (
-        <TransactionsImport profile={profile} onApplyImportedSpending={onApplyImportedSpending} readFileText={readFileText} hasConnectedBank={hasAccounts && !!householdId} />
+        <TransactionsImport
+          profile={profile}
+          onApplyImportedSpending={onApplyImportedSpending}
+          readFileText={readFileText}
+          hasConnectedBank={hasAccounts && !!householdId}
+          pendingBankSync={profile.pendingBankSync}
+          onBankSyncApplied={onBankSyncApplied}
+          onDiscardPendingSync={onDiscardPendingSync}
+        />
       ) : (
         <DebtsImport addBulkItems={addBulkItems} readFileText={readFileText} />
       )}
@@ -269,7 +277,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending }) {
 }
 
 
-export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank }) {
+export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync }) {
   const inputRef = useRef(null);
   const [status, setStatus] = useState("idle"); // idle | parsed | categorizing | reviewing | error
   const [errorMsg, setErrorMsg] = useState("");
@@ -279,6 +287,26 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
   const [incomeEstimate, setIncomeEstimate] = useState(null);
   const [applied, setApplied] = useState(false);
   const [source, setSource] = useState(null); // "csv" | "bank" — which path produced parsedTx, for the summary line only
+  // When the current review screen came from an overnight sync rather
+  // than a manual pull or CSV, this holds its { fromDate, toDate,
+  // syncedAt } — used to advance bank_connections.last_synced_at to the
+  // right point on apply, and to show a different summary line.
+  const [syncMeta, setSyncMeta] = useState(null);
+
+  // Auto-load a pending overnight sync straight into the review screen —
+  // this is the whole point of it being "automatic": no fetch button to
+  // press, just a review + apply. Only fires from a clean idle state, so
+  // it can't interrupt a CSV file the person is already partway through.
+  useEffect(() => {
+    if (!pendingBankSync || status !== "idle") return;
+    setCategoryTotals(pendingBankSync.categoryTotals);
+    setIncomeEstimate(pendingBankSync.incomeEstimate);
+    setSyncMeta(pendingBankSync);
+    setSource("bank");
+    setApplied(false);
+    setStatus("reviewing");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingBankSync]);
 
   const pickFile = async (f) => {
     if (!f) return;
@@ -420,7 +448,24 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
 
   const apply = () => {
     onApplyImportedSpending(categoryTotals, incomeEstimate);
+    // Any bank-sourced apply (manual pull or a reviewed overnight sync)
+    // advances the sync cursor to "now" (or the sync's own toDate, if
+    // this review came from one) — so tonight's/the next sync only
+    // covers what's genuinely new, instead of recomputing from scratch
+    // over a window that's already been applied.
+    if (source === "bank") {
+      onBankSyncApplied?.(syncMeta ? syncMeta.toDate : new Date().toISOString());
+    }
     setApplied(true);
+  };
+
+  // Clears a pending overnight sync without applying it — the cursor is
+  // deliberately left untouched, so the next sync just recomputes fresh
+  // over the same (or a slightly wider) still-unreviewed window rather
+  // than silently losing those days.
+  const discardPendingSync = () => {
+    onDiscardPendingSync?.();
+    reset();
   };
 
   const reset = () => {
@@ -431,6 +476,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     setIncomeEstimate(null);
     setApplied(false);
     setSource(null);
+    setSyncMeta(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -485,10 +531,17 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
 
       {status === "reviewing" && categoryTotals && (
         <>
-          {source === "bank" && (
+          {syncMeta ? (
             <div className="wmg-sub" style={{ marginBottom: 8 }}>
-              Based on the last 90 days from your connected bank.
+              Synced automatically overnight — {syncMeta.transactionCount} transaction{syncMeta.transactionCount === 1 ? "" : "s"} from{" "}
+              {syncMeta.fromDate} to {syncMeta.toDate}.
             </div>
+          ) : (
+            source === "bank" && (
+              <div className="wmg-sub" style={{ marginBottom: 8 }}>
+                Based on the last 90 days from your connected bank.
+              </div>
+            )
           )}
           {incomeEstimate != null && (
             <Card>
@@ -525,9 +578,15 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
               </button>
             )}
             {applied && <div className="wmg-reader-applied">✓ Added to your budget</div>}
-            <button className="wmg-onboard-skip" onClick={reset}>
-              Import another file
-            </button>
+            {syncMeta && !applied ? (
+              <button className="wmg-onboard-skip" onClick={discardPendingSync}>
+                Discard this sync
+              </button>
+            ) : (
+              <button className="wmg-onboard-skip" onClick={reset}>
+                Import another file
+              </button>
+            )}
           </div>
         </>
       )}

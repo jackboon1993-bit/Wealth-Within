@@ -7,6 +7,12 @@ import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../comp
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
+  // Purely local "not now" — hides the banner for this session only.
+  // Nothing is cleared in storage, so it reappears next time the app is
+  // opened until the sync is actually reviewed or discarded in the
+  // Import tab. Resets automatically if a newer sync replaces this one.
+  const [pendingSyncDismissed, setPendingSyncDismissed] = useState(false);
+  const pendingBankSync = profile.pendingBankSync;
   const activeMode = getActiveMode(profile);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
@@ -64,7 +70,27 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {hasAccounts && (
+      {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
+        <Card className="wmg-connect-bank-banner">
+          <div className="wmg-connect-bank-banner-text">
+            <div className="wmg-connect-bank-banner-title">New spending synced from your bank</div>
+            <div className="wmg-connect-bank-banner-sub">
+              {pendingBankSync.transactionCount} transaction{pendingBankSync.transactionCount === 1 ? "" : "s"} since{" "}
+              {pendingBankSync.fromDate}, ready to review — nothing's been added to your budget yet.
+            </div>
+          </div>
+          <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
+            <button type="button" className="wmg-onboard-skip" onClick={() => setPendingSyncDismissed(true)}>
+              Not now
+            </button>
+            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
+              Review
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && (
         <Card className="wmg-connect-bank-banner">
           <div className="wmg-connect-bank-banner-text">
             <div className="wmg-connect-bank-banner-title">Connect a bank</div>

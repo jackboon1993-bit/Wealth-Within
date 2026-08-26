@@ -300,6 +300,13 @@ export const defaultProfile = {
   // Tracks which tabs' first-visit tip banner has been dismissed, so the
   // one-time "what to add and why" explainer never nags on repeat visits.
   seenTabTips: [],
+  // Set by the overnight bank-sync cron job (api/sync-bank-transactions.js)
+  // when it finds new transactions for a connected bank: { categoryTotals,
+  // incomeEstimate, transactionCount, fromDate, toDate, syncedAt }. Never
+  // written by the frontend. Cleared once the household reviews and
+  // applies (or discards) it in the Import tab — see OverviewTab's banner
+  // and BankImportTab's TransactionsImport. null means nothing pending.
+  pendingBankSync: null,
 };
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a

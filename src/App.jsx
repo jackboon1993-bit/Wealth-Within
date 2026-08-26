@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
-import { getData, setData, deleteData, subscribeToHouseholdData } from "./lib/storage";
+import { getData, setData, deleteData, subscribeToHouseholdData, getHouseholdId } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
 import {
@@ -542,6 +542,37 @@ export default function App() {
         return { ...c, items };
       }),
     }));
+  };
+
+  // Called after a bank-sourced review (manual pull or an overnight
+  // sync) is actually applied to the budget — clears the pending flag
+  // (if this was a synced one) and advances the household's
+  // bank_connections.last_synced_at cursor to toDateIso, so the next
+  // overnight sync only covers what's genuinely new. RLS already lets a
+  // household member update their own connection's row (same policy the
+  // TrueLayer migration set up), so this can go straight through the
+  // browser client rather than needing a new API endpoint.
+  const applyBankSync = async (toDateIso) => {
+    setProfile((p) => (p.pendingBankSync ? { ...p, pendingBankSync: null } : p));
+    if (!supabase) return;
+    try {
+      const householdId = await getHouseholdId();
+      if (!householdId) return;
+      await supabase.from("bank_connections").update({ last_synced_at: toDateIso }).eq("household_id", householdId);
+    } catch (err) {
+      // Non-fatal: the budget update itself has already gone through.
+      // Worst case the next overnight sync recomputes a slightly wider
+      // window than strictly necessary — annoying, not lossy.
+      console.error("Couldn't advance bank sync cursor:", err);
+    }
+  };
+
+  // Clears a pending overnight sync the household chose not to apply,
+  // without touching last_synced_at — see the comment on that column in
+  // supabase/bank-connections-last-synced-migration.sql for why leaving
+  // it untouched here is the safe choice.
+  const discardPendingBankSync = () => {
+    setProfile((p) => (p.pendingBankSync ? { ...p, pendingBankSync: null } : p));
   };
 
   const updateGoal = (id, field, value) =>
@@ -1514,7 +1545,13 @@ export default function App() {
             )}
 
             {tab === "import" && (
-              <ImportTab profile={profile} addBulkItems={addBulkItems} onApplyImportedSpending={applyImportedSpending} />
+              <ImportTab
+                profile={profile}
+                addBulkItems={addBulkItems}
+                onApplyImportedSpending={applyImportedSpending}
+                onBankSyncApplied={applyBankSync}
+                onDiscardPendingSync={discardPendingBankSync}
+              />
             )}
 
             {tab === "debts" && (
