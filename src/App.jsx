@@ -1186,6 +1186,7 @@ export default function App() {
         .wmg-accordion-body { padding: 0 2px 16px; font-size: 13.5px; line-height: 1.65; color: var(--paper-dim); }
 
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
+        @media (max-width: 880px) { .wmg-footnote { margin-bottom: 80px; } }
 
         .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 55%, #4FD1C5 100%); }
         .wmg-onboard-card { width: 100%; max-width: 360px; background: var(--ink-2); border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(60,30,140,0.5); }

@@ -141,7 +141,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                   label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#B2504F" : "#4A7A3A" }}
                 />
               ))}
-              <Area type="monotone" dataKey={key("netWorthLow")} stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
+              <Area type="monotone" dataKey={key("netWorthLow")} name="" stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
               <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#8A7FC9" fillOpacity={0.15} isAnimationActive={false} />
               <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8A7FC9" strokeWidth={2.5} dot={false} />
               <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#B2504F" strokeWidth={2} dot={false} />

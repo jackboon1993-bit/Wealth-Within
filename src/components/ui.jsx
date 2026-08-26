@@ -505,10 +505,12 @@ export function CategoryTooltip({ active, payload }) {
 
 export function ChartTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
+  const visible = payload.filter((p) => p.name);
+  if (!visible.length) return null;
   return (
     <div className="wmg-tooltip">
       <div className="wmg-tooltip-label">Year {label}</div>
-      {payload.map((p) => (
+      {visible.map((p) => (
         <div className="wmg-tooltip-row" key={p.dataKey}>
           <span className="wmg-swatch" style={{ background: p.color }} />
           <span className="wmg-tooltip-name">{p.name}</span>
