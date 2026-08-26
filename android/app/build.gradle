@@ -1,5 +1,19 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+
+// Release signing reads from android/keystore.properties, a file that
+// only ever exists locally on the machine building the release — see
+// android/keystore.properties.example for the format to copy it from.
+// It's covered by the "Local configuration file" line in .gitignore's
+// pattern, but explicitly excluded again below just to be unmistakable,
+// since this repo is public and a leaked keystore password is the kind
+// of thing you can't take back.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     kotlinOptions {
         jvmTarget = '21'
@@ -19,10 +33,27 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Only sign automatically if keystore.properties actually exists
+            // locally — without it, `./gradlew bundleRelease` still works
+            // for a local unsigned build/CI check, it just won't produce
+            // something you can upload to Play Console.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

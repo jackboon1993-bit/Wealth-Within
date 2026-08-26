@@ -37,7 +37,7 @@
     </div>
 
     <h1>Privacy Policy</h1>
-    <div class="updated">Last updated: 19 August 2026</div>
+    <div class="updated">Last updated: 26 August 2026</div>
 
     <p>This document accurately describes what Wealth Within actually does — read the note at the bottom before treating it as final, but everything above it reflects the real, current behaviour of the app, not generic boilerplate.</p>
 
@@ -47,7 +47,9 @@
     <h2>What we collect</h2>
     <ul>
       <li><strong>Your email address</strong>, used to create and secure your account.</li>
-      <li><strong>The financial figures you type in yourself</strong> — income, spending, mortgage and loan details, savings, pension information, and anything else you enter into the app. We never pull this from a bank or any external source; every number in your account came from you.</li>
+      <li><strong>The financial figures you type in yourself</strong> — income, spending, mortgage and loan details, savings, pension information, and anything else you enter into the app.</li>
+      <li><strong>Bank account data, if you choose to connect a bank</strong> — connecting is entirely optional. If you connect one via Open Banking, we receive read-only account balances and transaction descriptions/amounts/dates through our provider, <strong>TrueLayer</strong> (an FCA-authorised Account Information Service Provider). We cannot move money, make payments, or take any action on your account — this access is strictly read-only, and you can disconnect it at any time. If connected, the app also checks for new transactions automatically, roughly once a day, and separately scans for recurring subscriptions or bills roughly once a week — in both cases the results are shown to you for review, and nothing is added to your budget or subscriptions list without you actively choosing to apply or accept it.</li>
+      <li><strong>Transaction descriptions and amounts, sent to our AI provider (Anthropic)</strong> for categorisation — matching them to your own budget category names, and separately, spotting recurring subscriptions/bills — whether sourced from a CSV you upload or a connected bank. Account numbers, sort codes, and balances are never included in what's sent for categorisation.</li>
       <li><strong>Pension documents you choose to upload</strong> — if you use the pension document reader, the PDF or photo you upload is sent to our AI provider (Anthropic) for that one request, so it can read and summarise it for you. We don't store the document itself anywhere; only the figures you choose to save afterwards, and only if you tap "use these numbers."</li>
       <li><strong>Feedback you choose to send us</strong> through the in-app feedback button, along with which account sent it.</li>
     </ul>
@@ -56,27 +58,29 @@
     <h2>What we don't collect</h2>
     <ul>
       <li>We don't use tracking cookies, analytics scripts, or advertising pixels. Nothing about how you use the app is sent to a third party for marketing or profiling purposes.</li>
-      <li>We don't connect to your bank, and we have no technical ability to see your real account balances or transactions unless you type them in.</li>
+      <li>We never receive your online banking login details — connecting a bank goes through your bank's own secure login (via TrueLayer), and we never see or store your bank password.</li>
+      <li>We have no ability to move money, make payments, or change anything in your bank account — Open Banking access here is strictly read-only.</li>
     </ul>
 
     <h2>How we store it</h2>
-    <p>Your data is held in a database provided by <strong>Supabase</strong>, hosted in the EU (Ireland). Each person's data is isolated at the database level using row-level security — the database itself enforces that your account can only ever read or write your own data. Your password is never stored in plain text; Supabase handles this using industry-standard hashing. Data is encrypted in transit (HTTPS) and at rest.</p>
+    <p>Your data is held in a database provided by <strong>Supabase</strong>, hosted in the EU (Ireland). Each person's data is isolated at the database level using row-level security — the database itself enforces that your account can only ever read or write your own data. Your password is never stored in plain text; Supabase handles this using industry-standard hashing. Data is encrypted in transit (HTTPS) and at rest. If you connect a bank, only a refresh token needed to maintain that connection is stored — not your bank login details, and not a running history of every transaction we've ever fetched.</p>
     <p>We may also use an error-monitoring tool (Sentry) to catch and fix bugs. If enabled, it can capture technical details about a crash — it is not configured to identify you personally, and is not currently receiving your financial data.</p>
 
     <h2>Why we process it</h2>
-    <p>To provide the service you signed up for: calculating your financial score, projections, and forecasts, reading pension documents you choose to upload, and saving your data so it's there next time you log in. We rely on this being necessary to provide the service you've asked for, rather than on separate marketing consent, since we don't do any marketing with it.</p>
+    <p>To provide the service you signed up for: calculating your financial score, projections, and forecasts; reading pension documents you choose to upload; connecting and reading a bank account you choose to link; and saving your data so it's there next time you log in. We rely on this being necessary to provide the service you've asked for, rather than on separate marketing consent, since we don't do any marketing with it.</p>
 
     <h2>Who else sees it</h2>
     <p>We don't sell your data, share it with advertisers, or provide it to any third party for their own purposes. The following process data on our behalf, only to provide the service, and don't use it for anything of their own:</p>
     <ul>
       <li><strong>Supabase</strong> — hosts our database and handles sign-in.</li>
-      <li><strong>Anthropic</strong> — reads a pension document you upload, only at the moment you upload it, to generate the summary shown to you.</li>
+      <li><strong>TrueLayer</strong>, if you connect a bank — an FCA-authorised Open Banking provider that facilitates the read-only connection to your bank and passes account/transaction data through to us.</li>
+      <li><strong>Anthropic</strong> — reads a pension document you upload, only at the moment you upload it, to generate the summary shown to you; and separately matches transaction descriptions to your budget categories or spots recurring payments, whether from a CSV you upload or a connected bank.</li>
       <li><strong>Vercel</strong> — hosts the app and its server functions.</li>
       <li><strong>Sentry</strong>, if enabled — error monitoring, as above.</li>
     </ul>
 
     <h2>How long we keep it</h2>
-    <p>For as long as your account is active. You can permanently delete your account and all associated data yourself, at any time, from the app's settings menu ("Delete my account") — this removes your login and your data immediately, not just your saved figures. You can also email <strong>jackboon1993@gmail.com</strong> if you'd rather we do it for you.</p>
+    <p>For as long as your account is active. You can permanently delete your account and all associated data yourself, at any time, from the app's settings menu ("Delete my account") — this removes your login and your data immediately, not just your saved figures. Deleting your account also disconnects any connected bank. You can also email <strong>jackboon1993@gmail.com</strong> if you'd rather we do it for you.</p>
 
     <h2>Your rights</h2>
     <p>Under UK GDPR, you have the right to access, correct, erase, restrict or object to, and receive a portable copy of your data. To exercise any of these, email <strong>jackboon1993@gmail.com</strong> — or use the in-app deletion option for erasure specifically. If you're not satisfied with our response, you have the right to complain to the <a href="https://ico.org.uk" target="_blank" rel="noopener">Information Commissioner's Office</a>.</p>
@@ -88,7 +92,7 @@
     <p>If we make material changes to this policy, we'll update the date at the top and, where the change is significant, let account holders know.</p>
 
     <div class="note">
-      <strong>A note on where this stands, honestly:</strong> this document accurately describes what the app currently does — no ad tech, no bank connection, no data sharing beyond the named processors above, real encryption, real isolation between accounts, and genuine self-service deletion. What it doesn't yet include is a lawyer's review for legal correctness under UK GDPR and the Data (Use and Access) Act 2025, or a confirmed ICO registration. Treat this as a strong, honest starting draft — not a substitute for that review before wider release.
+      <strong>A note on where this stands, honestly:</strong> this document accurately describes what the app currently does — no ad tech, read-only bank access via TrueLayer if you choose to connect one, no data sharing beyond the named processors above, real encryption, real isolation between accounts, and genuine self-service deletion. What it doesn't yet include is a lawyer's review for legal correctness under UK GDPR and the Data (Use and Access) Act 2025, or a confirmed ICO registration. Treat this as a strong, honest starting draft — not a substitute for that review before wider release.
     </div>
   </div>
 </body>
