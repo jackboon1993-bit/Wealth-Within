@@ -575,6 +575,29 @@ export default function App() {
     setProfile((p) => (p.pendingBankSync ? { ...p, pendingBankSync: null } : p));
   };
 
+  // Accepting a detected subscription/bill adds it to the real
+  // subscriptions list (same shape as one typed in by hand — see
+  // handleAddSubscription in IncomeTab.jsx) and removes it from the
+  // pending suggestions in one update, so it can never briefly appear in
+  // both places.
+  const acceptDetectedSubscription = (suggestion) => {
+    setProfile((p) => ({
+      ...p,
+      subscriptions: [...p.subscriptions, { id: nextId(), name: suggestion.name, amount: suggestion.monthlyAmount, flagged: false, cancelled: false }],
+      pendingSubscriptions: p.pendingSubscriptions.filter((s) => s.id !== suggestion.id),
+    }));
+  };
+
+  // Dismissing just drops the suggestion — nothing to undo elsewhere,
+  // since it was never added anywhere. The same merchant can resurface
+  // on a future scan if it keeps recurring; there's no permanent
+  // "never suggest this again" list, since that would need its own
+  // storage and matching logic for a fairly small annoyance (worst case,
+  // re-dismissing something takes one tap).
+  const dismissDetectedSubscription = (suggestionId) => {
+    setProfile((p) => ({ ...p, pendingSubscriptions: p.pendingSubscriptions.filter((s) => s.id !== suggestionId) }));
+  };
+
   const updateGoal = (id, field, value) =>
     setProfile((p) => ({ ...p, goals: p.goals.map((g) => (g.id === id ? { ...g, [field]: value } : g)) }));
   const addGoal = () =>
@@ -1541,6 +1564,8 @@ export default function App() {
                 addArrayItem={addArrayItem}
                 addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
+                onAcceptDetectedSubscription={acceptDetectedSubscription}
+                onDismissDetectedSubscription={dismissDetectedSubscription}
               />
             )}
 

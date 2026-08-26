@@ -1,17 +1,28 @@
 // Vercel Cron Job — runs nightly.
 //
-// For every household with a connected bank, pulls transactions from
-// TrueLayer since that connection's last_synced_at (or a 90-day lookback
-// if it's never been synced), categorizes them with the same pipeline
-// CSV import and the manual bank pull already use, and stages the result
-// as household_data.data.pendingBankSync for review — it does NOT touch
-// the budget directly. Every other import path in this app requires an
-// explicit "Apply to my budget" tap before anything is saved; this cron
-// job keeps that guarantee by fetching and categorizing automatically
-// but leaving the actual apply to a person, next time they open the app.
-// See src/tabs/BankImportTab.jsx and OverviewTab.jsx for the review UI.
+// Does two separate jobs for every household with a connected bank:
 //
-// IMPORTANT — last_synced_at is intentionally NOT updated by this job.
+// 1. Transaction sync (every run): pulls transactions since that
+//    connection's last_synced_at (or a 90-day lookback if it's never
+//    been synced), categorizes them with the same pipeline CSV import
+//    and the manual bank pull already use, and stages the result as
+//    household_data.data.pendingBankSync for review — it does NOT touch
+//    the budget directly. See src/tabs/BankImportTab.jsx and
+//    OverviewTab.jsx for the review UI.
+//
+// 2. Subscription/bill detection (roughly weekly per household, see
+//    last_subscription_scan_at below): pulls a fresh 90-day window and
+//    asks Claude to spot recurring subscriptions/bills, staging any
+//    finds as household_data.data.pendingSubscriptions — again, never
+//    written straight into profile.subscriptions. See IncomeTab.jsx for
+//    the review UI (Add / Dismiss per suggestion).
+//
+// Every other import path in this app requires an explicit accept
+// before anything is saved; both jobs above keep that guarantee by
+// fetching and analysing automatically but leaving the actual apply to
+// a person, next time they open the app.
+//
+// IMPORTANT — last_synced_at is intentionally NOT updated by job 1.
 // It only moves forward when a bank-sourced review is actually applied
 // (see the top-of-file comment in the migration this depends on:
 // supabase/bank-connections-last-synced-migration.sql). That means this
@@ -29,11 +40,15 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { categorizeAndSummarize } from "./_lib/categorizeTransactions.js";
+import { detectRecurringPayments } from "./_lib/detectRecurringPayments.js";
 
 const TOKEN_URL = "https://auth.truelayer.com/connect/token";
 const API_BASE = "https://api.truelayer.com/data/v1";
 const DEFAULT_LOOKBACK_DAYS = 90;
 const MAX_TRANSACTIONS = 1000;
+// How often to re-run subscription/bill detection per household — see
+// supabase/subscription-scan-cadence-migration.sql for the reasoning.
+const SUBSCRIPTION_SCAN_INTERVAL_DAYS = 7;
 
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
@@ -60,11 +75,11 @@ export default async function handler(req, res) {
   }
 
   const admin = createClient(url, serviceRoleKey);
-  const results = { synced: 0, noNewTransactions: 0, skipped: 0, errors: [] };
+  const results = { synced: 0, noNewTransactions: 0, skipped: 0, subscriptionsScanned: 0, errors: [] };
 
   const { data: connections, error: connError } = await admin
     .from("bank_connections")
-    .select("household_id, refresh_token, last_synced_at");
+    .select("household_id, refresh_token, last_synced_at, last_subscription_scan_at");
   if (connError) {
     res.status(500).json({ error: connError.message });
     return;
@@ -82,7 +97,7 @@ export default async function handler(req, res) {
 }
 
 async function syncOne(admin, apiKey, conn, results) {
-  const { household_id: householdId, refresh_token: refreshToken, last_synced_at: lastSyncedAt } = conn;
+  const { household_id: householdId, refresh_token: refreshToken, last_synced_at: lastSyncedAt, last_subscription_scan_at: lastScanAt } = conn;
 
   // Household's own budget category names are needed to categorize
   // against — same source the frontend review screen uses
@@ -123,9 +138,64 @@ async function syncOne(admin, apiKey, conn, results) {
   });
   const accountsData = await accountsResp.json();
   const accountIds = (accountsData.results || []).map((a) => a.account_id);
+  const accessToken = tokens.access_token;
 
+  // Everything staged in household_data this run gets merged into one
+  // object and written in a single upsert at the end, so a household
+  // that gets both a transaction sync AND a subscription scan in the
+  // same run doesn't risk one write clobbering the other.
+  const dataToWrite = { ...(profileData || {}) };
+  let wroteAnything = false;
+
+  // ---- 1. Incremental transaction sync ----
+  const bankSyncTx = await fetchTransactions(accountIds, accessToken, lastSyncedAt);
+  if (bankSyncTx.transactions.length === 0) {
+    results.noNewTransactions++;
+  } else {
+    const { categoryTotals, incomeEstimate } = await categorizeAndSummarize(bankSyncTx.transactions, categories, apiKey);
+    dataToWrite.pendingBankSync = {
+      categoryTotals,
+      incomeEstimate,
+      transactionCount: bankSyncTx.transactions.length,
+      fromDate: bankSyncTx.fromParam,
+      toDate: bankSyncTx.toParam,
+      syncedAt: new Date().toISOString(),
+    };
+    wroteAnything = true;
+    results.synced++;
+  }
+
+  // ---- 2. Periodic subscription/bill detection ----
+  const scanDue = !lastScanAt || (Date.now() - new Date(lastScanAt).getTime()) / (24 * 60 * 60 * 1000) >= SUBSCRIPTION_SCAN_INTERVAL_DAYS;
+  if (scanDue) {
+    // Independent 90-day window, not tied to last_synced_at — spotting a
+    // recurring pattern needs to see multiple occurrences regardless of
+    // how recently the budget itself was last synced.
+    const detectionTx = await fetchTransactions(accountIds, accessToken, null);
+    const existingNames = (profileData?.subscriptions || []).map((s) => s.name).filter(Boolean);
+    if (detectionTx.transactions.length > 0) {
+      const suggestions = await detectRecurringPayments(detectionTx.transactions, existingNames, apiKey);
+      dataToWrite.pendingSubscriptions = suggestions;
+      wroteAnything = true;
+    }
+    await admin.from("bank_connections").update({ last_subscription_scan_at: new Date().toISOString() }).eq("household_id", householdId);
+    results.subscriptionsScanned++;
+  }
+
+  if (wroteAnything) {
+    await admin.from("household_data").upsert({
+      household_id: householdId,
+      data: dataToWrite,
+      updated_at: new Date().toISOString(),
+    });
+  }
+}
+
+// Fetches transactions across every account on this connection, from
+// `since` (or a 90-day lookback if since is null/undefined) up to now.
+async function fetchTransactions(accountIds, accessToken, since) {
   const to = new Date();
-  const from = lastSyncedAt ? new Date(lastSyncedAt) : new Date(to.getTime() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const from = since ? new Date(since) : new Date(to.getTime() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const fromParam = isoDate(from);
   const toParam = isoDate(to);
 
@@ -133,9 +203,9 @@ async function syncOne(admin, apiKey, conn, results) {
     accountIds.map(async (accountId) => {
       const txResp = await fetch(
         `${API_BASE}/accounts/${accountId}/transactions?from=${fromParam}&to=${toParam}`,
-        { headers: { Authorization: `Bearer ${tokens.access_token}` } }
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      if (!txResp.ok) return []; // one account failing shouldn't sink the whole household's sync
+      if (!txResp.ok) return []; // one account failing shouldn't sink the whole household's fetch
       const txData = await txResp.json();
       return txData.results || [];
     })
@@ -151,27 +221,5 @@ async function syncOne(admin, apiKey, conn, results) {
     .filter((t) => typeof t.amount === "number" && t.date)
     .slice(0, MAX_TRANSACTIONS);
 
-  if (transactions.length === 0) {
-    results.noNewTransactions++;
-    return;
-  }
-
-  const { categoryTotals, incomeEstimate } = await categorizeAndSummarize(transactions, categories, apiKey);
-
-  const pendingBankSync = {
-    categoryTotals,
-    incomeEstimate,
-    transactionCount: transactions.length,
-    fromDate: fromParam,
-    toDate: toParam,
-    syncedAt: new Date().toISOString(),
-  };
-
-  await admin.from("household_data").upsert({
-    household_id: householdId,
-    data: { ...(profileData || {}), pendingBankSync },
-    updated_at: new Date().toISOString(),
-  });
-
-  results.synced++;
+  return { transactions, fromParam, toParam };
 }

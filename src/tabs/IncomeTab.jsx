@@ -342,7 +342,7 @@ export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayI
 }
 
 
-export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem }) {
+export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, onAcceptDetectedSubscription, onDismissDetectedSubscription }) {
   const [justAddedIncomeId, setJustAddedIncomeId] = useState(null);
   const handleAddIncome = () => {
     const id = nextId();
@@ -735,6 +735,37 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           it with the provider, so you'll still need to do that yourself.
         </div>
       </Card>
+
+      {profile.pendingSubscriptions && profile.pendingSubscriptions.length > 0 && (
+        <Card style={{ marginBottom: 10 }}>
+          <div className="wmg-sub" style={{ marginBottom: 10 }}>
+            Spotted in your connected bank's transaction history — check these before adding them.
+          </div>
+          <div className="wmg-sub-list">
+            {profile.pendingSubscriptions.map((s) => (
+              <div key={s.id} className="wmg-chip-row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{s.name}</div>
+                  <div className="wmg-sub" style={{ fontSize: 12 }}>
+                    {gbp(s.rawAmount)}/{s.frequency === "weekly" ? "week" : "month"}
+                    {s.frequency === "weekly" ? ` ≈ ${gbp(s.monthlyAmount)}/month` : ""} — seen {s.occurrences} time{s.occurrences === 1 ? "" : "s"}
+                    {s.lastDate ? `, last on ${s.lastDate}` : ""}
+                  </div>
+                </div>
+                <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
+                  <button type="button" className="wmg-onboard-skip" onClick={() => onDismissDetectedSubscription?.(s.id)}>
+                    Dismiss
+                  </button>
+                  <button type="button" className="wmg-btn-primary" onClick={() => onAcceptDetectedSubscription?.(s)}>
+                    Add
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card>
         <div className="wmg-sub-list">
           {profile.subscriptions.map((s, i) => (

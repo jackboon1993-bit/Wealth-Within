@@ -307,6 +307,13 @@ export const defaultProfile = {
   // applies (or discards) it in the Import tab — see OverviewTab's banner
   // and BankImportTab's TransactionsImport. null means nothing pending.
   pendingBankSync: null,
+  // Set by the same cron job's periodic (roughly weekly) recurring-payment
+  // scan: an array of { id, name, rawAmount, frequency, monthlyAmount,
+  // occurrences, lastDate }. Never written by the frontend. Each entry is
+  // reviewed individually in IncomeTab's Subscriptions section — accepting
+  // one adds it to `subscriptions` below and removes it from this list;
+  // dismissing just removes it. Replaced wholesale on each scan.
+  pendingSubscriptions: [],
 };
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a
@@ -320,7 +327,7 @@ export function mergeWithDefaults(saved) {
   nestedObjectKeys.forEach((k) => {
     merged[k] = { ...defaultProfile[k], ...(saved[k] && typeof saved[k] === "object" ? saved[k] : {}) };
   });
-  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals", "lifeEvents", "scenarios", "spendingSnapshots", "seenTabTips"];
+  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals", "lifeEvents", "scenarios", "spendingSnapshots", "seenTabTips", "pendingSubscriptions"];
   arrayKeys.forEach((k) => {
     merged[k] = Array.isArray(saved[k]) ? saved[k] : defaultProfile[k];
   });
