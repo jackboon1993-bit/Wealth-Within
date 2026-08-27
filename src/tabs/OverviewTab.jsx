@@ -12,6 +12,10 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   // opened until the sync is actually reviewed or discarded in the
   // Import tab. Resets automatically if a newer sync replaces this one.
   const [pendingSyncDismissed, setPendingSyncDismissed] = useState(false);
+  // Session-only, same reasoning as pendingSyncDismissed above — this
+  // card is safety-relevant, so it's worth it reappearing next time the
+  // app opens rather than being permanently gone after one dismissal.
+  const [hardshipDismissed, setHardshipDismissed] = useState(false);
   const pendingBankSync = profile.pendingBankSync;
   const activeMode = getActiveMode(profile);
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
@@ -131,10 +135,20 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {inFinancialHardship && (
+      {inFinancialHardship && !hardshipDismissed && (
         <>
           <div className="wmg-section-title">Some real help</div>
           <Card className="wmg-hardship-card">
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
+              <button
+                type="button"
+                className="wmg-score-explainer-close"
+                onClick={() => setHardshipDismissed(true)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
             <p style={{ margin: "0 0 12px" }}>
               Right now your essential costs alone come to more than your income. That's a genuinely hard position
               to be in, and it's more common than it feels — you're not alone in this, and there's real, free help

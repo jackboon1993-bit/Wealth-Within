@@ -15,6 +15,12 @@ export const config = {
       sizeLimit: "2mb",
     },
   },
+  // Detecting recurring payments sends the household's whole pulled
+  // transaction history to Claude in a single request (unlike
+  // categorize-transactions.js, which batches) — for a large pull this
+  // can genuinely take longer than Vercel's default 10s limit, which was
+  // silently killing the request and surfacing as a 502 to the app.
+  maxDuration: 60,
 };
 
 export default async function handler(req, res) {

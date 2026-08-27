@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { parseTransactionsCSV, parseDebtsCSV } from "../lib/csv";
-import { gbp } from "../lib/finance";
+import { gbp, totalIncome } from "../lib/finance";
 import { Card, NumberInput } from "../components/ui";
 import { hasAccounts, getHouseholdId } from "../lib/storage";
 import { supabase } from "../lib/supabaseClient";
@@ -208,7 +208,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
@@ -234,7 +234,12 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
     <>
       {hasAccounts && householdId && (
         <div style={{ marginBottom: 20 }}>
-          <BankConnectPanel householdId={householdId} onAccountsChanged={onBankAccountsChanged} />
+          <BankConnectPanel
+            householdId={householdId}
+            onAccountsChanged={onBankAccountsChanged}
+            onUseAsSavings={onUseAsSavings}
+            savingsBalance={profile.savings.balance}
+          />
         </div>
       )}
 
@@ -286,6 +291,12 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
   const [parsedTx, setParsedTx] = useState(null);
   const [progress, setProgress] = useState("");
   const [categoryTotals, setCategoryTotals] = useState(null);
+  // Named per-merchant items within each category (e.g. "Tesco — £45/mo",
+  // "Sainsbury's — £30/mo") built from the actual pulled transactions —
+  // null when reviewing a pending overnight sync, since the server-side
+  // sync job only stores flat totals, not the individual transactions, so
+  // that path still falls back to a single combined line on apply.
+  const [categoryItems, setCategoryItems] = useState(null);
   const [incomeEstimate, setIncomeEstimate] = useState(null);
   const [applied, setApplied] = useState(false);
   const [source, setSource] = useState(null); // "csv" | "bank" — which path produced parsedTx, for the summary line only
@@ -315,6 +326,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     setErrorMsg("");
     setApplied(false);
     setCategoryTotals(null);
+    setCategoryItems(null);
     if (!f.name.toLowerCase().endsWith(".csv") && f.type !== "text/csv") {
       setStatus("error");
       setErrorMsg("Please choose a CSV file — most banks let you export one from your statements page.");
@@ -345,6 +357,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     setErrorMsg("");
     setApplied(false);
     setCategoryTotals(null);
+    setCategoryItems(null);
     setStatus("categorizing");
     setProgress("Fetching transactions from your bank…");
     try {
@@ -441,6 +454,12 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       const spanMonths = Math.max(spanDays / 30, 1 / 30);
 
       const totals = {};
+      // Groups by category, then by the transaction's own description
+      // within that category — e.g. every "TESCO STORES" transaction
+      // inside "Groceries" gets summed together under that name, so the
+      // review screen (and the applied budget) shows real named
+      // merchants instead of one opaque "From bank import" total.
+      const itemSums = {}; // { [category]: { [description]: rawSum } }
       let incomeTotal = 0;
       txs.forEach((t, i) => {
         const r = results[i];
@@ -451,15 +470,26 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         }
         if (r.category) {
           totals[r.category] = (totals[r.category] || 0) + Math.abs(t.amount);
+          const desc = String(t.description || "Unknown").trim();
+          if (!itemSums[r.category]) itemSums[r.category] = {};
+          itemSums[r.category][desc] = (itemSums[r.category][desc] || 0) + Math.abs(t.amount);
         }
       });
       const monthlyTotals = {};
       Object.entries(totals).forEach(([cat, sum]) => {
         monthlyTotals[cat] = Math.round(sum / spanMonths);
       });
+      const monthlyItems = {};
+      Object.entries(itemSums).forEach(([cat, byDesc]) => {
+        monthlyItems[cat] = Object.entries(byDesc)
+          .map(([name, sum]) => ({ id: `${cat}_${name}`.replace(/\s+/g, "_"), name, amount: Math.round(sum / spanMonths) }))
+          .filter((it) => it.amount > 0)
+          .sort((a, b) => b.amount - a.amount);
+      });
 
       setCategoryTotals(monthlyTotals);
-      setIncomeEstimate(incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : profile.income);
+      setCategoryItems(monthlyItems);
+      setIncomeEstimate(incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : totalIncome(profile));
       setStatus("reviewing");
     } catch (e) {
       setStatus("error");
@@ -471,8 +501,28 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     setCategoryTotals((prev) => ({ ...prev, [cat]: Number(value) || 0 }));
   };
 
+  // Editing or removing one merchant's line keeps the category's overall
+  // total in sync, since that total is always the sum of its items when
+  // items exist — this mirrors how a real budget category's total is
+  // just the sum of what's in it, not a separately-tracked number.
+  const updateItemAmount = (cat, itemId, value) => {
+    setCategoryItems((prev) => {
+      const items = (prev[cat] || []).map((it) => (it.id === itemId ? { ...it, amount: Number(value) || 0 } : it));
+      setCategoryTotals((t) => ({ ...t, [cat]: items.reduce((s, it) => s + it.amount, 0) }));
+      return { ...prev, [cat]: items };
+    });
+  };
+
+  const removeItem = (cat, itemId) => {
+    setCategoryItems((prev) => {
+      const items = (prev[cat] || []).filter((it) => it.id !== itemId);
+      setCategoryTotals((t) => ({ ...t, [cat]: items.reduce((s, it) => s + it.amount, 0) }));
+      return { ...prev, [cat]: items };
+    });
+  };
+
   const apply = () => {
-    onApplyImportedSpending(categoryTotals, incomeEstimate);
+    onApplyImportedSpending(categoryTotals, incomeEstimate, categoryItems);
     // Any bank-sourced apply (manual pull or a reviewed overnight sync)
     // advances the sync cursor to "now" (or the sync's own toDate, if
     // this review came from one) — so tonight's/the next sync only
@@ -498,6 +548,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     setErrorMsg("");
     setParsedTx(null);
     setCategoryTotals(null);
+    setCategoryItems(null);
     setIncomeEstimate(null);
     setApplied(false);
     setSource(null);
@@ -594,12 +645,42 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
               Suggested monthly spending by category — check these before applying
             </div>
             {Object.keys(categoryTotals).length === 0 && <p>No spending could be matched to your categories.</p>}
-            {Object.entries(categoryTotals).map(([cat, amount]) => (
-              <div key={cat} className="wmg-chip-row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                <span>{cat}</span>
-                <NumberInput value={amount} onChange={(v) => updateCategoryTotal(cat, v)} style={{ width: 90 }} />
-              </div>
-            ))}
+            {Object.entries(categoryTotals).map(([cat, amount]) => {
+              const items = categoryItems?.[cat];
+              return (
+                <div key={cat} style={{ marginBottom: 14 }}>
+                  <div className="wmg-chip-row" style={{ justifyContent: "space-between", marginBottom: items?.length ? 6 : 8 }}>
+                    <span style={{ fontWeight: 600 }}>{cat}</span>
+                    {items?.length ? (
+                      <span style={{ fontWeight: 600 }}>{gbp(amount)}/mo</span>
+                    ) : (
+                      <NumberInput value={amount} onChange={(v) => updateCategoryTotal(cat, v)} style={{ width: 90 }} />
+                    )}
+                  </div>
+                  {items?.length > 0 && (
+                    <div style={{ marginLeft: 4 }}>
+                      {items.map((it) => (
+                        <div key={it.id} className="wmg-chip-row" style={{ justifyContent: "space-between", marginBottom: 4 }}>
+                          <span className="wmg-sub" style={{ fontSize: 13 }}>{it.name}</span>
+                          <div className="wmg-chip-row" style={{ flexShrink: 0, gap: 6 }}>
+                            <NumberInput value={it.amount} onChange={(v) => updateItemAmount(cat, it.id, v)} style={{ width: 80 }} />
+                            <button
+                              type="button"
+                              className="wmg-onboard-skip"
+                              style={{ padding: "2px 8px", fontSize: 12 }}
+                              onClick={() => removeItem(cat, it.id)}
+                              aria-label={`Remove ${it.name}`}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </Card>
 
           <div className="wmg-reader-actions">

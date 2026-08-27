@@ -605,14 +605,24 @@ export default function App() {
   // for are left completely untouched, so anything only entered by hand
   // (or not picked up by this pull) still has to be added/amended manually.
   // categoryTotals: { [categoryName]: monthlyAmount }
-  const applyImportedSpending = (categoryTotals, estimatedIncome) => {
+  // categoryTotals: { [categoryName]: monthlyAmount } — always present.
+  // categoryItems: { [categoryName]: [{ id, name, amount }] } — only
+  // present for a manual bank pull, which has the individual transactions
+  // to name; CSV imports and nightly-sync reviews only ever have the flat
+  // total, so those categories still fall back to one combined line.
+  const applyImportedSpending = (categoryTotals, estimatedIncome, categoryItems) => {
     setProfile((p) => ({
       ...p,
       incomes: estimatedIncome != null ? [{ id: nextId(), name: "From bank import", amount: estimatedIncome }] : p.incomes,
       expenseCategories: p.expenseCategories.map((c) => {
         const imported = categoryTotals[c.name];
         if (imported == null) return c;
-        return { ...c, items: [{ id: nextId(), name: "From bank import", amount: imported }] };
+        const namedItems = categoryItems?.[c.name];
+        const items =
+          namedItems && namedItems.length > 0
+            ? namedItems.map((it) => ({ id: nextId(), name: it.name, amount: it.amount }))
+            : [{ id: nextId(), name: "From bank import", amount: imported }];
+        return { ...c, items };
       }),
     }));
   };
@@ -667,6 +677,13 @@ export default function App() {
   // "never suggest this again" list, since that would need its own
   // storage and matching logic for a fairly small annoyance (worst case,
   // re-dismissing something takes one tap).
+  // A manual, deliberate action (a button tap on a specific account),
+  // not an automatic sync — TrueLayer's own account_type field
+  // distinguishes a savings account from a current account, so this
+  // just takes whatever balance is showing on that account right now.
+  const applySavingsFromBank = (balance) =>
+    setProfile((p) => ({ ...p, savings: { ...p.savings, balance } }));
+
   const dismissDetectedSubscription = (suggestionId) => {
     setProfile((p) => ({ ...p, pendingSubscriptions: p.pendingSubscriptions.filter((s) => s.id !== suggestionId) }));
   };
@@ -1665,6 +1682,7 @@ export default function App() {
                 hasConnectedBank={hasConnectedBank}
                 onBankAccountsChanged={refreshConnectedBank}
                 onSubscriptionsDetected={applyDetectedSubscriptions}
+                onUseAsSavings={applySavingsFromBank}
               />
             )}
 

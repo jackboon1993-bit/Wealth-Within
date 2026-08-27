@@ -8,7 +8,7 @@ import { API_BASE } from "../lib/apiBase";
 // alternative, lower-effort path to the same place (populated spending
 // categories) rather than a replacement for manual entry, which stays the
 // fallback for anyone who'd rather not connect a bank at all.
-export function BankConnectPanel({ householdId, onAccountsChanged }) {
+export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSavings, savingsBalance }) {
   const [accounts, setAccounts] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | connecting | loading | error
 
@@ -85,14 +85,31 @@ export function BankConnectPanel({ householdId, onAccountsChanged }) {
           <div className="wmg-sub" style={{ marginBottom: 10 }}>
             {accounts.length} account{accounts.length === 1 ? "" : "s"} connected.
           </div>
-          {accounts.map((acc) => (
-            <div key={acc.name} className="wmg-item-line">
-              <span style={{ flex: 1, fontSize: 13.5 }}>{acc.name}</span>
-              <span style={{ fontSize: 13.5, fontWeight: 700 }}>
-                {acc.balance != null ? `£${acc.balance.toFixed(2)}` : "—"}
-              </span>
-            </div>
-          ))}
+          {accounts.map((acc) => {
+            const isSavings = String(acc.type || "").toUpperCase().includes("SAV");
+            const alreadyUsed = isSavings && acc.balance != null && savingsBalance === acc.balance;
+            return (
+              <div key={acc.name} className="wmg-item-line" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ flex: 1, fontSize: 13.5 }}>{acc.name}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700 }}>
+                    {acc.balance != null ? `£${acc.balance.toFixed(2)}` : "—"}
+                  </span>
+                </div>
+                {isSavings && acc.balance != null && (
+                  <button
+                    type="button"
+                    className="wmg-onboard-skip"
+                    style={{ alignSelf: "flex-start", padding: "3px 10px", fontSize: 12 }}
+                    disabled={alreadyUsed}
+                    onClick={() => onUseAsSavings?.(acc.balance)}
+                  >
+                    {alreadyUsed ? "✓ Used as Savings balance" : "Use as Savings balance"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </>
       ) : (
         <div className="wmg-sub" style={{ marginBottom: 10 }}>
