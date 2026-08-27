@@ -40,6 +40,15 @@ Respond with ONLY a JSON object, no other text, no markdown fences, in exactly t
 }
 
 export default async function handler(req, res) {
+  // See check-bills.js / truelayer-accounts.js for why this is needed —
+  // the native app calls this directly from https://localhost.
+  res.setHeader("Access-Control-Allow-Origin", "https://localhost");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
