@@ -20,6 +20,18 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  // The native app's WebView runs from https://localhost, a different
+  // origin than wealth-within.vercel.app, so every call from the app needs
+  // explicit CORS permission or the browser blocks it before the request
+  // reaches this handler. Must come before the method check below, since
+  // browsers send a preflight OPTIONS request first for a POST like this.
+  res.setHeader("Access-Control-Allow-Origin", "https://localhost");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

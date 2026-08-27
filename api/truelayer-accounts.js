@@ -15,6 +15,19 @@ const TOKEN_URL = "https://auth.truelayer.com/connect/token";
 const API_BASE = "https://api.truelayer.com/data/v1";
 
 export default async function handler(req, res) {
+  // The native app's WebView runs from https://localhost, a different
+  // origin than wealth-within.vercel.app, so the browser enforces CORS on
+  // every call this endpoint receives from the app. The website itself
+  // never needs this (same-origin requests aren't subject to CORS), but
+  // without it every native fetch to this route fails before the request
+  // body is even read, regardless of how correct the auth/logic below is.
+  res.setHeader("Access-Control-Allow-Origin", "https://localhost");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   const authHeader = req.headers.authorization || "";
   const userToken = authHeader.replace("Bearer ", "");
   if (!userToken) return res.status(401).json({ error: "Not signed in." });

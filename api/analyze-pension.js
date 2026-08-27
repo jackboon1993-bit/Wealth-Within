@@ -39,6 +39,15 @@ Respond with ONLY a JSON object, no other text, no markdown fences, in exactly t
 If the document isn't a pension document, or you genuinely cannot read it, set "couldNotRead": true, set all numeric fields to null, and explain briefly in "summary" what went wrong. Never invent numbers that aren't in the document — use null rather than guessing.`;
 
 export default async function handler(req, res) {
+  // See categorize-transactions.js / truelayer-accounts.js for why this is
+  // needed — the native app calls this directly from https://localhost.
+  res.setHeader("Access-Control-Allow-Origin", "https://localhost");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

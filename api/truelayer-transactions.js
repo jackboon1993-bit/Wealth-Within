@@ -39,6 +39,18 @@ function isoDate(d) {
 }
 
 export default async function handler(req, res) {
+  // See truelayer-accounts.js for why this is needed — the native app's
+  // WebView runs from https://localhost, a different origin than
+  // wealth-within.vercel.app, so every call from the app needs explicit
+  // CORS permission or the browser blocks it before the request even
+  // reaches this handler.
+  res.setHeader("Access-Control-Allow-Origin", "https://localhost");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   const authHeader = req.headers.authorization || "";
   const userToken = authHeader.replace("Bearer ", "");
   if (!userToken) return res.status(401).json({ error: "Not signed in." });
