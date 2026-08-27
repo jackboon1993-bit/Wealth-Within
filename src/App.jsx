@@ -752,6 +752,15 @@ export default function App() {
     setProfile((p) => ({ ...p, scenarios: p.scenarios.map((s) => (s.id === id ? { ...s, [field]: value } : s)) }));
   const removeScenario = (id) => setProfile((p) => ({ ...p, scenarios: p.scenarios.filter((s) => s.id !== id) }));
 
+  // Deliberately different from totals.available (used for the score,
+  // forecast, pie chart, and Overview's own "past comfortable" message) —
+  // this is specifically for the top bar's "Available / mo" figure, which
+  // Jack wants to reflect take-home minus fixed costs only: essentials,
+  // debt, and subscriptions. Lifestyle category spending is left out on
+  // purpose, since it's variable/discretionary rather than fixed.
+  const topbarAvailable = totals.income - totals.essential - totals.debtPayments - totals.subsTotal;
+  const animatedTopbarAvailableFixed = useCountUp(topbarAvailable);
+
   const flowSegments = [
     { key: "essential", label: "Essential", value: totals.essential, tone: "slate" },
     { key: "debt", label: "Debt", value: totals.debtPayments, tone: "rust" },
@@ -767,7 +776,6 @@ export default function App() {
 
 
   const animatedTopbarNetWorth = useCountUp(totals.netWorth);
-  const animatedTopbarAvailable = useCountUp(totals.available);
 
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState("general");
@@ -1654,7 +1662,7 @@ export default function App() {
                 </div>
                 <div className="wmg-topbar-stat">
                   <div className="wmg-topbar-stat-label">Available / mo</div>
-                  <div className="wmg-topbar-stat-val" style={{ color: totals.available >= 0 ? "var(--sage)" : "var(--rust)" }}>{gbp(Math.round(animatedTopbarAvailable))}</div>
+                  <div className="wmg-topbar-stat-val" style={{ color: topbarAvailable >= 0 ? "var(--sage)" : "var(--rust)" }}>{gbp(Math.round(animatedTopbarAvailableFixed))}</div>
                 </div>
               </>
             )}
