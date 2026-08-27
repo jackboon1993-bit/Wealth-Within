@@ -54,7 +54,7 @@ export async function detectRecurringPayments(transactions, existingNames, apiKe
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -80,8 +80,23 @@ export async function detectRecurringPayments(transactions, existingNames, apiKe
   try {
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    console.error("Failed to parse subscription-detection JSON. Response length:", cleaned.length);
-    throw new Error("Couldn't understand subscription detection's response.");
+    // The model occasionally adds a stray word or two outside the JSON
+    // object despite instructions not to, especially with a large input
+    // like a full transaction history — try pulling out just the {...}
+    // portion before giving up entirely.
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        parsed = JSON.parse(cleaned.slice(start, end + 1));
+      } catch (e2) {
+        console.error("Failed to parse subscription-detection JSON (fallback also failed). Response length:", cleaned.length);
+        throw new Error("Couldn't understand subscription detection's response.");
+      }
+    } else {
+      console.error("Failed to parse subscription-detection JSON. Response length:", cleaned.length);
+      throw new Error("Couldn't understand subscription detection's response.");
+    }
   }
 
   if (!Array.isArray(parsed.suggestions)) throw new Error("Unexpected response shape from subscription detection.");
