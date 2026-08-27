@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
 import { getData, setData, deleteData, subscribeToHouseholdData, getHouseholdId, hasAccounts } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
@@ -95,17 +96,47 @@ export default function App() {
     }
   };
 
-  // if we've just been redirected back from a bank's consent flow, jump
-  // straight to the Import tab (where BankConnectPanel lives) so the
-  // person can see the connection confirmed, and re-check connection
-  // state now that it may have just changed.
+  // The bank-consent redirect target. api/truelayer-callback.js does the
+  // server-side token exchange (it MUST run there — that's the only place
+  // the client secret can live) and then sends the browser on to this
+  // second URL once that work is done. This second hop is the one
+  // Android's App Link intercepts, handing control back to the native app
+  // — deliberately NOT the callback URL itself, since intercepting that
+  // one would skip the server-side exchange entirely and nothing would
+  // ever get saved. (This was the actual cause of connections silently
+  // going nowhere after App Links were first added.)
+  const handleBankReturn = () => {
+    setTab("import");
+    refreshConnectedBank();
+  };
+
+  // Web case: a plain browser tab does a normal full-page navigation to
+  // /bank-connected, so this only needs to run once on initial mount.
   useEffect(() => {
-    if (typeof window !== "undefined" && window.location.search.includes("bank_callback=1")) {
-      setTab("import");
-      refreshConnectedBank();
+    if (typeof window !== "undefined" && window.location.pathname.includes("bank-connected")) {
+      handleBankReturn();
+      // Clean the URL back to the app's normal root so a refresh later
+      // doesn't re-trigger this.
+      window.history.replaceState({}, "", "/");
     } else {
       refreshConnectedBank();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Native case: Android hands the app links.wealth-within.vercel.app/
+  // bank-connected URL to the app directly via an intent — this never
+  // touches window.location, so it needs its own listener rather than
+  // reusing the effect above.
+  useEffect(() => {
+    const listener = CapacitorApp.addListener("appUrlOpen", (data) => {
+      if (data?.url?.includes("bank-connected")) {
+        handleBankReturn();
+      }
+    });
+    return () => {
+      listener.then((l) => l.remove());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
