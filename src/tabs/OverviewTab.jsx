@@ -90,19 +90,33 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {hasAccounts && !hasConnectedBank && !(pendingBankSync && !pendingSyncDismissed) && (
-        <Card className="wmg-connect-bank-banner">
-          <div className="wmg-connect-bank-banner-text">
-            <div className="wmg-connect-bank-banner-title">Connect a bank</div>
-            <div className="wmg-connect-bank-banner-sub">
-              Link an account via Open Banking to pull in real balances automatically, instead of entering them by
-              hand. Read-only — this can't move money.
+      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && (
+        hasConnectedBank ? (
+          <Card className="wmg-connect-bank-banner">
+            <div className="wmg-connect-bank-banner-text">
+              <div className="wmg-connect-bank-banner-title">Bank connected</div>
+              <div className="wmg-connect-bank-banner-sub">
+                Pull in fresh transactions any time, or check what's connected.
+              </div>
             </div>
-          </div>
-          <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
-            Connect
-          </button>
-        </Card>
+            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
+              View
+            </button>
+          </Card>
+        ) : (
+          <Card className="wmg-connect-bank-banner">
+            <div className="wmg-connect-bank-banner-text">
+              <div className="wmg-connect-bank-banner-title">Connect a bank</div>
+              <div className="wmg-connect-bank-banner-sub">
+                Link an account via Open Banking to pull in real balances automatically, instead of entering them by
+                hand. Read-only — this can't move money.
+              </div>
+            </div>
+            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
+              Connect
+            </button>
+          </Card>
+        )
       )}
 
       {activeMode === "guided" && (
