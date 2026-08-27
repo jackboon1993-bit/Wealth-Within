@@ -295,7 +295,11 @@ export default function App() {
     const activeSubs = profile.subscriptions.filter((s) => !s.cancelled);
     const subsTotal = activeSubs.reduce((s, x) => s + Number(x.amount || 0), 0);
 
-    const essential = Number(profile.mortgage.payment || 0) + essentialCatTotal;
+    // If the mortgage payment is already counted as a line item within
+    // Essentials (flagged via mortgage.includedInExpenditure), don't add
+    // the dedicated mortgage.payment figure on top of that too — that
+    // would double-count the same payment.
+    const essential = (profile.mortgage.includedInExpenditure ? 0 : Number(profile.mortgage.payment || 0)) + essentialCatTotal;
     const debtPayments = loansPayment + cardsPayment;
     const lifestyle = lifestyleCatTotal + subsTotal;
     const income = totalIncome(profile);

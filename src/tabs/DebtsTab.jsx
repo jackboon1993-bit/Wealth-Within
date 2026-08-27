@@ -271,6 +271,15 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
             <div className="wmg-figure tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
           </div>
         </div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, color: "var(--paper-dim)", marginTop: 12 }}>
+          <input
+            type="checkbox"
+            checked={profile.mortgage.includedInExpenditure}
+            onChange={(e) => setField(["mortgage", "includedInExpenditure"])(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          I've already added my mortgage payment as a line item under Essentials in Income &amp; Expenditure — don't count it again here
+        </label>
 
         <DisclosureSection label="See more details" defaultOpen={activeMode !== "guided"}>
           <div className="wmg-three-col">
