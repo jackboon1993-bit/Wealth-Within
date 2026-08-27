@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, getActiveMode, nextId } from "../lib/finance";
 import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput } from "../components/ui";
+import { API_BASE } from "../lib/apiBase";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
 
@@ -413,7 +414,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     setBillCheckStatus("loading");
     setBillCheckError("");
     try {
-      const resp = await fetch("/api/check-bills", {
+      const resp = await fetch(`${API_BASE}/api/check-bills`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bills: billsForCheck.map((i) => ({ name: i.name, amount: i.amount })) }),
@@ -436,7 +437,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     setSpendingInsightStatus("loading");
     setSpendingInsightError("");
     try {
-      const resp = await fetch("/api/spending-insight", {
+      const resp = await fetch(`${API_BASE}/api/spending-insight`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
