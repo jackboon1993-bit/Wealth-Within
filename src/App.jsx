@@ -608,7 +608,7 @@ export default function App() {
   const applyImportedSpending = (categoryTotals, estimatedIncome) => {
     setProfile((p) => ({
       ...p,
-      income: estimatedIncome != null ? estimatedIncome : p.income,
+      incomes: estimatedIncome != null ? [{ id: nextId(), name: "From bank import", amount: estimatedIncome }] : p.incomes,
       expenseCategories: p.expenseCategories.map((c) => {
         const imported = categoryTotals[c.name];
         if (imported == null) return c;
