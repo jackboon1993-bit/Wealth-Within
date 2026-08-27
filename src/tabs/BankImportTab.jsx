@@ -5,6 +5,7 @@ import { Card, NumberInput } from "../components/ui";
 import { hasAccounts, getHouseholdId } from "../lib/storage";
 import { supabase } from "../lib/supabaseClient";
 import { BankConnectPanel } from "./BankConnectPanel";
+import { API_BASE } from "../lib/apiBase";
 
 export function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -48,7 +49,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
     try {
       const base64 = await fileToBase64(file);
       const fileKind = file.type === "application/pdf" ? "pdf" : "image";
-      const resp = await fetch("/api/analyze-pension", {
+      const resp = await fetch(`${API_BASE}/api/analyze-pension`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileBase64: base64, mediaType: file.type, fileKind }),
@@ -349,7 +350,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const resp = await fetch("/api/truelayer-transactions", {
+      const resp = await fetch(`${API_BASE}/api/truelayer-transactions`, {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       const data = await resp.json();
@@ -394,7 +395,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       for (let start = 0; start < txs.length; start += batchSize) {
         const batch = txs.slice(start, start + batchSize);
         setProgress(`Categorising ${start + 1}–${Math.min(start + batchSize, txs.length)} of ${txs.length}…`);
-        const resp = await fetch("/api/categorize-transactions", {
+        const resp = await fetch(`${API_BASE}/api/categorize-transactions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

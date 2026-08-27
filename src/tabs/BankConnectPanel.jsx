@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card } from "../components/ui";
 import { supabase } from "../lib/supabaseClient";
 import { connectBank } from "../lib/trueLayer";
+import { API_BASE } from "../lib/apiBase";
 
 // Sits alongside the existing CSV import options in ImportTab — an
 // alternative, lower-effort path to the same place (populated spending
@@ -17,7 +18,7 @@ export function BankConnectPanel({ householdId, onAccountsChanged }) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const resp = await fetch("/api/truelayer-accounts", {
+      const resp = await fetch(`${API_BASE}/api/truelayer-accounts`, {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (resp.status === 404) {

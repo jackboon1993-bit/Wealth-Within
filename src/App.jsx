@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
+import { API_BASE } from "./lib/apiBase";
 import { getData, setData, deleteData, subscribeToHouseholdData, getHouseholdId, hasAccounts } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
@@ -79,7 +80,7 @@ export default function App() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const resp = await fetch("/api/truelayer-accounts", {
+      const resp = await fetch(`${API_BASE}/api/truelayer-accounts`, {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (resp.status === 404) {
@@ -257,7 +258,7 @@ export default function App() {
       const token = session?.access_token;
       if (!token) throw new Error("Not signed in.");
 
-      const resp = await fetch("/api/delete-account", {
+      const resp = await fetch(`${API_BASE}/api/delete-account`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
