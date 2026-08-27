@@ -24,7 +24,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
                       android:host="wealth-within.vercel.app"
-                      android:pathPrefix="/api/truelayer-callback" />
+                      android:pathPrefix="/bank-connected" />
             </intent-filter>
         </activity>
 

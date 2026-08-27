@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   const { code, state: householdId, error } = req.query;
 
   if (error) {
-    return res.redirect(302, `/?bank_callback=1&status=denied`);
+    return res.redirect(302, `/bank-connected?status=denied`);
   }
   if (!code || !householdId) {
     return res.status(400).send("Missing code or household id.");
@@ -66,9 +66,9 @@ export default async function handler(req, res) {
     });
     if (dbError) throw dbError;
 
-    return res.redirect(302, `/?bank_callback=1&status=connected`);
+    return res.redirect(302, `/bank-connected?status=connected`);
   } catch (err) {
     console.error("TrueLayer callback error:", err);
-    return res.redirect(302, `/?bank_callback=1&status=error`);
+    return res.redirect(302, `/bank-connected?status=error`);
   }
 }
