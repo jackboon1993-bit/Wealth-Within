@@ -40,7 +40,18 @@ export default async function handler(req, res) {
       }),
     });
     const tokens = await tokenResp.json();
-    if (!tokenResp.ok) throw new Error(tokens.error_description || "Token exchange failed");
+    if (!tokenResp.ok) {
+      // Log TrueLayer's actual error payload — the generic thrown message
+      // below was hiding the real reason (e.g. invalid_grant because the
+      // code was already used/expired, invalid_client, or a redirect_uri
+      // mismatch). tokenResp.status is included too since some TrueLayer
+      // errors don't set error_description at all.
+      console.error("TrueLayer token exchange rejected:", {
+        status: tokenResp.status,
+        body: tokens,
+      });
+      throw new Error(tokens.error_description || tokens.error || `Token exchange failed (${tokenResp.status})`);
+    }
 
     // Storing the refresh token lets you fetch fresh account data later
     // without re-running consent every time. This table needs creating —

@@ -43,11 +43,37 @@ export function BankConnectPanel({ householdId, onAccountsChanged }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The in-app browser used for bank consent doesn't remount this
+  // component when it closes — the person lands back on the same screen,
+  // same component instance. So `status` never got reset on its own,
+  // leaving the button stuck on "Opening…" forever even after a
+  // successful connection. Re-checking on window focus (which fires when
+  // the browser closes and control returns to the app) fixes that without
+  // needing App.jsx to pass anything extra down.
+  useEffect(() => {
+    const onFocus = () => {
+      if (status === "connecting") fetchAccounts();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   const handleConnect = async () => {
     setStatus("connecting");
-    await connectBank(householdId);
-    // The browser tab/sheet takes over from here; nothing more to do until
-    // the redirect brings the person back into the app.
+    try {
+      await connectBank(householdId);
+      // The browser tab/sheet takes over from here; the focus listener
+      // above picks things up again once it closes.
+    } catch {
+      // connectBank/Browser.open failed to even launch — don't leave the
+      // button stuck saying "Opening…" for something that never opened.
+      setStatus("error");
+    }
   };
 
   return (
