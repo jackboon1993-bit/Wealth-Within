@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.jackboon.wealthwithin",
+    "sha256_cert_fingerprints": ["72:6F:89:3E:3A:89:BE:9F:DB:D1:06:F2:DD:E1:C6:A0:F6:90:F3:6C:F1:79:16:55:24:CB:91:24:0A:E7:92:58"]
+  }
+}]
