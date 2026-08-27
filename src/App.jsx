@@ -597,9 +597,13 @@ export default function App() {
       ),
     }));
 
-  // Merges imported-CSV spending totals into each matching category as a
-  // single "From bank import" line item (updating it in place on repeat
-  // imports rather than duplicating), and optionally updates income.
+  // Fully replaces each matched category's items with a single line
+  // reflecting the bank data (updating in place on repeat imports rather
+  // than duplicating) — deliberately NOT merged alongside old manual
+  // entries, so re-pulling from the bank becomes the source of truth for
+  // any category it actually covers. Categories the bank data has nothing
+  // for are left completely untouched, so anything only entered by hand
+  // (or not picked up by this pull) still has to be added/amended manually.
   // categoryTotals: { [categoryName]: monthlyAmount }
   const applyImportedSpending = (categoryTotals, estimatedIncome) => {
     setProfile((p) => ({
@@ -608,12 +612,7 @@ export default function App() {
       expenseCategories: p.expenseCategories.map((c) => {
         const imported = categoryTotals[c.name];
         if (imported == null) return c;
-        const existingIdx = c.items.findIndex((i) => i.name === "From bank import");
-        const items =
-          existingIdx >= 0
-            ? c.items.map((i, idx) => (idx === existingIdx ? { ...i, amount: imported } : i))
-            : [...c.items, { id: nextId(), name: "From bank import", amount: imported }];
-        return { ...c, items };
+        return { ...c, items: [{ id: nextId(), name: "From bank import", amount: imported }] };
       }),
     }));
   };
@@ -671,6 +670,16 @@ export default function App() {
   const dismissDetectedSubscription = (suggestionId) => {
     setProfile((p) => ({ ...p, pendingSubscriptions: p.pendingSubscriptions.filter((s) => s.id !== suggestionId) }));
   };
+
+  // A manual "Pull transactions" runs the same subscription-detection
+  // Claude call the nightly sync already uses (see
+  // api/detect-subscriptions.js), so this feeds into the exact same
+  // pendingSubscriptions queue — whatever UI already reviews an overnight
+  // sync's suggestions reviews these too, no separate mechanism needed.
+  // Replaces rather than appends: a fresh pull's suggestions are the
+  // current picture, not additive to whatever a previous pull surfaced.
+  const applyDetectedSubscriptions = (suggestions) =>
+    setProfile((p) => ({ ...p, pendingSubscriptions: suggestions }));
 
   const updateGoal = (id, field, value) =>
     setProfile((p) => ({ ...p, goals: p.goals.map((g) => (g.id === id ? { ...g, [field]: value } : g)) }));
@@ -1655,6 +1664,7 @@ export default function App() {
                 onDiscardPendingSync={discardPendingBankSync}
                 hasConnectedBank={hasConnectedBank}
                 onBankAccountsChanged={refreshConnectedBank}
+                onSubscriptionsDetected={applyDetectedSubscriptions}
               />
             )}
 

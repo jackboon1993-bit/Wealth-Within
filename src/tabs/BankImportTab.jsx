@@ -208,7 +208,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
@@ -262,6 +262,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
           pendingBankSync={profile.pendingBankSync}
           onBankSyncApplied={onBankSyncApplied}
           onDiscardPendingSync={onDiscardPendingSync}
+          onSubscriptionsDetected={onSubscriptionsDetected}
         />
       ) : (
         <DebtsImport addBulkItems={addBulkItems} readFileText={readFileText} />
@@ -278,7 +279,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
 }
 
 
-export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync }) {
+export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync, onSubscriptionsDetected }) {
   const inputRef = useRef(null);
   const [status, setStatus] = useState("idle"); // idle | parsed | categorizing | reviewing | error
   const [errorMsg, setErrorMsg] = useState("");
@@ -372,6 +373,29 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       }
       setParsedTx(transactions);
       setSource("bank");
+      // Fire subscription detection alongside categorization — same
+      // source data, different question (repetition across the whole
+      // history vs. matching each transaction to a category), so this
+      // runs independently rather than blocking the review screen on it.
+      // A failure here shouldn't stop the actual budget import from
+      // working, so it's deliberately swallowed rather than surfaced as
+      // the main error state.
+      if (onSubscriptionsDetected) {
+        const existingNames = (profile.subscriptions || []).map((s) => s.name);
+        fetch(`${API_BASE}/api/detect-subscriptions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transactions: transactions.map((t) => ({ description: t.description, amount: t.amount, date: t.date })),
+            existingNames,
+          }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (Array.isArray(data.suggestions)) onSubscriptionsDetected(data.suggestions);
+          })
+          .catch((e) => console.error("Subscription detection from manual pull failed:", e));
+      }
       await categorize(transactions);
     } catch (e) {
       setStatus("error");
@@ -435,7 +459,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       });
 
       setCategoryTotals(monthlyTotals);
-      setIncomeEstimate(incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : null);
+      setIncomeEstimate(incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : profile.income);
       setStatus("reviewing");
     } catch (e) {
       setStatus("error");
@@ -544,20 +568,26 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
               </div>
             )
           )}
-          {incomeEstimate != null && (
-            <Card>
-              <div className="wmg-chip">
-                <div className="wmg-chip-label">Estimated monthly income (from this file)</div>
-                <div className="wmg-chip-value">
-                  <NumberInput
-                    value={incomeEstimate}
-                    onChange={(v) => setIncomeEstimate(v || 0)}
-                    style={{ width: 100 }}
-                  />
-                </div>
+          <Card className="wmg-income-confirm-card">
+            <div className="wmg-sub" style={{ marginBottom: 8, fontWeight: 700 }}>
+              Confirm your monthly income
+            </div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>
+              {incomeEstimate != null && incomeEstimate !== profile.income
+                ? "Based on this pull — bank-detected income can sometimes be off (e.g. transfers between your own accounts), so double-check this before applying."
+                : "No income change was detected in this pull — check the figure below is still right before applying."}
+            </div>
+            <div className="wmg-chip">
+              <div className="wmg-chip-label">Monthly income</div>
+              <div className="wmg-chip-value">
+                <NumberInput
+                  value={incomeEstimate ?? profile.income}
+                  onChange={(v) => setIncomeEstimate(v || 0)}
+                  style={{ width: 100 }}
+                />
               </div>
-            </Card>
-          )}
+            </div>
+          </Card>
 
           <Card>
             <div className="wmg-sub" style={{ marginBottom: 8 }}>
