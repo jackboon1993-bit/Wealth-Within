@@ -208,7 +208,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings, onSubscriptionsPossiblyStopped }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
@@ -268,6 +268,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
           onBankSyncApplied={onBankSyncApplied}
           onDiscardPendingSync={onDiscardPendingSync}
           onSubscriptionsDetected={onSubscriptionsDetected}
+          onSubscriptionsPossiblyStopped={onSubscriptionsPossiblyStopped}
         />
       ) : (
         <DebtsImport addBulkItems={addBulkItems} readFileText={readFileText} />
@@ -284,7 +285,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
 }
 
 
-export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync, onSubscriptionsDetected }) {
+export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync, onSubscriptionsDetected, onSubscriptionsPossiblyStopped }) {
   const inputRef = useRef(null);
   const [status, setStatus] = useState("idle"); // idle | parsed | categorizing | reviewing | error
   const [errorMsg, setErrorMsg] = useState("");
@@ -393,7 +394,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       // A failure here shouldn't stop the actual budget import from
       // working, so it's deliberately swallowed rather than surfaced as
       // the main error state.
-      if (onSubscriptionsDetected) {
+      if (onSubscriptionsDetected || onSubscriptionsPossiblyStopped) {
         const existingNames = (profile.subscriptions || []).map((s) => s.name);
         fetch(`${API_BASE}/api/detect-subscriptions`, {
           method: "POST",
@@ -405,7 +406,17 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         })
           .then((r) => r.json())
           .then((data) => {
-            if (Array.isArray(data.suggestions)) onSubscriptionsDetected(data.suggestions);
+            if (Array.isArray(data.suggestions)) onSubscriptionsDetected?.(data.suggestions);
+            if (Array.isArray(data.possiblyStopped) && data.possiblyStopped.length > 0 && onSubscriptionsPossiblyStopped) {
+              // Match names back to the real, currently-active subscription
+              // records (not cancelled already) so the handler can act on
+              // the actual entries rather than bare strings.
+              const stoppedNames = data.possiblyStopped.map((n) => n.toLowerCase());
+              const matches = (profile.subscriptions || []).filter(
+                (s) => !s.cancelled && stoppedNames.includes(s.name.toLowerCase())
+              );
+              if (matches.length > 0) onSubscriptionsPossiblyStopped(matches);
+            }
           })
           .catch((e) => console.error("Subscription detection from manual pull failed:", e));
       }
@@ -558,8 +569,23 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
 
   return (
     <>
+      {(status === "idle" || status === "error" || status === "parsed") && hasConnectedBank && (
+        <Card className="wmg-bank-pull-card" style={{ marginBottom: 12, textAlign: "center" }}>
+          <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Bank connected</div>
+          <div className="wmg-sub" style={{ marginBottom: 12 }}>
+            Pull in your last 90 days of transactions automatically — no CSV needed.
+          </div>
+          <button className="wmg-btn-primary" style={{ width: "100%" }} onClick={importFromBank}>
+            Pull transactions from my connected bank
+          </button>
+        </Card>
+      )}
+
       {(status === "idle" || status === "error" || status === "parsed") && (
         <Card>
+          {hasConnectedBank && (
+            <div className="wmg-sub" style={{ textAlign: "center", marginBottom: 10 }}>Or import from a CSV instead</div>
+          )}
           <div
             className="wmg-reader-dropzone"
             onClick={() => inputRef.current?.click()}
@@ -591,15 +617,6 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
           <button className="wmg-btn-primary wmg-reader-analyze" disabled={!parsedTx} onClick={() => categorize()}>
             Categorise these transactions
           </button>
-
-          {hasConnectedBank && (
-            <>
-              <div className="wmg-sub" style={{ textAlign: "center", margin: "14px 0 10px" }}>or</div>
-              <button className="wmg-onboard-skip" style={{ width: "100%" }} onClick={importFromBank}>
-                Pull transactions from my connected bank
-              </button>
-            </>
-          )}
         </Card>
       )}
 
