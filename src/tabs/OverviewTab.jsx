@@ -21,7 +21,12 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
-  const animatedAvailable = useCountUp(totals.available);
+  // Matches the top bar's "Available / mo" figure — fixed costs only
+  // (essentials, debt, subscriptions), excluding variable lifestyle
+  // spending. Deliberately different from totals.available, which is
+  // still used elsewhere on this page (the "past comfortable" message,
+  // the pie chart) since those need to reflect all spending.
+  const animatedAvailable = useCountUp(totals.income - totals.essential - totals.debtPayments - totals.subsTotal);
   const animatedTotalDebt = useCountUp(totals.totalDebt);
   const animatedSavings = useCountUp(profile.savings.balance);
   const animatedHomeEquity = useCountUp(totals.homeEquity);

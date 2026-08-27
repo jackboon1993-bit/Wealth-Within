@@ -158,15 +158,13 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
 
       <div className="wmg-section-title">Retirement assumptions</div>
       <div className="wmg-section-desc">
-        Current age comes from your setup and drawdown rate is fixed at the standard 4% — retirement age is the
-        only one you can adjust here.
+        Drawdown rate is fixed at the standard 4% — current age and retirement age can both be adjusted here.
       </div>
       <Card>
         <div className="wmg-three-col">
-          <div>
-            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Current age</div>
-            <div className="wmg-figure tone-paper">{profile.pensionSettings.currentAge}</div>
-          </div>
+          <Field label="Current age">
+            <NumberInput className="wmg-input" value={profile.pensionSettings.currentAge} onChange={setField(["pensionSettings", "currentAge"])} />
+          </Field>
           <Field label="Target retirement age">
             <NumberInput className="wmg-input" value={profile.pensionSettings.retirementAge} onChange={setField(["pensionSettings", "retirementAge"])} />
           </Field>

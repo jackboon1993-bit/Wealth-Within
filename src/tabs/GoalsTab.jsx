@@ -132,6 +132,20 @@ export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGo
         wrong.
       </WhyItMatters>
       <Card>
+        <div className="wmg-ef-guidance-bar" style={{ background: "var(--brand-soft)", border: "1px solid var(--brand)", borderRadius: 12, padding: "10px 12px", marginBottom: 14, fontSize: 12.5, lineHeight: 1.5 }}>
+          Most financial guidance suggests <strong>3–6 months of essential spending</strong> as an emergency fund —
+          enough to cover a job loss or unexpected bill without reaching for a credit card. Your essential costs are
+          currently <strong>{gbp(totals.essential)}/month</strong>, which puts that range at{" "}
+          <strong>{gbp(totals.essential * 3)} – {gbp(totals.essential * 6)}</strong>.
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button type="button" className="wmg-onboard-skip" onClick={() => setField(["emergencyFund", "target"])(Math.round(totals.essential * 3))}>
+              Set target to 3 months
+            </button>
+            <button type="button" className="wmg-onboard-skip" onClick={() => setField(["emergencyFund", "target"])(Math.round(totals.essential * 6))}>
+              Set target to 6 months
+            </button>
+          </div>
+        </div>
         <div className="wmg-ef-ring-row">
           <GrowthRing progress={profile.emergencyFund.balance / Math.max(1, profile.emergencyFund.target)} size={132} tone="sage">
             <div className="wmg-ef-ring-val">{gbp(profile.emergencyFund.balance)}</div>

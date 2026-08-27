@@ -254,7 +254,7 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
                     setEditingMortgage(true);
                   }}
                 >
-                  Confirm
+                  Edit
                 </button>
               </div>
             )}
