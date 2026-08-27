@@ -72,7 +72,7 @@ export default async function handler(req, res) {
     });
     const accountsData = await accountsResp.json();
 
-    const summary = await Promise.all(
+    const accountSummary = await Promise.all(
       (accountsData.results || []).map(async (acc) => {
         const balResp = await fetch(`${API_BASE}/accounts/${acc.account_id}/balance`, {
           headers: { Authorization: `Bearer ${tokens.access_token}` },
@@ -80,13 +80,55 @@ export default async function handler(req, res) {
         const balData = await balResp.json();
         const balance = balData.results?.[0];
         return {
+          id: acc.account_id,
           name: acc.display_name,
           type: acc.account_type,
+          kind: "account",
           balance: balance?.current ?? null,
           currency: balance?.currency ?? "GBP",
         };
       })
     );
+
+    // Credit cards live behind a separate TrueLayer product/endpoint from
+    // current and savings accounts — requires the "cards" scope, which
+    // wasn't originally requested (see lib/trueLayer.js). If the person
+    // connected before that scope was added, this will just come back
+    // empty rather than erroring, since TrueLayer simply has nothing to
+    // return for a permission it was never granted.
+    let cardSummary = [];
+    try {
+      const cardsResp = await fetch(`${API_BASE}/cards`, {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+      const cardsData = await cardsResp.json();
+      cardSummary = await Promise.all(
+        (cardsData.results || []).map(async (card) => {
+          const balResp = await fetch(`${API_BASE}/cards/${card.account_id}/balance`, {
+            headers: { Authorization: `Bearer ${tokens.access_token}` },
+          });
+          const balData = await balResp.json();
+          const balance = balData.results?.[0];
+          return {
+            id: card.account_id,
+            name: card.display_name || card.partial_card_number ? `${card.display_name || "Card"} ${card.partial_card_number ? `•••• ${card.partial_card_number}` : ""}`.trim() : "Credit card",
+            type: card.card_network || "CREDIT_CARD",
+            kind: "card",
+            // TrueLayer reports a card's "current" balance as the amount
+            // owed — matches how this app already tracks credit card debt
+            // (a positive balance = money owed), so no sign-flipping needed.
+            balance: balance?.current ?? null,
+            currency: balance?.currency ?? "GBP",
+          };
+        })
+      );
+    } catch (cardErr) {
+      // Don't let a cards-fetch failure sink the whole accounts response —
+      // current/savings accounts should still come through fine either way.
+      console.error("TrueLayer cards fetch failed (non-fatal):", cardErr);
+    }
+
+    const summary = [...accountSummary, ...cardSummary];
 
     // Refresh tokens can themselves rotate on use — if TrueLayer returns a
     // new one, store it or the next refresh will fail.

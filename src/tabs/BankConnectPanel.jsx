@@ -8,7 +8,39 @@ import { API_BASE } from "../lib/apiBase";
 // alternative, lower-effort path to the same place (populated spending
 // categories) rather than a replacement for manual entry, which stays the
 // fallback for anyone who'd rather not connect a bank at all.
-export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSavings, savingsBalance }) {
+// A person-driven choice, not automatic — picks which existing debt entry
+// (by name, since that's all a person can reasonably judge) this card's
+// balance should update, or adds it as a new one. Deliberately no
+// auto-matching, since silently updating the wrong debt would corrupt
+// real data with no easy way to notice.
+function CardDebtMatcher({ card, existingCards, onUseAsCardDebt }) {
+  const [selected, setSelected] = useState(existingCards?.length ? existingCards[0].id : "__new__");
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <select
+        className="wmg-input"
+        style={{ fontSize: 12, padding: "3px 6px", width: "auto" }}
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+      >
+        {(existingCards || []).map((c) => (
+          <option key={c.id} value={c.id}>Update "{c.name}"</option>
+        ))}
+        <option value="__new__">Add as a new card</option>
+      </select>
+      <button
+        type="button"
+        className="wmg-onboard-skip"
+        style={{ padding: "3px 10px", fontSize: 12 }}
+        onClick={() => onUseAsCardDebt?.(selected, card.balance, card.name)}
+      >
+        Apply
+      </button>
+    </div>
+  );
+}
+
+export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSavings, savingsBalance, onUseAsCardDebt, existingCards }) {
   const [accounts, setAccounts] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | connecting | loading | error
 
@@ -86,12 +118,12 @@ export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSaving
             {accounts.length} account{accounts.length === 1 ? "" : "s"} connected.
           </div>
           {accounts.map((acc) => {
-            const isSavings = String(acc.type || "").toUpperCase().includes("SAV");
+            const isSavings = acc.kind !== "card" && String(acc.type || "").toUpperCase().includes("SAV");
             const alreadyUsed = isSavings && acc.balance != null && savingsBalance === acc.balance;
             return (
-              <div key={acc.name} className="wmg-item-line" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+              <div key={acc.id || acc.name} className="wmg-item-line" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ flex: 1, fontSize: 13.5 }}>{acc.name}</span>
+                  <span style={{ flex: 1, fontSize: 13.5 }}>{acc.name}{acc.kind === "card" ? " (credit card)" : ""}</span>
                   <span style={{ fontSize: 13.5, fontWeight: 700 }}>
                     {acc.balance != null ? `£${acc.balance.toFixed(2)}` : "—"}
                   </span>
@@ -106,6 +138,9 @@ export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSaving
                   >
                     {alreadyUsed ? "✓ Used as Savings balance" : "Use as Savings balance"}
                   </button>
+                )}
+                {acc.kind === "card" && acc.balance != null && (
+                  <CardDebtMatcher card={acc} existingCards={existingCards} onUseAsCardDebt={onUseAsCardDebt} />
                 )}
               </div>
             );

@@ -208,7 +208,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings, onSubscriptionsPossiblyStopped }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings, onSubscriptionsPossiblyStopped, onUseAsCardDebt }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
@@ -239,6 +239,8 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
             onAccountsChanged={onBankAccountsChanged}
             onUseAsSavings={onUseAsSavings}
             savingsBalance={profile.savings.balance}
+            onUseAsCardDebt={onUseAsCardDebt}
+            existingCards={profile.cards}
           />
         </div>
       )}

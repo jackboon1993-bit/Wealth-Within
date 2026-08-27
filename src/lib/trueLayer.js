@@ -1,5 +1,4 @@
 import { Browser } from "@capacitor/browser";
-
 // TrueLayer's hosted consent flow — the user picks their bank and
 // authenticates on TrueLayer/their bank's own page, never inside this app.
 // client_id here is the PUBLIC id, safe to ship in the app. The client
@@ -15,13 +14,17 @@ const CLIENT_ID = (import.meta.env.VITE_TRUELAYER_CLIENT_ID || "").trim();
 // return trip (universal links / app links) is a separate native config
 // step, not something this file can do alone.
 const REDIRECT_URI = "https://wealth-within.vercel.app/api/truelayer-callback";
-
 export function buildTrueLayerAuthUrl(householdId) {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
-    scope: "info accounts balance transactions offline_access",
+    // Added "cards" — without it, TrueLayer never grants permission to
+    // see credit card accounts/balances at all, regardless of what the
+    // server-side code asks for later. Requires reconnecting any
+    // already-connected bank, since an existing consent doesn't
+    // retroactively gain a scope it wasn't originally granted.
+    scope: "info accounts balance transactions cards offline_access",
     // Real UK bank list for the Live app. (Sandbox apps could only use
     // the fake "Mock Bank" provider, "uk-cs-mock" — that no longer
     // applies now that this points at the Live TrueLayer app.)
@@ -32,7 +35,6 @@ export function buildTrueLayerAuthUrl(householdId) {
   });
   return `${TRUELAYER_AUTH_URL}/?${params.toString()}`;
 }
-
 export async function connectBank(householdId) {
   const url = buildTrueLayerAuthUrl(householdId);
   await Browser.open({ url });

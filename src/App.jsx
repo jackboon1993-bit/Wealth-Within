@@ -685,6 +685,27 @@ export default function App() {
   // not an automatic sync — TrueLayer's own account_type field
   // distinguishes a savings account from a current account, so this
   // just takes whatever balance is showing on that account right now.
+  // cardId === "__new__" adds it as a brand new card debt; any other value
+  // is treated as an existing card's id to update — deliberately a
+  // person-driven choice (a dropdown on the Connect a Bank screen) rather
+  // than auto-matching by name, since a wrong silent match would corrupt
+  // real debt data.
+  const applyCardBalanceFromBank = (cardId, balance, bankCardName) => {
+    if (cardId === "__new__") {
+      addArrayItem("cards", {
+        name: bankCardName || "New card",
+        balance,
+        rate: 0,
+        payment: 0,
+        originalBalance: balance,
+        lastConfirmedAt: new Date().toISOString(),
+        debtType: "card",
+      })();
+    } else {
+      confirmBalance("cards")(cardId, balance);
+    }
+  };
+
   const applySavingsFromBank = (balance) =>
     setProfile((p) => ({ ...p, savings: { ...p.savings, balance } }));
 
@@ -1729,6 +1750,7 @@ export default function App() {
                 onSubscriptionsDetected={applyDetectedSubscriptions}
                 onUseAsSavings={applySavingsFromBank}
                 onSubscriptionsPossiblyStopped={flagPossiblyStoppedSubscriptions}
+                onUseAsCardDebt={applyCardBalanceFromBank}
               />
             )}
 
