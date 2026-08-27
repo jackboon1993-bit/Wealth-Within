@@ -52,7 +52,7 @@ export default async function handler(req, res) {
 
   try {
     const suggestions = await detectRecurringPayments(transactions, Array.isArray(existingNames) ? existingNames : [], apiKey);
-    res.status(200).json({ suggestions });
+    res.status(200).json({ suggestions, possiblyStopped: suggestions.possiblyStopped || [] });
   } catch (err) {
     console.error("detect-subscriptions error:", err);
     res.status(502).json({ error: err.message || "Something went wrong detecting subscriptions." });

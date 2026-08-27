@@ -698,6 +698,37 @@ export default function App() {
   const applyDetectedSubscriptions = (suggestions) =>
     setProfile((p) => ({ ...p, pendingSubscriptions: suggestions }));
 
+  // Populated when a bank pull's subscription detection flags an
+  // existing active subscription as no longer appearing in the
+  // transaction history — e.g. a gym membership that's actually been
+  // cancelled. Never auto-removed; this only ever surfaces a suggestion
+  // for review, same review-before-change philosophy as everything else
+  // in this flow.
+  const flagPossiblyStoppedSubscriptions = (matches) =>
+    setProfile((p) => ({
+      ...p,
+      pendingSubscriptionRemovals: [
+        ...(p.pendingSubscriptionRemovals || []).filter((r) => !matches.some((m) => m.id === r.id)),
+        ...matches.map((m) => ({ id: m.id, name: m.name })),
+      ],
+    }));
+
+  // Confirms it's genuinely gone — marks it cancelled (same mechanism as
+  // manually toggling cancel on a subscription) and clears the flag.
+  const confirmSubscriptionStopped = (id) =>
+    setProfile((p) => ({
+      ...p,
+      subscriptions: p.subscriptions.map((s) => (s.id === id ? { ...s, cancelled: true } : s)),
+      pendingSubscriptionRemovals: (p.pendingSubscriptionRemovals || []).filter((r) => r.id !== id),
+    }));
+
+  // "No, I still have this" — just dismisses the flag, changes nothing.
+  const keepFlaggedSubscription = (id) =>
+    setProfile((p) => ({
+      ...p,
+      pendingSubscriptionRemovals: (p.pendingSubscriptionRemovals || []).filter((r) => r.id !== id),
+    }));
+
   const updateGoal = (id, field, value) =>
     setProfile((p) => ({ ...p, goals: p.goals.map((g) => (g.id === id ? { ...g, [field]: value } : g)) }));
   const addGoal = () =>
@@ -1669,6 +1700,8 @@ export default function App() {
                 removeArrayItem={removeArrayItem}
                 onAcceptDetectedSubscription={acceptDetectedSubscription}
                 onDismissDetectedSubscription={dismissDetectedSubscription}
+                onConfirmSubscriptionStopped={confirmSubscriptionStopped}
+                onKeepFlaggedSubscription={keepFlaggedSubscription}
               />
             )}
 
@@ -1683,6 +1716,7 @@ export default function App() {
                 onBankAccountsChanged={refreshConnectedBank}
                 onSubscriptionsDetected={applyDetectedSubscriptions}
                 onUseAsSavings={applySavingsFromBank}
+                onSubscriptionsPossiblyStopped={flagPossiblyStoppedSubscriptions}
               />
             )}
 

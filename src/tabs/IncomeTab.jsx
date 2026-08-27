@@ -342,7 +342,7 @@ export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayI
 }
 
 
-export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, onAcceptDetectedSubscription, onDismissDetectedSubscription }) {
+export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, onAcceptDetectedSubscription, onDismissDetectedSubscription, onConfirmSubscriptionStopped, onKeepFlaggedSubscription }) {
   const [justAddedIncomeId, setJustAddedIncomeId] = useState(null);
   const handleAddIncome = () => {
     const id = nextId();
@@ -758,6 +758,29 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                   </button>
                   <button type="button" className="wmg-btn-primary" onClick={() => onAcceptDetectedSubscription?.(s)}>
                     Add
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {profile.pendingSubscriptionRemovals && profile.pendingSubscriptionRemovals.length > 0 && (
+        <Card style={{ marginBottom: 10 }}>
+          <div className="wmg-sub" style={{ marginBottom: 10 }}>
+            These haven't shown up in your connected bank's recent transactions — still have them?
+          </div>
+          <div className="wmg-sub-list">
+            {profile.pendingSubscriptionRemovals.map((r) => (
+              <div key={r.id} className="wmg-chip-row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 600 }}>{r.name}</div>
+                <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
+                  <button type="button" className="wmg-onboard-skip" onClick={() => onKeepFlaggedSubscription?.(r.id)}>
+                    Still have it
+                  </button>
+                  <button type="button" className="wmg-btn-primary" onClick={() => onConfirmSubscriptionStopped?.(r.id)}>
+                    Mark cancelled
                   </button>
                 </div>
               </div>

@@ -16,6 +16,10 @@ Include BOTH:
 - Fixed-amount subscriptions (streaming, apps, gym memberships, insurance) — same merchant, same or near-identical amount, repeating roughly weekly or monthly.
 - Variable bills from the same regular biller (energy, council tax, mobile, broadband) — same merchant, repeating roughly monthly, even if the amount changes a bit between occurrences (e.g. an energy price rise). Use the most recent occurrence's amount as the "amount" you report, since that reflects what it currently costs.
 
+Do NOT report loan repayments, mortgage payments, credit card payments/Direct Debits, or any other debt repayment — these repeat monthly with a fixed amount just like a genuine subscription, but they are debt, not a subscription or bill, and belong in the household's Debts section instead. If a merchant name looks like a bank, lender, "loan", "finance", or a credit card provider, exclude it even if the pattern otherwise matches.
+
+Separately, also check the "already tracked" list against this transaction history: for any name on that list where you see NO matching transaction at all in this history (the merchant appears to have stopped charging — e.g. a gym membership that was cancelled), list its exact name (copied verbatim from the tracked list) in "possiblyStopped". Only include a name there if you're reasonably confident it's genuinely absent, not just because this particular history happens to be short — if you're unsure, leave it out rather than guessing.
+
 Only report something if you can see it repeat at least twice with a plausible regular interval (about 7 days apart for weekly, about 28-31 days apart for monthly) — a single payment, or two payments close together that look like one-off spending rather than a cycle, doesn't count. Don't guess at annual subscriptions from a single occurrence.
 
 Give each one a short, human, recognisable name (e.g. "Netflix", "British Gas", "EE Mobile") rather than the raw bank description. If the same merchant appears with meaningfully different regular amounts for what are clearly different products (e.g. two different Direct Debits to the same energy supplier), report them separately with names that distinguish them.
@@ -30,10 +34,11 @@ Respond with ONLY a JSON object, no other text, no markdown fences, in exactly t
       "occurrences": 3,
       "lastDate": "YYYY-MM-DD"
     }
-  ]
+  ],
+  "possiblyStopped": ["exact name from the already-tracked list, if it appears to have stopped"]
 }
 
-"amount" is the actual per-occurrence amount as it appears on the bank statement (not converted to a monthly figure) — the app converts that itself. If nothing recurring is found, return an empty "suggestions" array.`;
+"amount" is the actual per-occurrence amount as it appears on the bank statement (not converted to a monthly figure) — the app converts that itself. If nothing recurring is found, return an empty "suggestions" array. If nothing tracked appears to have stopped, return an empty "possiblyStopped" array.`;
 
 const MONTHLY_FACTOR_FOR_WEEKLY = 52 / 12; // ~4.33 weeks per month, matching how every other monthly figure in this app is derived from a shorter time span
 
@@ -107,7 +112,11 @@ export async function detectRecurringPayments(transactions, existingNames, apiKe
   // amount and frequency too, so the review UI can show its working
   // ("£12/week ≈ £52/month") rather than just a number that doesn't
   // match what's on the statement.
-  return parsed.suggestions
+  const validPossiblyStopped = Array.isArray(parsed.possiblyStopped)
+    ? parsed.possiblyStopped.filter((name) => existingNames.some((n) => String(n).toLowerCase() === String(name).toLowerCase()))
+    : [];
+
+  const suggestions = parsed.suggestions
     .filter((s) => s && s.name && typeof s.amount === "number" && (s.frequency === "weekly" || s.frequency === "monthly"))
     .map((s) => ({
       id: `sub_${Math.random().toString(36).slice(2, 10)}`,
@@ -118,4 +127,10 @@ export async function detectRecurringPayments(transactions, existingNames, apiKe
       occurrences: Number(s.occurrences) || 2,
       lastDate: s.lastDate || null,
     }));
+
+  // Backward-compatible: this is still a genuine array (so
+  // api/sync-bank-transactions.js's existing usage is unaffected), just
+  // with an extra property attached for callers that know to look for it.
+  suggestions.possiblyStopped = validPossiblyStopped;
+  return suggestions;
 }
