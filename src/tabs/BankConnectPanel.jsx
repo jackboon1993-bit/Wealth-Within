@@ -134,7 +134,7 @@ export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSaving
     <Card>
       <div className="wmg-eyebrow" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
         Connect a bank
-        <InfoTip text="Only one bank connects here at a time, but you can connect multiple banks one after another — each pull updates your figures, then stays saved even after you disconnect and connect the next one. For debts pulled through this way, add the payment date, interest rate, and monthly payment on Debts & Mortgage so the balance keeps reducing correctly each month between pulls, instead of staying stuck at the figure from your last connection." />
+        <InfoTip text="Connect banks one at a time — each pull saves permanently. Add a payment date, rate, and monthly payment on Debts & Mortgage so balances keep updating correctly." />
       </div>
       {accounts ? (
         <>
