@@ -15,27 +15,48 @@ import { API_BASE } from "../lib/apiBase";
 // real data with no easy way to notice.
 function CardDebtMatcher({ card, existingCards, onUseAsCardDebt }) {
   const [selected, setSelected] = useState(existingCards?.length ? existingCards[0].id : "__new__");
+  // Only shown after adding a brand new card — TrueLayer only ever gives
+  // us the current balance, never an interest rate or monthly payment, so
+  // a freshly-added card's balance won't move on its own at all until
+  // those are filled in on Debts & Mortgage. Updating an existing card
+  // doesn't need this, since it presumably already has both set.
+  const [justAddedNew, setJustAddedNew] = useState(false);
+  const handleApply = () => {
+    onUseAsCardDebt?.(selected, card.balance, card.name);
+    if (selected === "__new__") setJustAddedNew(true);
+  };
   return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      <select
-        className="wmg-input"
-        style={{ fontSize: 12, padding: "3px 6px", width: "auto" }}
-        value={selected}
-        onChange={(e) => setSelected(e.target.value)}
-      >
-        {(existingCards || []).map((c) => (
-          <option key={c.id} value={c.id}>Update "{c.name}"</option>
-        ))}
-        <option value="__new__">Add as a new card</option>
-      </select>
-      <button
-        type="button"
-        className="wmg-onboard-skip"
-        style={{ padding: "3px 10px", fontSize: 12 }}
-        onClick={() => onUseAsCardDebt?.(selected, card.balance, card.name)}
-      >
-        Apply
-      </button>
+    <div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <select
+          className="wmg-input"
+          style={{ fontSize: 12, padding: "3px 6px", width: "auto" }}
+          value={selected}
+          onChange={(e) => {
+            setSelected(e.target.value);
+            setJustAddedNew(false);
+          }}
+        >
+          {(existingCards || []).map((c) => (
+            <option key={c.id} value={c.id}>Update "{c.name}"</option>
+          ))}
+          <option value="__new__">Add as a new card</option>
+        </select>
+        <button
+          type="button"
+          className="wmg-onboard-skip"
+          style={{ padding: "3px 10px", fontSize: 12 }}
+          onClick={handleApply}
+        >
+          Apply
+        </button>
+      </div>
+      {justAddedNew && (
+        <div className="wmg-sub" style={{ marginTop: 6, fontSize: 12, color: "var(--gold)" }}>
+          Added — now go to Debts &amp; Mortgage and fill in its interest rate and monthly payment, or its balance
+          won't update between bank pulls.
+        </div>
+      )}
     </div>
   );
 }
