@@ -4,6 +4,8 @@
 // The Anthropic API key lives only here, server-side — it is never sent to
 // or exposed in the browser.
 
+import { requirePremiumUser } from "./_lib/requirePremiumUser.js";
+
 export const config = {
   api: {
     bodyParser: {
@@ -43,7 +45,7 @@ export default async function handler(req, res) {
   // needed — the native app calls this directly from https://localhost.
   res.setHeader("Access-Control-Allow-Origin", "https://localhost");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
@@ -52,6 +54,15 @@ export default async function handler(req, res) {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+
+  // AI Pension Reader is a Premium feature — see the priority to-do list,
+  // "Feature gating". This also closes a real gap: before this check, the
+  // route had no auth at all, so anyone could POST a document here and
+  // spend Anthropic API credit regardless of sign-in or subscription
+  // status. requirePremiumUser sends the appropriate 401/402/404 response
+  // itself when it fails.
+  const session = await requirePremiumUser(req, res);
+  if (!session.ok) return;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

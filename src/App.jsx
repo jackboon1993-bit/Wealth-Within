@@ -20,7 +20,7 @@ import {
   totalIncome,
   runForecast,
 } from "./lib/finance";
-import { NAV, TAB_TITLES } from "./lib/constants";
+import { NAV, TAB_TITLES, FREE_BANK_PULL_COOLDOWN_DAYS } from "./lib/constants";
 import { useCountUp, NavIcon, BrandMark, Mascot, TabTip } from "./components/ui";
 import { AccountPanel } from "./components/AccountPanel";
 import { SetupWizard } from "./components/SetupWizard";
@@ -127,6 +127,36 @@ export default function App() {
       console.error("Failed to start upgrade:", err);
     }
   };
+
+  // ---- Feature gating -----------------------------------------------
+  // hasPremium (from `subscription`, above) is the single source of truth
+  // for what's Premium-only. Every gated feature reads it the same way
+  // OverviewTab already did before this change — this block just extends
+  // that same pattern to the rest of the app rather than inventing a new
+  // one. See the priority to-do list: item 2 (thread hasPremium into
+  // household sharing, AI Pension Reader, spending insights, bill
+  // checker, subscription detection, and the free-tier bank-pull
+  // frequency limit) and item 3 (gate the nightly automatic sync too).
+
+  // Free-tier bank-pull frequency limit. Premium: unlimited manual pulls
+  // (and gets automatic nightly sync on top — gated server-side in
+  // api/sync-bank-transactions.js, not here). Free: one manual pull every
+  // FREE_BANK_PULL_COOLDOWN_DAYS. profile.lastManualBankPullAt is null
+  // until the first pull, which always allows a pull.
+  const nextPullAvailableAt = useMemo(() => {
+    if (!profile.lastManualBankPullAt) return null;
+    const next = new Date(profile.lastManualBankPullAt);
+    next.setDate(next.getDate() + FREE_BANK_PULL_COOLDOWN_DAYS);
+    return next;
+  }, [profile.lastManualBankPullAt]);
+
+  const canPullBank = subscription.hasPremium || !nextPullAvailableAt || nextPullAvailableAt <= new Date();
+
+  // ImportTab calls this once a manual (bank-originated, not CSV) pull has
+  // actually been applied — deliberately separate from
+  // onApplyImportedSpending, since that's shared with CSV import and CSV
+  // shouldn't count against the free-tier limit.
+  const recordManualBankPull = () => setField(["lastManualBankPullAt"])(new Date().toISOString());
 
   // The bank-consent redirect target. api/truelayer-callback.js does the
   // server-side token exchange (it MUST run there — that's the only place
@@ -1622,6 +1652,9 @@ export default function App() {
                   deleteAccountStatus={deleteAccountStatus}
                   deleteAccountNow={deleteAccountNow}
                   onHouseholdChanged={reloadAfterHouseholdChange}
+                  hasPremium={subscription.hasPremium}
+                  subscriptionStatus={subscription.status}
+                  onUpgrade={handleUpgrade}
                 />
               </div>
             </div>
@@ -1711,6 +1744,9 @@ export default function App() {
               deleteAccountStatus={deleteAccountStatus}
               deleteAccountNow={deleteAccountNow}
               onHouseholdChanged={reloadAfterHouseholdChange}
+              hasPremium={subscription.hasPremium}
+              subscriptionStatus={subscription.status}
+              onUpgrade={handleUpgrade}
             />
           </div>
         </div>
@@ -1786,6 +1822,9 @@ export default function App() {
                 onDismissDetectedSubscription={dismissDetectedSubscription}
                 onConfirmSubscriptionStopped={confirmSubscriptionStopped}
                 onKeepFlaggedSubscription={keepFlaggedSubscription}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
               />
             )}
 
@@ -1802,6 +1841,12 @@ export default function App() {
                 onUseAsSavings={applySavingsFromBank}
                 onSubscriptionsPossiblyStopped={flagPossiblyStoppedSubscriptions}
                 onUseAsCardDebt={applyCardBalanceFromBank}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
+                canPullBank={canPullBank}
+                nextPullAvailableAt={nextPullAvailableAt}
+                onManualBankPullApplied={recordManualBankPull}
               />
             )}
 
@@ -1857,6 +1902,9 @@ export default function App() {
             {tab === "pension-reader" && (
               <PensionReaderTab
                 pensions={profile.pensions}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
                 onUseInPension={(result, targetPotId) => {
                   if (targetPotId === "new") {
                     addArrayItem("pensions", {

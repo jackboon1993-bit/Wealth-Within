@@ -37,6 +37,28 @@
 // when triggering this on schedule) — without this check, anyone who
 // found this URL could trigger unlimited Anthropic API usage against
 // every connected household.
+//
+// VERIFIED 28 Aug 2026 (priority to-do item 8): this file does NOT have
+// the relative-path or missing-CORS bugs that hit most other routes this
+// session — it never fetches its own /api/... routes over HTTP (it calls
+// categorizeAndSummarize/detectRecurringPayments directly as functions),
+// and TrueLayer's API is called with an absolute URL, so apiBase.js
+// doesn't apply here and no CORS headers are needed (this is a
+// server-to-server cron call, not a browser/native request). What WAS
+// missing: maxDuration. detect-subscriptions.js needed one bumped to 60s
+// for a single household's subscription scan alone — this file loops
+// over every connected household sequentially, doing up to two Claude
+// calls each, with no override, so it was still relying on Vercel's
+// framework default. Fixed below, plus modest batching so households are
+// processed a few at a time rather than strictly one-by-one — as the
+// connected-household count grows past a handful, this loop will
+// eventually need a real queue/worker approach instead of one cron
+// function doing everything in a single run; flagging that now rather
+// than waiting for it to start silently truncating results.
+
+export const config = {
+  maxDuration: 300, // Vercel Pro's maximum for a standard function; see note above
+};
 
 import { createClient } from "@supabase/supabase-js";
 import { categorizeAndSummarize } from "./_lib/categorizeTransactions.js";
@@ -49,6 +71,12 @@ const MAX_TRANSACTIONS = 1000;
 // How often to re-run subscription/bill detection per household — see
 // supabase/subscription-scan-cadence-migration.sql for the reasoning.
 const SUBSCRIPTION_SCAN_INTERVAL_DAYS = 7;
+// How many households to process concurrently — a small, deliberately
+// conservative batch size rather than fully sequential (which was the
+// entire loop's worth of Claude-call latency added up) or fully parallel
+// (which could spike Anthropic API rate limits if the household count
+// grows). Revisit alongside the maxDuration note above as usage grows.
+const SYNC_BATCH_SIZE = 5;
 
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
@@ -75,7 +103,7 @@ export default async function handler(req, res) {
   }
 
   const admin = createClient(url, serviceRoleKey);
-  const results = { synced: 0, noNewTransactions: 0, skipped: 0, subscriptionsScanned: 0, errors: [] };
+  const results = { synced: 0, noNewTransactions: 0, skipped: 0, notPremium: 0, subscriptionsScanned: 0, errors: [] };
 
   const { data: connections, error: connError } = await admin
     .from("bank_connections")
@@ -85,12 +113,47 @@ export default async function handler(req, res) {
     return;
   }
 
-  for (const conn of connections || []) {
-    try {
-      await syncOne(admin, apiKey, conn, results);
-    } catch (e) {
-      results.errors.push(`household ${conn.household_id}: ${e.message || e}`);
-    }
+  // Automatic nightly sync is a Premium feature — see the priority to-do
+  // list, item 3 ("gate the nightly automatic sync behind hasPremium
+  // too"). This closes the "subscribe for a month, pull data, cancel"
+  // loophole: a household that cancels stops getting fresh data pulled
+  // automatically, which is honest ongoing value rather than a dark
+  // pattern (they keep everything already in their budget; they just
+  // don't get more pulled in for free going forward — manual pulls are
+  // still available on the free tier, subject to the separate frequency
+  // limit). One query for every relevant household's status up front,
+  // rather than a lookup per connection inside the loop below.
+  const householdIds = (connections || []).map((c) => c.household_id);
+  const { data: subs } = householdIds.length
+    ? await admin.from("subscriptions").select("household_id, status").in("household_id", householdIds)
+    : { data: [] };
+  const statusByHousehold = new Map((subs || []).map((s) => [s.household_id, s.status]));
+  const hasPremium = (householdId) => {
+    const status = statusByHousehold.get(householdId);
+    return status === "trialing" || status === "active";
+  };
+
+  const premiumConnections = (connections || []).filter((conn) => {
+    if (hasPremium(conn.household_id)) return true;
+    results.notPremium++;
+    return false;
+  });
+
+  // Batched rather than fully sequential — see SYNC_BATCH_SIZE above.
+  // Each batch runs concurrently; batches themselves run one after
+  // another, so total Claude-call concurrency never exceeds
+  // SYNC_BATCH_SIZE at once regardless of how many households there are.
+  for (let i = 0; i < premiumConnections.length; i += SYNC_BATCH_SIZE) {
+    const batch = premiumConnections.slice(i, i + SYNC_BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (conn) => {
+        try {
+          await syncOne(admin, apiKey, conn, results);
+        } catch (e) {
+          results.errors.push(`household ${conn.household_id}: ${e.message || e}`);
+        }
+      })
+    );
   }
 
   res.status(200).json(results);

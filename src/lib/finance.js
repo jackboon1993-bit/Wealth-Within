@@ -340,6 +340,14 @@ export const defaultProfile = {
   // one adds it to `subscriptions` below and removes it from this list;
   // dismissing just removes it. Replaced wholesale on each scan.
   pendingSubscriptions: [],
+  // Stamped by App.jsx (recordManualBankPull) whenever a manual "Pull
+  // transactions" from a connected bank is applied — used only to enforce
+  // the free-tier bank-pull frequency limit (Premium has no limit; Free is
+  // once every FREE_BANK_PULL_COOLDOWN_DAYS, see constants.js). Deliberately
+  // NOT stamped by CSV import or the overnight sync — this exists purely to
+  // rate-limit the manual "pull from my connected bank" action itself.
+  // null means "never pulled", which always allows a pull.
+  lastManualBankPullAt: null,
 };
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a

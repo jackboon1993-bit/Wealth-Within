@@ -35,3 +35,10 @@ export const MASCOT_MESSAGES = {
 
 export const FLOW_TONE_COLORS = { slate: "#5C6BA3", rust: "#C9708F", gold: "#97701A", sage: "#4A7A3A" };
 
+// Free-tier limit on manual "Pull transactions from my connected bank".
+// Premium has no limit (also gets automatic nightly sync — see
+// api/sync-bank-transactions.js). Free users can still pull manually, just
+// not more than once every N days — this is the free tier's only route to
+// updated bank data, since nightly auto-sync is Premium-only.
+export const FREE_BANK_PULL_COOLDOWN_DAYS = 7;
+

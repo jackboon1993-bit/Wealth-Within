@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { API_BASE } from "./apiBase";
 
 /**
  * Fetches the current household's name, member count, and whether the
@@ -52,17 +53,33 @@ export async function renameHousehold(householdId, name) {
  * Anyone holding the code can join — there's no email check — so treat it
  * like any other shareable link and only send it to people you actually
  * want in the household.
+ *
+ * Household sharing is a Premium feature (see the priority to-do list,
+ * "Feature gating"), so this now goes through api/create-household-invite
+ * rather than inserting directly — that route checks the household's
+ * subscription status server-side before creating a code. A Free
+ * household gets a 402 back; check err.code === "premium_required" to
+ * show the upgrade prompt rather than a generic error. `householdId` is
+ * kept as a parameter for compatibility with existing call sites, but the
+ * server resolves the caller's household from their access token itself
+ * rather than trusting a client-supplied id.
  */
 export async function createInvite(householdId) {
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data, error } = await supabase
-    .from("household_invites")
-    .insert({ household_id: householdId, created_by: user.id })
-    .select("code, expires_at")
-    .single();
-  if (error) throw error;
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Not signed in");
+
+  const resp = await fetch(`${API_BASE}/api/create-household-invite`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    const err = new Error(data.error || "Couldn't create an invite.");
+    if (data.code) err.code = data.code; // e.g. "premium_required"
+    throw err;
+  }
   return data;
 }
 

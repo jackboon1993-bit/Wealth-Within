@@ -4,6 +4,8 @@
 // low against typical UK household costs, with a short non-alarmist note.
 // The Anthropic API key lives only here, server-side.
 
+import { requirePremiumUser } from "./_lib/requirePremiumUser.js";
+
 export const config = {
   api: {
     bodyParser: {
@@ -35,7 +37,7 @@ export default async function handler(req, res) {
   // browsers send a preflight OPTIONS request first for a POST like this.
   res.setHeader("Access-Control-Allow-Origin", "https://localhost");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
@@ -44,6 +46,13 @@ export default async function handler(req, res) {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
+
+  // Bill checker is a Premium feature — see the priority to-do list,
+  // "Feature gating". Also closes a real gap: this route had no auth at
+  // all before, so anyone could POST here and spend Anthropic API credit
+  // regardless of sign-in or subscription status.
+  const session = await requirePremiumUser(req, res);
+  if (!session.ok) return;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
