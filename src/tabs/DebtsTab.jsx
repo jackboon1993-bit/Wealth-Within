@@ -110,7 +110,16 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove, startEditing = fal
           <InfoTip text="The interest rate this debt charges each year — sometimes called APR. You'll find it on your credit agreement, statement, or the provider's app." />{" "}
           interest, you pay{" "}
           <InlinePill value={debt.payment} onChange={(v) => onEdit("payment", v)} formatter={(v) => gbp(v)} ariaLabel="Monthly payment" />{" "}
-          a month.
+          a month, usually taken on the{" "}
+          <InlinePill
+            value={debt.paymentDayOfMonth || 1}
+            onChange={(v) => onEdit("paymentDayOfMonth", Math.min(31, Math.max(1, Math.round(v))))}
+            formatter={(v) => `${v}${v === 1 || v === 21 || v === 31 ? "st" : v === 2 || v === 22 ? "nd" : v === 3 || v === 23 ? "rd" : "th"}`}
+            ariaLabel="Payment day of month"
+          />{" "}
+          of the month
+          <InfoTip text="Optional, but improves accuracy — with this set, the balance shown between updates only drops once that day has actually passed each month, instead of a smooth day-by-day guess." />
+          .
         </div>
       ) : (
         <div className="wmg-sub" style={{ marginTop: 8 }}>

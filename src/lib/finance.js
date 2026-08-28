@@ -47,11 +47,37 @@ export function daysAgoISO(n) {
    ordinary scheduled amortisation only (no extra payments) — this is
    deliberately a plain, honest estimate, not a promise. */
 
-export function estimateBalanceToday(balance, annualRatePct, payment, lastConfirmedAt) {
-  const months = daysSince(lastConfirmedAt) / 30.4375;
-  if (months <= 0 || !isFinite(balance)) return balance;
+export function estimateBalanceToday(balance, annualRatePct, payment, lastConfirmedAt, paymentDayOfMonth) {
+  if (!isFinite(balance)) return balance;
   const monthlyRate = annualRatePct / 100 / 12;
   let bal = balance;
+
+  if (paymentDayOfMonth) {
+    // Calendar-aware: only counts a payment once its actual date has
+    // genuinely passed, rather than smoothly interpolating by elapsed
+    // ~30-day chunks — e.g. if last confirmed on the 10th and today is
+    // the 12th with a payment date of the 15th, no payment has actually
+    // gone out yet this month, so the balance shouldn't have moved.
+    const last = new Date(lastConfirmedAt);
+    const now = new Date();
+    if (!(now > last)) return bal;
+
+    let cursor = new Date(last.getFullYear(), last.getMonth(), paymentDayOfMonth);
+    if (cursor <= last) cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, paymentDayOfMonth);
+    while (cursor <= now) {
+      if (bal <= 0) break;
+      const interest = bal * monthlyRate;
+      const principal = Math.max(0, Math.min(payment - interest, bal));
+      bal = Math.max(0, bal - principal);
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, paymentDayOfMonth);
+    }
+    return bal;
+  }
+
+  // Original behaviour, unchanged, for anything without a known payment
+  // date — still used by loans, mortgage, and any card that hasn't set one.
+  const months = daysSince(lastConfirmedAt) / 30.4375;
+  if (months <= 0) return balance;
   const fullMonths = Math.floor(months);
   for (let i = 0; i < fullMonths; i++) {
     if (bal <= 0) break;

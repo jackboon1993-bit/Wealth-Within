@@ -275,7 +275,7 @@ export default function App() {
   const allDebts = useMemo(
     () => [
       ...profile.loans.map((l) => ({ ...l, kind: "Loan", confirmedBalance: l.balance, balance: estimateBalanceToday(l.balance, l.rate, l.payment, l.lastConfirmedAt) })),
-      ...profile.cards.map((c) => ({ ...c, kind: "Credit card", confirmedBalance: c.balance, balance: estimateBalanceToday(c.balance, c.rate, c.payment, c.lastConfirmedAt) })),
+      ...profile.cards.map((c) => ({ ...c, kind: "Credit card", confirmedBalance: c.balance, balance: estimateBalanceToday(c.balance, c.rate, c.payment, c.lastConfirmedAt, c.paymentDayOfMonth) })),
     ],
     [profile.loans, profile.cards]
   );
@@ -289,7 +289,7 @@ export default function App() {
 
     const loansBalance = profile.loans.reduce((s, l) => s + estimateBalanceToday(Number(l.balance || 0), l.rate, l.payment, l.lastConfirmedAt), 0);
     const loansPayment = profile.loans.reduce((s, l) => s + Number(l.payment || 0), 0);
-    const cardsBalance = profile.cards.reduce((s, c) => s + estimateBalanceToday(Number(c.balance || 0), c.rate, c.payment, c.lastConfirmedAt), 0);
+    const cardsBalance = profile.cards.reduce((s, c) => s + estimateBalanceToday(Number(c.balance || 0), c.rate, c.payment, c.lastConfirmedAt, c.paymentDayOfMonth), 0);
     const cardsPayment = profile.cards.reduce((s, c) => s + Number(c.payment || 0), 0);
 
     const activeSubs = profile.subscriptions.filter((s) => !s.cancelled);
@@ -403,7 +403,7 @@ export default function App() {
   );
   const flaggedCount = profile.subscriptions.filter((s) => s.flagged && !s.cancelled).length;
 
-  const ccAnnualCost = totals.cardsBalance > 0 ? profile.cards.reduce((sum, c) => sum + (estimateBalanceToday(c.balance, c.rate, c.payment, c.lastConfirmedAt) * c.rate) / 100, 0) : 0;
+  const ccAnnualCost = totals.cardsBalance > 0 ? profile.cards.reduce((sum, c) => sum + (estimateBalanceToday(c.balance, c.rate, c.payment, c.lastConfirmedAt, c.paymentDayOfMonth) * c.rate) / 100, 0) : 0;
 
   const essentialRatio = totals.income > 0 ? totals.essential / totals.income : 0;
   // Essential costs alone meeting or exceeding income is a fundamentally
