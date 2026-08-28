@@ -25,6 +25,9 @@
                 <data android:scheme="https"
                       android:host="wealth-within.vercel.app"
                       android:pathPrefix="/bank-connected" />
+                <data android:scheme="https"
+                      android:host="wealth-within.vercel.app"
+                      android:pathPrefix="/subscription-connected" />
             </intent-filter>
         </activity>
 

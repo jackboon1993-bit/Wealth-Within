@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
 import { API_BASE } from "./lib/apiBase";
+import { startUpgrade, fetchSubscriptionStatus } from "./lib/subscription";
 import { getData, setData, deleteData, subscribeToHouseholdData, getHouseholdId, hasAccounts } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import { submitFeedback } from "./lib/feedback";
@@ -97,6 +98,36 @@ export default function App() {
     }
   };
 
+  const [subscription, setSubscription] = useState({ hasPremium: false, status: "none" });
+
+  const refreshSubscriptionStatus = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const data = await fetchSubscriptionStatus(session.access_token);
+      setSubscription(data);
+    } catch (err) {
+      console.error("Failed to refresh subscription status:", err);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      await startUpgrade(session.access_token);
+      // The browser tab/sheet takes over from here; the deep-link
+      // handlers below pick things up again once it closes — same
+      // pattern as connectBank().
+    } catch (err) {
+      console.error("Failed to start upgrade:", err);
+    }
+  };
+
   // The bank-consent redirect target. api/truelayer-callback.js does the
   // server-side token exchange (it MUST run there — that's the only place
   // the client secret can live) and then sends the browser on to this
@@ -111,28 +142,45 @@ export default function App() {
     refreshConnectedBank();
   };
 
+  // Same idea as handleBankReturn, for the Stripe Checkout return trip —
+  // Stripe redirects to /subscription-connected once checkout completes
+  // (see create-checkout-session.js), which the App Link intercepts the
+  // same way. The webhook (running server-side, separately from this)
+  // is what actually updates the subscription record — this just
+  // re-checks status once control's back in the app.
+  const handleSubscriptionReturn = () => {
+    refreshSubscriptionStatus();
+  };
+
   // Web case: a plain browser tab does a normal full-page navigation to
-  // /bank-connected, so this only needs to run once on initial mount.
+  // /bank-connected or /subscription-connected, so this only needs to
+  // run once on initial mount.
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.pathname.includes("bank-connected")) {
       handleBankReturn();
       // Clean the URL back to the app's normal root so a refresh later
       // doesn't re-trigger this.
       window.history.replaceState({}, "", "/");
+    } else if (typeof window !== "undefined" && window.location.pathname.includes("subscription-connected")) {
+      handleSubscriptionReturn();
+      window.history.replaceState({}, "", "/");
     } else {
       refreshConnectedBank();
     }
+    refreshSubscriptionStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Native case: Android hands the app links.wealth-within.vercel.app/
-  // bank-connected URL to the app directly via an intent — this never
-  // touches window.location, so it needs its own listener rather than
-  // reusing the effect above.
+  // bank-connected or /subscription-connected URL to the app directly via
+  // an intent — this never touches window.location, so it needs its own
+  // listener rather than reusing the effect above.
   useEffect(() => {
     const listener = CapacitorApp.addListener("appUrlOpen", (data) => {
       if (data?.url?.includes("bank-connected")) {
         handleBankReturn();
+      } else if (data?.url?.includes("subscription-connected")) {
+        handleSubscriptionReturn();
       }
     });
     return () => {
@@ -1711,6 +1759,9 @@ export default function App() {
                 inFinancialHardship={inFinancialHardship}
                 onNavigate={setTab}
                 hasConnectedBank={hasConnectedBank}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
               />
             )}
 

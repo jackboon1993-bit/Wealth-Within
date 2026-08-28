@@ -5,7 +5,7 @@ import { FLOW_TONE_COLORS } from "../lib/constants";
 import { hasAccounts } from "../lib/storage";
 import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../components/ui";
 
-export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank }) {
+export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
@@ -126,6 +126,22 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             </button>
           </Card>
         )
+      )}
+
+      {!hasPremium && (
+        <Card className="wmg-connect-bank-banner" style={{ background: "var(--brand-soft)", borderColor: "var(--brand)" }}>
+          <div className="wmg-connect-bank-banner-text">
+            <div className="wmg-connect-bank-banner-title">
+              {subscriptionStatus === "canceled" || subscriptionStatus === "past_due" ? "Renew Premium" : "Try Premium free for 14 days"}
+            </div>
+            <div className="wmg-connect-bank-banner-sub">
+              Share this household with a partner, get your pension read by AI, and unlock spending insights — £4.99/month after your trial, cancel any time.
+            </div>
+          </div>
+          <button type="button" className="wmg-btn-primary" onClick={onUpgrade}>
+            {subscriptionStatus === "canceled" || subscriptionStatus === "past_due" ? "Renew" : "Start trial"}
+          </button>
+        </Card>
       )}
 
       {activeMode === "guided" && (
