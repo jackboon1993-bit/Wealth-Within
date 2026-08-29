@@ -3,8 +3,26 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, getActiveMode, nextId } from "../lib/finance";
 import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput } from "../components/ui";
 import { API_BASE } from "../lib/apiBase";
+import { supabase } from "../lib/supabaseClient";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
+
+// Small reusable "this needs Premium" prompt — used everywhere an
+// AI-powered feature is gated (bill checker, spending insight, Pension
+// Reader). Wording matches the pattern used on Overview's own upgrade
+// card: "Start trial" for someone who's never subscribed, "Renew
+// Premium" for someone whose subscription lapsed (canceled/past_due).
+export function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
+  const isLapsed = subscriptionStatus === "canceled" || subscriptionStatus === "past_due";
+  return (
+    <div className="wmg-premium-gate" style={{ textAlign: "center", padding: "8px 0" }}>
+      <div className="wmg-sub" style={{ marginBottom: 10 }}>{text}</div>
+      <button className="wmg-btn-primary" onClick={onUpgrade}>
+        {isLapsed ? "Renew Premium" : "Try Premium free for 14 days"}
+      </button>
+    </div>
+  );
+}
 
 
 export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, startEditing = false }) {
@@ -343,7 +361,7 @@ export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayI
 }
 
 
-export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, onAcceptDetectedSubscription, onDismissDetectedSubscription, onConfirmSubscriptionStopped, onKeepFlaggedSubscription }) {
+export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, onAcceptDetectedSubscription, onDismissDetectedSubscription, onConfirmSubscriptionStopped, onKeepFlaggedSubscription, hasPremium, subscriptionStatus, onUpgrade }) {
   const [justAddedIncomeId, setJustAddedIncomeId] = useState(null);
   const handleAddIncome = () => {
     const id = nextId();
@@ -414,12 +432,19 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     setBillCheckStatus("loading");
     setBillCheckError("");
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const resp = await fetch(`${API_BASE}/api/check-bills`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({ bills: billsForCheck.map((i) => ({ name: i.name, amount: i.amount })) }),
       });
       const data = await resp.json();
+      if (resp.status === 402) {
+        setBillCheckStatus("locked");
+        return;
+      }
       if (!resp.ok) throw new Error(data.error || "Something went wrong.");
       // zip results back up with the names/amounts we sent, so the UI doesn't
       // need to re-derive anything from billsItemsFlat (which could change
@@ -437,15 +462,22 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     setSpendingInsightStatus("loading");
     setSpendingInsightError("");
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const resp = await fetch(`${API_BASE}/api/spending-insight`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           categories: categoryChartData.map((r) => ({ name: r.name, value: r.value })),
           income: totals.income,
         }),
       });
       const data = await resp.json();
+      if (resp.status === 402) {
+        setSpendingInsightStatus("locked");
+        return;
+      }
       if (!resp.ok) throw new Error(data.error || "Something went wrong.");
       setSpendingInsightResults(data.insights || []);
       setSpendingInsightStatus("done");
@@ -591,10 +623,27 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                 <span>{gbp(billsTotal, 2)}/month</span>
               </div>
 
-              {billCheckStatus === "idle" && (
+              {!hasPremium && (billCheckStatus === "idle" || billCheckStatus === "locked") && (
+                <PremiumGate
+                  subscriptionStatus={subscriptionStatus}
+                  onUpgrade={onUpgrade}
+                  text="Checking your bills against typical UK costs is a Premium feature."
+                />
+              )}
+              {hasPremium && billCheckStatus === "idle" && (
                 <button className="wmg-add-btn" style={{ marginTop: 10 }} onClick={checkBills}>
                   Check my bills against typical UK costs
                 </button>
+              )}
+              {billCheckStatus === "locked" && hasPremium && (
+                // hasPremium is true client-side but the server still said
+                // no (e.g. status just lapsed) — trust the server, not the
+                // possibly-stale client prop.
+                <PremiumGate
+                  subscriptionStatus={subscriptionStatus}
+                  onUpgrade={onUpgrade}
+                  text="Checking your bills against typical UK costs is a Premium feature."
+                />
               )}
               {billCheckStatus === "loading" && (
                 <div className="wmg-sub" style={{ marginTop: 10, textAlign: "center" }}>Checking your bills…</div>
@@ -675,10 +724,24 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           </Card>
 
           <Card style={{ marginBottom: 20 }}>
-            {spendingInsightStatus === "idle" && (
+            {!hasPremium && (spendingInsightStatus === "idle" || spendingInsightStatus === "locked") && (
+              <PremiumGate
+                subscriptionStatus={subscriptionStatus}
+                onUpgrade={onUpgrade}
+                text="An AI read on your spending breakdown is a Premium feature."
+              />
+            )}
+            {hasPremium && spendingInsightStatus === "idle" && (
               <button className="wmg-add-btn" onClick={getSpendingInsight}>
                 Get an AI read on this breakdown
               </button>
+            )}
+            {spendingInsightStatus === "locked" && hasPremium && (
+              <PremiumGate
+                subscriptionStatus={subscriptionStatus}
+                onUpgrade={onUpgrade}
+                text="An AI read on your spending breakdown is a Premium feature."
+              />
             )}
             {spendingInsightStatus === "loading" && (
               <div className="wmg-sub" style={{ textAlign: "center" }}>Looking at your breakdown…</div>
@@ -736,6 +799,16 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           it with the provider, so you'll still need to do that yourself.
         </div>
       </Card>
+
+      {!hasPremium && (!profile.pendingSubscriptions || profile.pendingSubscriptions.length === 0) && (
+        <Card style={{ marginBottom: 10 }}>
+          <PremiumGate
+            subscriptionStatus={subscriptionStatus}
+            onUpgrade={onUpgrade}
+            text="Premium automatically spots subscriptions in your connected bank's transaction history — new ones, and ones that look like they've stopped."
+          />
+        </Card>
+      )}
 
       {profile.pendingSubscriptions && profile.pendingSubscriptions.length > 0 && (
         <Card style={{ marginBottom: 10 }}>

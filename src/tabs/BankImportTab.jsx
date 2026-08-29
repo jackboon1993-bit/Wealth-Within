@@ -7,6 +7,25 @@ import { supabase } from "../lib/supabaseClient";
 import { BankConnectPanel } from "./BankConnectPanel";
 import { API_BASE } from "../lib/apiBase";
 
+// Small reusable "this needs Premium" prompt. Deliberately duplicated
+// here rather than imported from IncomeTab.jsx (which has an identical
+// copy) — IncomeTab and BankImportTab are separate lazy-loaded chunks
+// (see the comment on the lazy() calls in App.jsx), and importing across
+// them would couple two chunks that were deliberately split apart, for
+// the sake of one small stateless component. If this ever needs real
+// shared logic beyond copy-paste, promote it to components/ui.jsx instead.
+function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
+  const isLapsed = subscriptionStatus === "canceled" || subscriptionStatus === "past_due";
+  return (
+    <div className="wmg-premium-gate" style={{ textAlign: "center", padding: "8px 0" }}>
+      <div className="wmg-sub" style={{ marginBottom: 10 }}>{text}</div>
+      <button className="wmg-btn-primary" onClick={onUpgrade}>
+        {isLapsed ? "Renew Premium" : "Try Premium free for 14 days"}
+      </button>
+    </div>
+  );
+}
+
 export function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -18,7 +37,7 @@ export function fileToBase64(file) {
 
 
 
-export function PensionReaderTab({ onUseInPension, pensions = [] }) {
+export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, subscriptionStatus, onUpgrade }) {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | reading | done | error
   const [result, setResult] = useState(null);
@@ -49,12 +68,19 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
     try {
       const base64 = await fileToBase64(file);
       const fileKind = file.type === "application/pdf" ? "pdf" : "image";
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const resp = await fetch(`${API_BASE}/api/analyze-pension`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({ fileBase64: base64, mediaType: file.type, fileKind }),
       });
       const data = await resp.json();
+      if (resp.status === 402) {
+        setStatus("locked");
+        return;
+      }
       if (!resp.ok) throw new Error(data.error || "Something went wrong.");
       if (data.couldNotRead) {
         setStatus("error");
@@ -95,7 +121,17 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
         tab.
       </div>
 
-      {status !== "done" && (
+      {!hasPremium && status !== "done" && (
+        <Card>
+          <PremiumGate
+            subscriptionStatus={subscriptionStatus}
+            onUpgrade={onUpgrade}
+            text="Reading and explaining a pension statement with AI is a Premium feature."
+          />
+        </Card>
+      )}
+
+      {hasPremium && (status === "idle" || status === "reading" || status === "error" || status === "locked") && (
         <Card>
           <div
             className="wmg-reader-dropzone"
@@ -126,6 +162,15 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
           </div>
 
           {status === "error" && <div className="wmg-reader-error">{errorMsg}</div>}
+          {status === "locked" && (
+            // hasPremium was true client-side but the server said no
+            // (e.g. subscription just lapsed) — trust the server.
+            <PremiumGate
+              subscriptionStatus={subscriptionStatus}
+              onUpgrade={onUpgrade}
+              text="Reading and explaining a pension statement with AI is a Premium feature."
+            />
+          )}
 
           <button className="wmg-btn-primary wmg-reader-analyze" disabled={!file || status === "reading"} onClick={analyze}>
             {status === "reading" ? "Reading your document…" : "Read this document"}
@@ -208,7 +253,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [] }) {
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings, onSubscriptionsPossiblyStopped, onUseAsCardDebt }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings, onSubscriptionsPossiblyStopped, onUseAsCardDebt, hasPremium, subscriptionStatus, onUpgrade, canPullBank, nextPullAvailableAt, onManualBankPullApplied }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
@@ -271,6 +316,12 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
           onDiscardPendingSync={onDiscardPendingSync}
           onSubscriptionsDetected={onSubscriptionsDetected}
           onSubscriptionsPossiblyStopped={onSubscriptionsPossiblyStopped}
+          hasPremium={hasPremium}
+          subscriptionStatus={subscriptionStatus}
+          onUpgrade={onUpgrade}
+          canPullBank={canPullBank}
+          nextPullAvailableAt={nextPullAvailableAt}
+          onManualBankPullApplied={onManualBankPullApplied}
         />
       ) : (
         <DebtsImport addBulkItems={addBulkItems} readFileText={readFileText} />
@@ -287,7 +338,7 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
 }
 
 
-export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync, onSubscriptionsDetected, onSubscriptionsPossiblyStopped }) {
+export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync, onSubscriptionsDetected, onSubscriptionsPossiblyStopped, hasPremium, subscriptionStatus, onUpgrade, canPullBank, nextPullAvailableAt, onManualBankPullApplied }) {
   const inputRef = useRef(null);
   const [status, setStatus] = useState("idle"); // idle | parsed | categorizing | reviewing | error
   const [errorMsg, setErrorMsg] = useState("");
@@ -357,6 +408,18 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
   // categorize/review/apply pipeline CSV import already uses — same
   // review-before-save philosophy, just a different source for the rows.
   const importFromBank = async () => {
+    // Free-tier bank-pull frequency limit — see App.jsx's canPullBank.
+    // Premium is never blocked here; this only ever stops a Free
+    // household pulling again before their cooldown's up. The server
+    // itself doesn't currently re-check this (truelayer-transactions.js
+    // has no rate limit of its own), so this is a client-side nudge, not
+    // hard enforcement — fine for now since a bypass only costs the
+    // person nothing but their own TrueLayer/Claude usage, not money, but
+    // worth tightening server-side later if it's ever actually abused.
+    if (canPullBank === false) {
+      setStatus("cooldown");
+      return;
+    }
     setErrorMsg("");
     setApplied(false);
     setCategoryTotals(null);
@@ -396,11 +459,19 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       // A failure here shouldn't stop the actual budget import from
       // working, so it's deliberately swallowed rather than surfaced as
       // the main error state.
-      if (onSubscriptionsDetected || onSubscriptionsPossiblyStopped) {
+      //
+      // Subscription detection is a Premium feature — see the priority
+      // to-do list, "Feature gating: ... subscription detection (both
+      // directions)". Skipped client-side for Free households so there's
+      // no pointless request/expected-402 noise; also enforced
+      // server-side in detect-subscriptions.js regardless (see
+      // requirePremiumUser.js), so this client check is a courtesy, not
+      // the actual gate.
+      if (hasPremium && (onSubscriptionsDetected || onSubscriptionsPossiblyStopped)) {
         const existingNames = (profile.subscriptions || []).map((s) => s.name);
         fetch(`${API_BASE}/api/detect-subscriptions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
           body: JSON.stringify({
             transactions: transactions.map((t) => ({ description: t.description, amount: t.amount, date: t.date })),
             existingNames,
@@ -543,6 +614,13 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
     // over a window that's already been applied.
     if (source === "bank") {
       onBankSyncApplied?.(syncMeta ? syncMeta.toDate : new Date().toISOString());
+      // Free-tier bank-pull frequency limit — stamps the cooldown clock.
+      // Harmless to call for a reviewed overnight sync too (those only
+      // ever exist for Premium households in the first place now that
+      // sync-bank-transactions.js gates the whole nightly job — see the
+      // priority to-do list item 3), and Premium ignores this timestamp
+      // entirely (canPullBank is always true for them).
+      onManualBankPullApplied?.();
     }
     setApplied(true);
   };
@@ -571,19 +649,40 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
 
   return (
     <>
-      {(status === "idle" || status === "error" || status === "parsed") && hasConnectedBank && (
+      {(status === "idle" || status === "error" || status === "parsed" || status === "cooldown") && hasConnectedBank && (
         <Card className="wmg-bank-pull-card" style={{ marginBottom: 12, textAlign: "center" }}>
           <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Bank connected</div>
-          <div className="wmg-sub" style={{ marginBottom: 12 }}>
-            Pull in your last 90 days of transactions automatically — no CSV needed.
-          </div>
-          <button className="wmg-btn-primary" style={{ width: "100%" }} onClick={importFromBank}>
-            Pull transactions from my connected bank
-          </button>
+          {canPullBank !== false ? (
+            <>
+              <div className="wmg-sub" style={{ marginBottom: 12 }}>
+                Pull in your last 90 days of transactions automatically — no CSV needed.
+              </div>
+              <button className="wmg-btn-primary" style={{ width: "100%" }} onClick={importFromBank}>
+                Pull transactions from my connected bank
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="wmg-sub" style={{ marginBottom: 12 }}>
+                {hasPremium
+                  ? "Pull in your last 90 days of transactions automatically — no CSV needed."
+                  : `You've used this month's free bank pull. On the free plan you can pull once every 7 days — next pull available ${
+                      nextPullAvailableAt ? nextPullAvailableAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "soon"
+                    }.`}
+              </div>
+              {!hasPremium && (
+                <PremiumGate
+                  subscriptionStatus={subscriptionStatus}
+                  onUpgrade={onUpgrade}
+                  text="Premium gets unlimited pulls, plus automatic nightly syncing so you never have to think about it."
+                />
+              )}
+            </>
+          )}
         </Card>
       )}
 
-      {(status === "idle" || status === "error" || status === "parsed") && (
+      {(status === "idle" || status === "error" || status === "parsed" || status === "cooldown") && (
         <Card>
           {hasConnectedBank && (
             <div className="wmg-sub" style={{ textAlign: "center", marginBottom: 10 }}>Or import from a CSV instead</div>
