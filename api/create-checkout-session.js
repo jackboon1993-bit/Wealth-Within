@@ -10,9 +10,12 @@
 // specifically to keep payment on the website instead, sidestepping that
 // requirement entirely rather than risking the app being rejected.
 //
-// The 14-day free trial is configured directly on the Stripe Price object
-// (in the dashboard), so it applies automatically to any subscription
-// created from this price — nothing extra needed here for that.
+// The 14-day free trial is applied in code below (subscription_data.
+// trial_period_days), not on the Stripe Price object — Stripe's dashboard
+// no longer exposes a trial field when creating/editing a price directly
+// (checked 29 Aug 2026: only Price description and Lookup key are under
+// Advanced), so setting it at checkout-creation time is the current
+// correct approach rather than a workaround.
 
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
@@ -22,11 +25,11 @@ const stripe = new Stripe((process.env.STRIPE_SECRET_KEY || "").trim());
 
 // The two Wealth Within Premium prices, read from Vercel env vars rather
 // than hardcoded — lets pricing change (or a new plan be added later)
-// without a code deploy. Set on the Price object in the Stripe dashboard:
-// STRIPE_PRICE_MONTHLY should have the 14-day free trial configured on
-// it directly; STRIPE_PRICE_ANNUAL deliberately has no trial (the
-// annual option's whole purpose is removing the monthly "try then
-// cancel" cycle, so re-adding a trial there would undercut that).
+// without a code deploy. Neither price needs a trial configured on it in
+// Stripe — the 14-day trial for STRIPE_PRICE_MONTHLY is applied below in
+// code instead (see the checkout session block). STRIPE_PRICE_ANNUAL
+// never gets a trial, by design (the annual option's whole purpose is
+// removing the monthly "try then cancel" cycle).
 const PRICE_IDS = {
   monthly: (process.env.STRIPE_PRICE_MONTHLY || "").trim(),
   annual: (process.env.STRIPE_PRICE_ANNUAL || "").trim(),
@@ -78,11 +81,20 @@ export default async function handler(req, res) {
       .eq("household_id", membership.household_id)
       .maybeSingle();
 
+    // Only genuinely new customers get the 14-day trial — someone who
+    // already has a stripe_customer_id has subscribed before (even if
+    // they later cancelled), so this stops the "trial, cancel, trial
+    // again" loophole flagged in the retention discussion. Annual never
+    // gets a trial regardless, by design (see PRICE_IDS comment above).
+    const isNewCustomer = !existing?.stripe_customer_id;
+    const shouldTrial = plan === "monthly" && isNewCustomer;
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: existing?.stripe_customer_id || undefined,
       customer_email: existing?.stripe_customer_id ? undefined : userData.user.email,
       line_items: [{ price: priceId, quantity: 1 }],
+      ...(shouldTrial ? { subscription_data: { trial_period_days: 14 } } : {}),
       // The App Link intercepts this exact path once Stripe redirects
       // here after checkout completes, handing control back to the
       // native app — same App Links mechanism already set up for the
