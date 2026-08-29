@@ -4,7 +4,24 @@ import { MODE_LABELS, getActiveMode } from "../lib/finance";
 import { getHouseholdInfo, renameHousehold, createInvite, joinHousehold, leaveHousehold } from "../lib/household";
 import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, verifyBiometric } from "../utils/biometrics";
 
-export function HouseholdSection({ onHouseholdChanged }) {
+/* Deliberately duplicated from IncomeTab.jsx/BankImportTab.jsx rather than
+   imported — AccountPanel is in the main bundle (not lazy-loaded), so
+   importing from a lazy chunk would pull that chunk's code into every
+   initial page load. Keep this in sync by hand if the visual style ever
+   changes. */
+function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
+  const isLapsed = subscriptionStatus === "canceled" || subscriptionStatus === "past_due";
+  return (
+    <div className="wmg-premium-gate" style={{ textAlign: "center", padding: "8px 0" }}>
+      <div className="wmg-sub" style={{ marginBottom: 10 }}>{text}</div>
+      <button className="wmg-btn-primary" onClick={onUpgrade}>
+        {isLapsed ? "Renew Premium" : "Try Premium free for 14 days"}
+      </button>
+    </div>
+  );
+}
+
+export function HouseholdSection({ onHouseholdChanged, hasPremium, subscriptionStatus, onUpgrade }) {
   const [info, setInfo] = useState(null); // null = loading
   const [errorMsg, setErrorMsg] = useState("");
   const [nameDraft, setNameDraft] = useState("");
@@ -16,6 +33,10 @@ export function HouseholdSection({ onHouseholdChanged }) {
   const [joinBusy, setJoinBusy] = useState(false);
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
+  // Tracks an explicit 402 "premium_required" from the server, separate
+  // from the hasPremium prop — mirrors the pattern in IncomeTab.jsx: trust
+  // the server over a possibly-stale client prop (e.g. status just lapsed).
+  const [inviteLocked, setInviteLocked] = useState(false);
 
   const refresh = async () => {
     try {
@@ -51,12 +72,17 @@ export function HouseholdSection({ onHouseholdChanged }) {
     if (!info) return;
     setInviteBusy(true);
     setErrorMsg("");
+    setInviteLocked(false);
     setCopied(false);
     try {
       const result = await createInvite(info.householdId);
       setInvite(result);
     } catch (e) {
-      setErrorMsg("Couldn't generate an invite code.");
+      if (e.code === "premium_required") {
+        setInviteLocked(true);
+      } else {
+        setErrorMsg("Couldn't generate an invite code.");
+      }
     } finally {
       setInviteBusy(false);
     }
@@ -142,6 +168,12 @@ export function HouseholdSection({ onHouseholdChanged }) {
                 <button className="wmg-onboard-skip" onClick={copyInvite}>{copied ? "Copied ✓" : "Copy"}</button>
               </div>
             </div>
+          ) : (!hasPremium || inviteLocked) ? (
+            <PremiumGate
+              subscriptionStatus={subscriptionStatus}
+              onUpgrade={onUpgrade}
+              text="Inviting someone to share your household is a Premium feature."
+            />
           ) : (
             <button className="wmg-reset-btn" style={{ marginBottom: 8 }} disabled={inviteBusy} onClick={generateInvite}>
               {inviteBusy ? "Generating…" : "Generate invite code"}
@@ -434,6 +466,9 @@ export function AccountPanel({
   deleteAccountStatus,
   deleteAccountNow,
   onHouseholdChanged,
+  hasPremium,
+  subscriptionStatus,
+  onUpgrade,
 }) {
   const activeMode = getActiveMode(profile);
   return (
@@ -460,7 +495,14 @@ export function AccountPanel({
           <div className="wmg-account-divider" />
         </>
       )}
-      {supabase && <HouseholdSection onHouseholdChanged={onHouseholdChanged} />}
+      {supabase && (
+        <HouseholdSection
+          onHouseholdChanged={onHouseholdChanged}
+          hasPremium={hasPremium}
+          subscriptionStatus={subscriptionStatus}
+          onUpgrade={onUpgrade}
+        />
+      )}
       <div className="wmg-sync-row">
         <span className={`wmg-sync-dot status-${storageStatus}`} />
         <span>
