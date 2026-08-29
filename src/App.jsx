@@ -113,18 +113,31 @@ export default function App() {
     }
   };
 
-  const handleUpgrade = async () => {
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
+
+  // Every gated feature calls onUpgrade the same way it always has — this
+  // now opens a small "choose your plan" step first, since there are two
+  // prices (monthly, with a 14-day trial; annual, with none) instead of
+  // the one price this used to jump straight to checkout with.
+  const handleUpgrade = () => setPlanPickerOpen(true);
+
+  const confirmUpgrade = async (plan) => {
+    setUpgradeBusy(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.access_token) return;
-      await startUpgrade(session.access_token);
+      await startUpgrade(session.access_token, plan);
       // The browser tab/sheet takes over from here; the deep-link
       // handlers below pick things up again once it closes — same
       // pattern as connectBank().
     } catch (err) {
       console.error("Failed to start upgrade:", err);
+    } finally {
+      setUpgradeBusy(false);
+      setPlanPickerOpen(false);
     }
   };
 
@@ -1536,6 +1549,19 @@ export default function App() {
         .wmg-feedback-modal { width: 100%; max-width: 380px; background: var(--ink-2); border-radius: 22px; padding: 26px 24px; margin: 16px; box-shadow: 0 20px 44px -14px rgba(15,15,45,0.4); }
         .wmg-feedback-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 6px; }
         .wmg-feedback-sub { font-size: 13px; color: var(--paper-dim); line-height: 1.55; margin-bottom: 16px; }
+        /* Deliberately its own backdrop rather than reusing
+           .wmg-more-sheet-backdrop — that one is hidden above 880px
+           (mobile-only bottom sheet), but onUpgrade fires from buttons
+           that appear on desktop too (Overview, sidebar AccountPanel). */
+        .wmg-plan-modal-backdrop { position: fixed; inset: 0; background: rgba(15,15,45,0.4); z-index: 50; display: flex; align-items: center; justify-content: center; }
+        .wmg-plan-modal { width: 100%; max-width: 380px; background: var(--ink-2); border-radius: 22px; padding: 26px 24px; margin: 16px; box-shadow: 0 20px 44px -14px rgba(15,15,45,0.4); }
+        .wmg-plan-option { width: 100%; text-align: left; background: var(--ink-3); border: 1px solid var(--hair); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; display: block; }
+        .wmg-plan-option:hover:not(:disabled) { border-color: var(--brand); }
+        .wmg-plan-option:disabled { opacity: 0.6; cursor: not-allowed; }
+        .wmg-plan-option-top { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .wmg-plan-option-name { font-size: 14.5px; font-weight: 700; color: var(--paper); }
+        .wmg-plan-option-price { font-size: 14.5px; font-weight: 800; color: var(--brand); }
+        .wmg-plan-option-note { display: block; font-size: 11.5px; color: var(--paper-dim); margin-top: 4px; font-family: 'Plus Jakarta Sans', sans-serif; }
         .wmg-feedback-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
         .wmg-feedback-cat { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11.5px; font-weight: 700; border: 1px solid var(--hair); background: transparent; color: var(--paper-dim); padding: 7px 12px; border-radius: 999px; cursor: pointer; }
         .wmg-feedback-cat.active { background: var(--brand); border-color: var(--brand); color: #FFFFFF; }
@@ -1716,6 +1742,49 @@ export default function App() {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+          {planPickerOpen && (
+            <div className="wmg-plan-modal-backdrop" onClick={() => !upgradeBusy && setPlanPickerOpen(false)}>
+              <div className="wmg-plan-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="wmg-feedback-title">Choose your plan</div>
+                <p className="wmg-feedback-sub">
+                  Both unlock the same Premium features — household sharing, the AI Pension Reader, spending
+                  insights, and automatic nightly bank sync.
+                </p>
+                <button
+                  type="button"
+                  className="wmg-plan-option"
+                  disabled={upgradeBusy}
+                  onClick={() => confirmUpgrade("monthly")}
+                >
+                  <span className="wmg-plan-option-top">
+                    <span className="wmg-plan-option-name">Monthly</span>
+                    <span className="wmg-plan-option-price">£4.99/mo</span>
+                  </span>
+                  <span className="wmg-plan-option-note">14-day free trial, cancel any time</span>
+                </button>
+                <button
+                  type="button"
+                  className="wmg-plan-option"
+                  disabled={upgradeBusy}
+                  onClick={() => confirmUpgrade("annual")}
+                >
+                  <span className="wmg-plan-option-top">
+                    <span className="wmg-plan-option-name">Annual</span>
+                    <span className="wmg-plan-option-price">£49.99/yr</span>
+                  </span>
+                  <span className="wmg-plan-option-note">Works out cheaper than paying monthly — no trial</span>
+                </button>
+                <button
+                  className="wmg-reset-btn"
+                  style={{ width: "100%", marginTop: 4 }}
+                  disabled={upgradeBusy}
+                  onClick={() => setPlanPickerOpen(false)}
+                >
+                  {upgradeBusy ? "Opening checkout…" : "Cancel"}
+                </button>
               </div>
             </div>
           )}

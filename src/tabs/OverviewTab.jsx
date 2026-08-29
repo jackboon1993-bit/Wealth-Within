@@ -132,14 +132,15 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         <Card className="wmg-connect-bank-banner" style={{ background: "var(--brand-soft)", borderColor: "var(--brand)" }}>
           <div className="wmg-connect-bank-banner-text">
             <div className="wmg-connect-bank-banner-title">
-              {subscriptionStatus === "canceled" || subscriptionStatus === "past_due" ? "Renew Premium" : "Try Premium free for 14 days"}
+              {subscriptionStatus === "canceled" || subscriptionStatus === "past_due" ? "Renew Premium" : "Go Premium"}
             </div>
             <div className="wmg-connect-bank-banner-sub">
-              Share this household with a partner, get your pension read by AI, and unlock spending insights — £4.99/month after your trial, cancel any time.
+              Share this household with a partner, get your pension read by AI, and unlock spending insights —
+              monthly with a 14-day free trial, or annual for less overall. Cancel any time.
             </div>
           </div>
           <button type="button" className="wmg-btn-primary" onClick={onUpgrade}>
-            {subscriptionStatus === "canceled" || subscriptionStatus === "past_due" ? "Renew" : "Start trial"}
+            {subscriptionStatus === "canceled" || subscriptionStatus === "past_due" ? "Renew" : "Choose a plan"}
           </button>
         </Card>
       )}

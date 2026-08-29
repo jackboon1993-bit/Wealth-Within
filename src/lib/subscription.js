@@ -11,10 +11,11 @@
 import { Browser } from "@capacitor/browser";
 import { API_BASE } from "./apiBase";
 
-export async function startUpgrade(accessToken) {
+export async function startUpgrade(accessToken, plan = "monthly") {
   const resp = await fetch(`${API_BASE}/api/create-checkout-session`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ plan }),
   });
   const data = await resp.json();
   if (!resp.ok || !data.url) throw new Error(data.error || "Couldn't start checkout.");

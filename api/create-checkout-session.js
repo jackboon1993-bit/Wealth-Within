@@ -20,9 +20,17 @@ import Stripe from "stripe";
 const supabaseAdmin = createClient((process.env.SUPABASE_URL || "").trim(), (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim());
 const stripe = new Stripe((process.env.STRIPE_SECRET_KEY || "").trim());
 
-// The one Wealth Within Premium price — £4.99/month with a 14-day trial
-// configured on the price itself in the Stripe dashboard.
-const PRICE_ID = "price_1U9Olx1AF8xt0AMEPEVl3GTM";
+// The two Wealth Within Premium prices, read from Vercel env vars rather
+// than hardcoded — lets pricing change (or a new plan be added later)
+// without a code deploy. Set on the Price object in the Stripe dashboard:
+// STRIPE_PRICE_MONTHLY should have the 14-day free trial configured on
+// it directly; STRIPE_PRICE_ANNUAL deliberately has no trial (the
+// annual option's whole purpose is removing the monthly "try then
+// cancel" cycle, so re-adding a trial there would undercut that).
+const PRICE_IDS = {
+  monthly: (process.env.STRIPE_PRICE_MONTHLY || "").trim(),
+  annual: (process.env.STRIPE_PRICE_ANNUAL || "").trim(),
+};
 
 export default async function handler(req, res) {
   // Same reasoning as every other route the native app calls directly —
@@ -53,6 +61,13 @@ export default async function handler(req, res) {
     .maybeSingle();
   if (!membership) return res.status(404).json({ error: "No household found." });
 
+  const { plan } = req.body || {};
+  const priceId = PRICE_IDS[plan] || PRICE_IDS.monthly;
+  if (!priceId) {
+    console.error(`create-checkout-session: no Stripe price configured for plan "${plan || "monthly"}"`);
+    return res.status(500).json({ error: "This plan isn't available right now." });
+  }
+
   try {
     // Reuse an existing Stripe customer for this household if one already
     // exists (e.g. from a previous trial/cancellation), rather than
@@ -67,7 +82,7 @@ export default async function handler(req, res) {
       mode: "subscription",
       customer: existing?.stripe_customer_id || undefined,
       customer_email: existing?.stripe_customer_id ? undefined : userData.user.email,
-      line_items: [{ price: PRICE_ID, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       // The App Link intercepts this exact path once Stripe redirects
       // here after checkout completes, handing control back to the
       // native app — same App Links mechanism already set up for the

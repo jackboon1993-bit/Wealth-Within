@@ -15,7 +15,7 @@ function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
     <div className="wmg-premium-gate" style={{ textAlign: "center", padding: "8px 0" }}>
       <div className="wmg-sub" style={{ marginBottom: 10 }}>{text}</div>
       <button className="wmg-btn-primary" onClick={onUpgrade}>
-        {isLapsed ? "Renew Premium" : "Try Premium free for 14 days"}
+        {isLapsed ? "Renew Premium" : "See Premium plans"}
       </button>
     </div>
   );
