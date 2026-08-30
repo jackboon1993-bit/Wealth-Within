@@ -54,6 +54,50 @@ export async function resolveUprnFromAddress(address, apiKey) {
   return uprn;
 }
 
+// Confirmed 30 Aug 2026 (via Wiseguy, docs.chimnie.com): the Address
+// Autocomplete endpoint returns address text only — no UPRN — plus an
+// autocomplete_session id. Resolving the actual UPRN for a selected
+// suggestion still goes through the same paid /residential/address
+// endpoint as resolveUprnFromAddress() above (still 10p minimum), just
+// fed a confirmed address string instead of free text, with the session
+// id attached. So autocomplete is a real accuracy/UX improvement (no
+// typos, a real matched address) but doesn't make this free — same cost,
+// just paid at selection time instead of deferred to the monthly cron.
+export async function searchAddresses(query, apiKey) {
+  const resp = await fetch(`${CHIMNIE_BASE_URL}/search/autocomplete/${encodeURIComponent(query)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!resp.ok) {
+    throw new Error(`Chimnie address search failed: ${resp.status}`);
+  }
+  const data = await resp.json();
+  return {
+    addresses: data?.addresses || [],
+    session: data?.session || null,
+  };
+}
+
+export async function resolveUprnFromSelectedAddress(address, session, apiKey) {
+  const url = `${CHIMNIE_BASE_URL}/residential/address/${encodeURIComponent(address)}?autocomplete_session=${encodeURIComponent(session)}&fields=id,plus.property.attributes.status.address,plus.property.attributes.status.postcode`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+  if (!resp.ok) {
+    throw new Error(`Chimnie address resolution failed: ${resp.status}`);
+  }
+  const data = await resp.json();
+  const uprn = data?.id || null;
+  if (!uprn) {
+    throw new Error("Chimnie address resolution returned no UPRN for this address.");
+  }
+  return {
+    uprn,
+    // Fall back to the address the person selected if Chimnie doesn't
+    // echo a formatted one back — either way there's a real address to
+    // store, never nothing.
+    address: data?.plus?.property?.attributes?.status?.address || address,
+    postcode: data?.plus?.property?.attributes?.status?.postcode || null,
+  };
+}
+
 export async function getAvmValue(uprn, apiKey) {
   // Deliberately requests ONLY this one field — see the file-level note
   // above on why adding any other field here would make this billable.

@@ -1,7 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { gbp, clamp, daysSince, estimateBalanceToday, addMonths, getActiveMode, nextId } from "../lib/finance";
 import { Card, GrowthRing, WhyItMatters, InfoTip, DisclosureSection, Field, InlinePill, NumberInput } from "../components/ui";
 import { QuickImport } from "../components/SetupWizard";
+import { API_BASE } from "../lib/apiBase";
+import { supabase } from "../lib/supabaseClient";
 
 // Deliberately duplicated from IncomeTab.jsx/BankImportTab.jsx/
 // AccountPanel.jsx rather than imported — DebtsTab is its own lazy-loaded
@@ -184,6 +186,79 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove, startEditing = fal
 
 export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, addArrayItemWithId, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems, hasPremium, subscriptionStatus, onUpgrade }) {
   const [justAddedDebtId, setJustAddedDebtId] = useState(null);
+  // Address autocomplete: typing debounces into a search against
+  // api/property-address-search (Chimnie's Address Autocomplete), which
+  // returns real matched UK addresses rather than free text — picking one
+  // resolves its UPRN immediately via api/property-resolve-address rather
+  // than waiting for the monthly valuation cron. See both files' comments
+  // for why this doesn't eliminate the one-time 10p Chimnie cost, just
+  // moves it earlier and makes the address itself reliable.
+  const [addressQuery, setAddressQuery] = useState(profile.propertyAddress || "");
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [autocompleteSession, setAutocompleteSession] = useState(null);
+  const [addressSearchStatus, setAddressSearchStatus] = useState("idle"); // idle | searching | error
+  const [addressResolveStatus, setAddressResolveStatus] = useState("idle"); // idle | resolving | error
+  const addressDebounceRef = useRef(null);
+  useEffect(() => {
+    setAddressQuery(profile.propertyAddress || "");
+  }, [profile.propertyAddress]);
+
+  const searchAddress = async (query) => {
+    setAddressSearchStatus("searching");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch(`${API_BASE}/api/property-address-search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ query }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Search failed.");
+      setAddressSuggestions(data.addresses || []);
+      setAutocompleteSession(data.session || null);
+      setAddressSearchStatus("idle");
+    } catch (e) {
+      setAddressSearchStatus("error");
+      setAddressSuggestions([]);
+    }
+  };
+
+  const handleAddressQueryChange = (value) => {
+    setAddressQuery(value);
+    setAddressSuggestions([]);
+    if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+    if (value.trim().length < 3) return;
+    // Waits for a pause in typing before searching, rather than firing on
+    // every keystroke — Chimnie's autocomplete has its own per-request
+    // cost/rate limit like the rest of their API, so this keeps that down
+    // regardless of exactly what that cost turns out to be.
+    addressDebounceRef.current = setTimeout(() => searchAddress(value.trim()), 400);
+  };
+
+  const selectAddress = async (address) => {
+    setAddressSuggestions([]);
+    setAddressResolveStatus("resolving");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch(`${API_BASE}/api/property-resolve-address`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ address, autocompleteSession }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Couldn't confirm that address.");
+      setField(["propertyAddress"])(data.address || address);
+      setField(["propertyUprn"])(data.uprn);
+      setAddressQuery(data.address || address);
+      setAddressResolveStatus("idle");
+    } catch (e) {
+      setAddressResolveStatus("error");
+    }
+  };
   const handleAddDebt = (arrKey, blank) => () => {
     const id = nextId();
     addArrayItemWithId(arrKey, { id, ...blank })();
@@ -345,27 +420,55 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
                 text="Automatic monthly home value tracking is a Premium feature."
               />
             ) : (
-              <>
+              <div style={{ position: "relative" }}>
                 <input
                   className="wmg-input"
                   type="text"
-                  placeholder="e.g. 12 Example Street, Chatham, ME4 1AB"
-                  value={profile.propertyAddress}
-                  onChange={(e) => setField(["propertyAddress"])(e.target.value)}
+                  placeholder="Start typing your address…"
+                  value={addressQuery}
+                  onChange={(e) => handleAddressQueryChange(e.target.value)}
+                  autoComplete="off"
                 />
-                {profile.propertyAddress && (
+                {addressSearchStatus === "searching" && (
+                  <div className="wmg-sub" style={{ marginTop: 6 }}>Searching…</div>
+                )}
+                {addressSearchStatus === "error" && (
+                  <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
+                    Couldn't search addresses right now — try again in a moment.
+                  </div>
+                )}
+                {addressSuggestions.length > 0 && (
+                  <div className="wmg-address-suggestions">
+                    {addressSuggestions.map((addr) => (
+                      <button
+                        key={addr}
+                        type="button"
+                        className="wmg-address-suggestion"
+                        onClick={() => selectAddress(addr)}
+                      >
+                        {addr}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {addressResolveStatus === "resolving" && (
+                  <div className="wmg-sub" style={{ marginTop: 6 }}>Confirming that address…</div>
+                )}
+                {addressResolveStatus === "error" && (
+                  <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
+                    Couldn't confirm that address — try selecting it again.
+                  </div>
+                )}
+                {profile.propertyAddress && profile.propertyUprn && addressSuggestions.length === 0 && (
                   <div className="wmg-sub" style={{ marginTop: 6 }}>
                     {profile.homeValueSource === "auto" && profile.homeValueUpdatedAt ? (
-                      <>Last updated automatically on {new Date(profile.homeValueUpdatedAt).toLocaleDateString("en-GB")}.</>
+                      <>Confirmed: {profile.propertyAddress}. Last updated automatically on {new Date(profile.homeValueUpdatedAt).toLocaleDateString("en-GB")}.</>
                     ) : (
-                      <>
-                        Saved — the next monthly update will fetch a value for this address (usually within a few
-                        weeks of adding it, depending on when the monthly run falls).
-                      </>
+                      <>Confirmed: {profile.propertyAddress}. The first valuation will be ready by the next monthly update.</>
                     )}
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
           <div className="wmg-two-col" style={{ marginTop: 4 }}>

@@ -382,14 +382,6 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
   const [spendingInsightStatus, setSpendingInsightStatus] = useState("idle"); // idle | loading | done | error
   const [spendingInsightResults, setSpendingInsightResults] = useState(null);
   const [spendingInsightError, setSpendingInsightError] = useState("");
-  // Drives the "what would you like to check?" wizard below. "picker"
-  // shows the question; "all" shows every section exactly as this tab
-  // has always worked (full parity, nothing hidden); the other four
-  // values each show just one existing section. This is deliberately
-  // just a *view filter* over sections/data that already exist — it
-  // doesn't collect or duplicate anything the rest of the tab already
-  // asks for.
-  const [cashflowView, setCashflowView] = useState("picker");
 
   const onboardingEstimateItem = useMemo(() => {
     for (const cat of profile.expenseCategories) {
@@ -497,55 +489,6 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
 
   return (
     <>
-      {cashflowView === "picker" && (
-        <>
-          <div className="wmg-section-title">What would you like to check?</div>
-          <div className="wmg-section-desc">
-            Pick one to jump straight there, or see the whole picture at once. Nothing here asks you to enter
-            anything twice — it's just a quicker way into what's already below.
-          </div>
-          <Card>
-            <div className="wmg-sub-list">
-              <button type="button" className="wmg-add-btn" onClick={() => setCashflowView("overview")}>
-                How much do I have left each month?
-              </button>
-              {billsCategories.length > 0 && (
-                <button type="button" className="wmg-add-btn" onClick={() => setCashflowView("bills")}>
-                  Are my bills reasonable?
-                </button>
-              )}
-              <button type="button" className="wmg-add-btn" onClick={() => setCashflowView("spending")}>
-                Where's my everyday spending actually going?
-              </button>
-              <button type="button" className="wmg-add-btn" onClick={() => setCashflowView("subscriptions")}>
-                What am I paying for on repeat?
-              </button>
-            </div>
-            <button
-              type="button"
-              className="wmg-btn-primary"
-              style={{ width: "100%", marginTop: 12 }}
-              onClick={() => setCashflowView("all")}
-            >
-              Just show me everything
-            </button>
-          </Card>
-        </>
-      )}
-
-      {cashflowView !== "picker" && (
-        <button
-          type="button"
-          className="wmg-onboard-skip"
-          style={{ marginBottom: 12 }}
-          onClick={() => setCashflowView("picker")}
-        >
-          ← Choose something else to check
-        </button>
-      )}
-
-      {(cashflowView === "overview" || cashflowView === "all") && (
-        <>
       <div className="wmg-section-title">Income</div>
       <Card>
         <div className="wmg-two-col">
@@ -597,10 +540,8 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           </p>
         </Card>
       )}
-        </>
-      )}
 
-      {(cashflowView === "bills" || cashflowView === "all") && billsCategories.length > 0 && (
+      {billsCategories.length > 0 && (
         <>
           <div className="wmg-section-title">Your bills</div>
           {!profile.billsConfirmed ? (
@@ -748,9 +689,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
         </>
       )}
 
-      {(cashflowView === "spending" || cashflowView === "all") && (
-        <>
-        {categoryChartData.length > 0 ? (
+      {categoryChartData.length > 0 ? (
         <>
           <div className="wmg-section-title">Where it actually goes</div>
           <div className="wmg-section-desc">
@@ -851,11 +790,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           onClose={() => setEditSpendingOpen(false)}
         />
       )}
-        </>
-      )}
 
-      {(cashflowView === "subscriptions" || cashflowView === "all") && (
-        <>
       <div className="wmg-section-title">Subscriptions</div>
       <Card style={{ marginBottom: 10 }}>
         <div className="wmg-sub">
@@ -950,8 +885,6 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           <span>{gbp(totals.subsTotal, 2)}/month</span>
         </div>
       </Card>
-        </>
-      )}
     </>
   );
 }

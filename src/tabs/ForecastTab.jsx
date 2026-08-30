@@ -6,6 +6,16 @@ import { Card, Field, ChartTooltip, InfoTip, WhyItMatters, NumberInput } from ".
 export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocationPct, forecast, interestSavedFromAllocation, totals, profile, setField, updateLifeEvent, addLifeEvent, removeLifeEvent, addScenario, updateScenario, removeScenario }) {
   const activeMode = getActiveMode(profile);
   const [realTerms, setRealTerms] = useState(false);
+  // Drives the "what would you like to check?" wizard below — same
+  // pattern considered for Income & Expenditure but actually belongs
+  // here, since "the different scenarios you scroll through" refers to
+  // Cash Flow Forecast's own sections (the projection itself, Compare
+  // scenarios, Life events), not Income & Expenditure's. "picker" shows
+  // the question; "all" shows every section exactly as this tab has
+  // always worked; the other three each show just one existing section.
+  // Purely a view filter — nothing here duplicates a question asked
+  // anywhere else in the tab.
+  const [forecastView, setForecastView] = useState("picker");
   const suffix = realTerms ? "Real" : "";
   const last = forecast.series[forecast.series.length - 1];
   const key = (base) => `${base}${suffix}`;
@@ -50,6 +60,50 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
 
   return (
     <>
+      {forecastView === "picker" && (
+        <>
+          <div className="wmg-section-title">What would you like to check?</div>
+          <div className="wmg-section-desc">
+            Pick one to jump straight there, or see the whole picture at once. Nothing here asks you to enter
+            anything twice — it's just a quicker way into what's already below.
+          </div>
+          <Card>
+            <div className="wmg-sub-list">
+              <button type="button" className="wmg-add-btn" onClick={() => setForecastView("forecast")}>
+                Where am I heading overall?
+              </button>
+              <button type="button" className="wmg-add-btn" onClick={() => setForecastView("scenarios")}>
+                {profile.scenarios.length > 0 ? "How do my different plans compare?" : "Save and compare different plans"}
+              </button>
+              <button type="button" className="wmg-add-btn" onClick={() => setForecastView("events")}>
+                What if something big happens — a windfall, a big expense?
+              </button>
+            </div>
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 12 }}
+              onClick={() => setForecastView("all")}
+            >
+              Just show me everything
+            </button>
+          </Card>
+        </>
+      )}
+
+      {forecastView !== "picker" && (
+        <button
+          type="button"
+          className="wmg-onboard-skip"
+          style={{ marginBottom: 12 }}
+          onClick={() => setForecastView("picker")}
+        >
+          ← Choose something else to check
+        </button>
+      )}
+
+      {(forecastView === "forecast" || forecastView === "all") && (
+        <>
       <div className="wmg-section-title">Cash flow forecast</div>
       <div className="wmg-section-desc">
         This takes everything you've entered elsewhere — your income, spending, debts, savings, and pension — and
@@ -218,7 +272,11 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           has rate changes, job changes and surprises — treat this as a direction of travel, not a promise.
         </div>
       </Card>
+        </>
+      )}
 
+      {(forecastView === "scenarios" || forecastView === "all") && (
+        <>
       <div className="wmg-section-title">Compare scenarios</div>
       <div className="wmg-section-desc">
         Save a couple of different debt-vs-saving splits and see them plotted together, instead of overwriting the
@@ -296,7 +354,11 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           + Save current split ({allocationPct}% to debt) as a scenario
         </button>
       </Card>
+        </>
+      )}
 
+      {(forecastView === "events" || forecastView === "all") && (
+        <>
       <div className="wmg-section-title">Life events</div>
       <div className="wmg-section-desc">
         One-off things that aren't part of your regular monthly numbers — a redundancy payout, an inheritance, a house
@@ -365,6 +427,8 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           + Add life event
         </button>
       </Card>
+        </>
+      )}
     </>
   );
 }

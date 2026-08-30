@@ -1424,6 +1424,10 @@ export default function App() {
         .wmg-pill-input { display: inline-block; width: 76px; background: var(--coral-soft); color: var(--coral-text); border: 1.5px solid var(--coral); border-radius: 8px; padding: 1px 8px; font-size: inherit; font-weight: 700; font-family: inherit; text-align: center; }
         .wmg-sentence-card { font-size: 14.5px; line-height: 1.85; color: var(--paper); }
         .wmg-guided-summary-card { background: var(--brand-soft); border: 1px solid var(--brand); font-size: 14.5px; line-height: 1.7; margin-bottom: 14px; }
+        .wmg-address-suggestions { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--ink-2); border: 1px solid var(--hair); border-radius: 12px; max-height: 240px; overflow-y: auto; box-shadow: 0 12px 28px -10px rgba(15,15,45,0.35); }
+        .wmg-address-suggestion { display: block; width: 100%; text-align: left; background: transparent; border: none; border-bottom: 1px solid var(--hair); padding: 10px 12px; font-size: 12.5px; color: var(--paper); cursor: pointer; }
+        .wmg-address-suggestion:last-child { border-bottom: none; }
+        .wmg-address-suggestion:hover { background: var(--ink-3); }
         .wmg-connect-bank-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
         .wmg-connect-bank-banner-text { flex: 1 1 240px; min-width: 0; }
         .wmg-connect-bank-banner-title { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14.5px; color: var(--paper); margin-bottom: 3px; }
