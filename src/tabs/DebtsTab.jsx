@@ -253,6 +253,11 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
       if (!resp.ok) throw new Error(data.error || "Couldn't confirm that address.");
       setField(["propertyAddress"])(data.address || address);
       setField(["propertyUprn"])(data.uprn);
+      if (data.value != null) {
+        setField(["homeValue"])(data.value);
+        setField(["homeValueSource"])("auto");
+        setField(["homeValueUpdatedAt"])(new Date().toISOString());
+      }
       setAddressQuery(data.address || address);
       setAddressResolveStatus("idle");
     } catch (e) {
