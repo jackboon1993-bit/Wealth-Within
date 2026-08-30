@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { gbp, gbpApprox, getActiveMode, nextId } from "../lib/finance";
-import { Card, WhyItMatters, DisclosureSection, Field, ChartTooltip, NumberInput } from "../components/ui";
+import { Card, WhyItMatters, DisclosureSection, Field, ChartTooltip, NumberInput, StatIcon } from "../components/ui";
 
 export function PensionPotCard({ pot, canRemove, activeMode, updateArrayItem, removeArrayItem, startEditing = false }) {
   const [editing, setEditing] = useState(startEditing);
@@ -161,27 +161,70 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
         Drawdown rate is fixed at the standard 4% — current age and retirement age can both be adjusted here.
       </div>
       <Card>
-        <div className="wmg-three-col">
-          <Field label="Current age">
-            <NumberInput className="wmg-input" value={profile.pensionSettings.currentAge} onChange={setField(["pensionSettings", "currentAge"])} />
-          </Field>
-          <Field label="Target retirement age">
-            <NumberInput className="wmg-input" value={profile.pensionSettings.retirementAge} onChange={setField(["pensionSettings", "retirementAge"])} />
-          </Field>
-          <div>
-            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Years to retirement</div>
-            <div className="wmg-figure tone-paper">{pensionYearsToRetire}</div>
-          </div>
-        </div>
-        <div>
-          <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Drawdown rate at retirement</div>
-          <div className="wmg-figure tone-paper">4%</div>
-          <div className="wmg-sub" style={{ marginTop: 6 }}>
-            Fixed at 4% — a standard, widely-used starting point for how much of your combined pots to take out
-            each year once retired. Take out much more and there's a real risk of running out; take out less and
-            it lasts longer but gives you less to live on.
-          </div>
-        </div>
+        {profile.pensionAssumptionsConfirmed ? (
+          <>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="calendar" />Current age</span>
+              <span className="wmg-detail-row-value">{profile.pensionSettings.currentAge}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="calendar" />Target retirement age</span>
+              <span className="wmg-detail-row-value">{profile.pensionSettings.retirementAge}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="pension" />Years to retirement</span>
+              <span className="wmg-detail-row-value">{pensionYearsToRetire}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="percent" />Drawdown rate at retirement</span>
+              <span className="wmg-detail-row-value">4%</span>
+            </div>
+            <div className="wmg-sub" style={{ marginTop: 8 }}>
+              Fixed at 4% — a standard, widely-used starting point for how much of your combined pots to take out
+              each year once retired.
+            </div>
+            <button
+              type="button"
+              className="wmg-onboard-skip"
+              style={{ marginTop: 10 }}
+              onClick={() => setField(["pensionAssumptionsConfirmed"])(false)}
+            >
+              Edit retirement assumptions
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="wmg-three-col">
+              <Field label="Current age">
+                <NumberInput className="wmg-input" value={profile.pensionSettings.currentAge} onChange={setField(["pensionSettings", "currentAge"])} />
+              </Field>
+              <Field label="Target retirement age">
+                <NumberInput className="wmg-input" value={profile.pensionSettings.retirementAge} onChange={setField(["pensionSettings", "retirementAge"])} />
+              </Field>
+              <div>
+                <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Years to retirement</div>
+                <div className="wmg-figure tone-paper">{pensionYearsToRetire}</div>
+              </div>
+            </div>
+            <div>
+              <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Drawdown rate at retirement</div>
+              <div className="wmg-figure tone-paper">4%</div>
+              <div className="wmg-sub" style={{ marginTop: 6 }}>
+                Fixed at 4% — a standard, widely-used starting point for how much of your combined pots to take out
+                each year once retired. Take out much more and there's a real risk of running out; take out less and
+                it lasts longer but gives you less to live on.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ marginTop: 10 }}
+              onClick={() => setField(["pensionAssumptionsConfirmed"])(true)}
+            >
+              ✓ I've confirmed these retirement assumptions
+            </button>
+          </>
+        )}
       </Card>
 
       <div className="wmg-section-title">Combined pension total</div>

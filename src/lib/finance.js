@@ -311,6 +311,9 @@ export const defaultProfile = {
   // pattern as billsConfirmed above — covers mortgage balance, payment,
   // and interest rate together as one set. See DebtsTab.jsx.
   mortgageDetailsConfirmed: false,
+  // Same pattern again — see DebtsTab.jsx's mortgageDetailsConfirmed for
+  // the reasoning. Covers current age + target retirement age together.
+  pensionAssumptionsConfirmed: false,
   // Phase 2 of the adaptive experience: recommendedMode comes from the two
   // onboarding preference questions and is never overwritten automatically.
   // preferredMode is null until the person explicitly picks a mode (either
