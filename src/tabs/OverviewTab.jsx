@@ -37,8 +37,8 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const heroStats = [
-    { label: "Income & Expenditure", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
-    { label: "Loans & cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", focus: "loans", icon: "debt", gradient: true },
+    { label: "Budget", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
+    { label: "Loans & credit cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", focus: "loans", icon: "debt", gradient: true },
     { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "goals", icon: "savings", gradient: true },
     // Debt-free and Mortgage-free payoff-date tiles were dropped from
     // here — they clustered with Debt/Home equity into four tiles all

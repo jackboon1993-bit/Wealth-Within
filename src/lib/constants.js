@@ -13,7 +13,7 @@ export const NAV = [
 
 export const TAB_TITLES = {
   ...Object.fromEntries(NAV.map((n) => [n.key, n.label])),
-  income: "Income & Expenditure",
+  income: "Budget",
   debts: "Debts & Mortgage",
   goals: "Savings & Goals",
   import: "Connect a Bank",

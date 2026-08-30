@@ -92,8 +92,15 @@ export function PensionPotCard({ pot, canRemove, activeMode, updateArrayItem, re
           </DisclosureSection>
         </>
       ) : (
-        <div className="wmg-sub" style={{ marginTop: 8 }}>
-          {gbp(pot.balance)} pot · {gbp(pot.contribution)}/mo contribution
+        <div style={{ marginTop: 8 }}>
+          <div className="wmg-detail-row">
+            <span className="wmg-detail-row-label"><StatIcon name="pension" />Pot value</span>
+            <span className="wmg-detail-row-value">{gbp(pot.balance)}</span>
+          </div>
+          <div className="wmg-detail-row">
+            <span className="wmg-detail-row-label"><StatIcon name="wallet" />Monthly contribution</span>
+            <span className="wmg-detail-row-value">{gbp(pot.contribution)}</span>
+          </div>
         </div>
       )}
     </div>
