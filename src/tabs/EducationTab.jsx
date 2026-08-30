@@ -1,5 +1,24 @@
 import React, { useState } from "react";
 import { Card, AccordionItem } from "../components/ui";
+import { API_BASE } from "../lib/apiBase";
+import { supabase } from "../lib/supabaseClient";
+import { gbp } from "../lib/finance";
+
+// Deliberately duplicated from IncomeTab.jsx/BankImportTab.jsx/
+// AccountPanel.jsx/DebtsTab.jsx rather than imported — EducationTab is
+// its own lazy-loaded chunk, and importing across chunks would couple
+// two that were deliberately split apart for one small component.
+function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
+  const isLapsed = subscriptionStatus === "canceled" || subscriptionStatus === "past_due";
+  return (
+    <div className="wmg-premium-gate" style={{ textAlign: "center", padding: "8px 0" }}>
+      <div className="wmg-sub" style={{ marginBottom: 10 }}>{text}</div>
+      <button className="wmg-btn-primary" onClick={onUpgrade}>
+        {isLapsed ? "Renew Premium" : "See Premium plans"}
+      </button>
+    </div>
+  );
+}
 
 export const EDUCATION_TOPICS = [
   {
@@ -97,8 +116,86 @@ export const EDU_CATEGORY_TONES = {
 };
 
 
-export function EducationTab() {
+// Maps profile data the app already has to a handful of the topics
+// above, so the person sees what's most relevant to their own situation
+// first, instead of the same 17 topics in the same order regardless of
+// circumstances. Pure logic, no AI or API call — this is instant and
+// free, unlike the "Ask a question" box below. Returns at most 3 matches
+// in priority order (most time-sensitive first), each referencing a
+// topic by its accordion id ("<category>-<index>") so the actual topic
+// text lives in exactly one place (EDUCATION_TOPICS above) rather than
+// being duplicated here.
+function getRelevantTopics(profile, totals, pensionYearsToRetire, inFinancialHardship) {
+  const candidates = [];
+
+  if (inFinancialHardship) {
+    candidates.push({ id: "Getting real help-0", reason: "Because your essential spending is currently close to or above your income" });
+  }
+  if (totals.totalDebt > 0) {
+    candidates.push({ id: "Debt-0", reason: `Because you're carrying ${gbp(Math.round(totals.totalDebt))} in loans and card debt` });
+  }
+  const emergencyTarget = profile.emergencyFund?.target || 0;
+  if (emergencyTarget > 0 && (profile.emergencyFund?.balance || 0) < emergencyTarget) {
+    candidates.push({ id: "Savings & ISAs-2", reason: "Because your emergency fund isn't at its target yet" });
+  }
+  if (pensionYearsToRetire != null) {
+    if (pensionYearsToRetire <= 10) {
+      candidates.push({ id: "Pensions-6", reason: `Because you're about ${pensionYearsToRetire} years from your target retirement age` });
+    } else {
+      candidates.push({ id: "Pensions-0", reason: "Because you've still got time on your side before retirement" });
+    }
+  }
+  if ((profile.investments?.balance || 0) === 0 && (profile.savings?.balance || 0) > emergencyTarget) {
+    candidates.push({ id: "Savings & ISAs-0", reason: "Because you've got savings beyond your emergency fund that could be working harder" });
+  }
+
+  return candidates.slice(0, 3);
+}
+
+function findTopic(id) {
+  const [category, indexStr] = [id.slice(0, id.lastIndexOf("-")), id.slice(id.lastIndexOf("-") + 1)];
+  const group = EDUCATION_TOPICS.find((g) => g.category === category);
+  return group?.items?.[Number(indexStr)] || null;
+}
+
+export function EducationTab({ profile, totals, pensionYearsToRetire, inFinancialHardship, hasPremium, subscriptionStatus, onUpgrade }) {
   const [openId, setOpenId] = useState(null);
+  const [question, setQuestion] = useState("");
+  const [questionStatus, setQuestionStatus] = useState("idle"); // idle | asking | done | error | locked
+  const [answer, setAnswer] = useState(null);
+  const [questionError, setQuestionError] = useState("");
+
+  const relevantTopics = getRelevantTopics(profile, totals, pensionYearsToRetire, inFinancialHardship)
+    .map((r) => ({ ...r, topic: findTopic(r.id) }))
+    .filter((r) => r.topic);
+
+  const askQuestion = async () => {
+    if (!question.trim()) return;
+    setQuestionStatus("asking");
+    setQuestionError("");
+    setAnswer(null);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch(`${API_BASE}/api/education-question`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ question: question.trim() }),
+      });
+      const data = await resp.json();
+      if (resp.status === 402) {
+        setQuestionStatus("locked");
+        return;
+      }
+      if (!resp.ok) throw new Error(data.error || "Something went wrong.");
+      setAnswer(data.answer);
+      setQuestionStatus("done");
+    } catch (e) {
+      setQuestionStatus("error");
+      setQuestionError(e.message || "Couldn't get an answer right now.");
+    }
+  };
 
   return (
     <>
@@ -108,6 +205,71 @@ export function EducationTab() {
         know your circumstances the way a regulated adviser or MoneyHelper would. Rules, rates, and allowances change
         most years; treat specific figures below as a guide and check gov.uk or MoneyHelper for current numbers.
       </div>
+
+      {relevantTopics.length > 0 && (
+        <>
+          <div className="wmg-section-title">For you</div>
+          <div className="wmg-section-desc">Picked based on what you've already entered elsewhere in the app.</div>
+          <Card>
+            {relevantTopics.map((r, i) => (
+              <div key={r.id} style={{ marginBottom: i === relevantTopics.length - 1 ? 0 : 14 }}>
+                <div className="wmg-sub" style={{ marginBottom: 4 }}>{r.reason}</div>
+                <AccordionItem
+                  title={r.topic.title}
+                  body={r.topic.body}
+                  isOpen={openId === `foryou-${r.id}`}
+                  onToggle={() => setOpenId(openId === `foryou-${r.id}` ? null : `foryou-${r.id}`)}
+                  tone="brand"
+                />
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
+
+      <div className="wmg-section-title">Ask a question</div>
+      <div className="wmg-section-desc">
+        Anything about pensions, savings, debt, or how something works — general education, not advice tailored to
+        your specific situation.
+      </div>
+      <Card>
+        {!hasPremium || questionStatus === "locked" ? (
+          <PremiumGate
+            subscriptionStatus={subscriptionStatus}
+            onUpgrade={onUpgrade}
+            text="Asking a free-text question is a Premium feature."
+          />
+        ) : (
+          <>
+            <textarea
+              className="wmg-input"
+              rows={2}
+              placeholder="e.g. What's the difference between an annuity and drawdown?"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              maxLength={500}
+              style={{ resize: "vertical", minHeight: 44 }}
+            />
+            <button
+              type="button"
+              className="wmg-add-btn"
+              style={{ marginTop: 8 }}
+              disabled={!question.trim() || questionStatus === "asking"}
+              onClick={askQuestion}
+            >
+              {questionStatus === "asking" ? "Thinking…" : "Ask"}
+            </button>
+            {questionStatus === "error" && (
+              <div className="wmg-sub" style={{ marginTop: 8, color: "var(--rust)" }}>{questionError}</div>
+            )}
+            {questionStatus === "done" && answer && (
+              <div className="wmg-sub" style={{ marginTop: 12, whiteSpace: "pre-wrap", color: "var(--paper)" }}>
+                {answer}
+              </div>
+            )}
+          </>
+        )}
+      </Card>
 
       {EDUCATION_TOPICS.map((group) => {
         const tone = EDU_CATEGORY_TONES[group.category] || "brand";

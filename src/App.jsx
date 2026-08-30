@@ -2055,7 +2055,17 @@ export default function App() {
               />
             )}
 
-            {tab === "education" && <EducationTab />}
+            {tab === "education" && (
+              <EducationTab
+                profile={profile}
+                totals={totals}
+                pensionYearsToRetire={pensionYearsToRetire}
+                inFinancialHardship={inFinancialHardship}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
+              />
+            )}
           </Suspense>
 
             <div className="wmg-footnote">
