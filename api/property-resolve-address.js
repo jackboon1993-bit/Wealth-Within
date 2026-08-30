@@ -51,6 +51,12 @@ export default async function handler(req, res) {
     const result = await resolveUprnFromSelectedAddress(address, autocompleteSession, chimnieApiKey);
     let value = null;
     try {
+      // A short pause before the value call — it immediately follows the
+      // address-resolve call above, close enough together to trip
+      // Chimnie's 1 request/second free-tier limit on the value lookup.
+      // getAvmValue() also retries on a 429 as a safety net, but avoiding
+      // the rate limit in the first place is faster than recovering from it.
+      await new Promise((r) => setTimeout(r, 1100));
       value = await getAvmValue(result.uprn, chimnieApiKey);
     } catch (valueErr) {
       // Address resolution still succeeded — don't fail the whole request

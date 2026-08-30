@@ -264,6 +264,13 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
       setAddressResolveStatus("error");
     }
   };
+  const switchToManualHomeValue = () => {
+    setField(["propertyAddress"])("");
+    setField(["propertyUprn"])(null);
+    setField(["homeValueSource"])("manual");
+    setAddressQuery("");
+    setAddressSuggestions([]);
+  };
   const handleAddDebt = (arrKey, blank) => () => {
     const id = nextId();
     addArrayItemWithId(arrKey, { id, ...blank })();
@@ -393,19 +400,28 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
               <NumberInput className="wmg-input" step="0.1" value={profile.mortgage.rate} onChange={setField(["mortgage", "rate"])} />
             </Field>
             <Field label="Estimated home value">
-              <NumberInput
-                className="wmg-input"
-                value={profile.homeValue}
-                onChange={(v) => {
-                  setField(["homeValue"])(v);
-                  // Typing a value in by hand doesn't clear the saved
-                  // address/UPRN — the next scheduled automatic run just
-                  // overwrites this again. Only the source label changes,
-                  // so the UI can say "you last edited this by hand"
-                  // rather than implying it's still being tracked live.
-                  setField(["homeValueSource"])("manual");
-                }}
-              />
+              {profile.homeValueSource === "auto" && profile.propertyUprn ? (
+                // No editable box once a real address is confirmed and
+                // tracking automatically — an editable number next to an
+                // auto-updating one invited confusion about which was
+                // "real". Switching back to manual entry (below) is the
+                // only way to get an editable box back.
+                <div className="wmg-readonly-value">{gbp(profile.homeValue)}</div>
+              ) : (
+                <NumberInput
+                  className="wmg-input"
+                  value={profile.homeValue}
+                  onChange={(v) => {
+                    setField(["homeValue"])(v);
+                    // Typing a value in by hand doesn't clear the saved
+                    // address/UPRN — the next scheduled automatic run just
+                    // overwrites this again. Only the source label changes,
+                    // so the UI can say "you last edited this by hand"
+                    // rather than implying it's still being tracked live.
+                    setField(["homeValueSource"])("manual");
+                  }}
+                />
+              )}
             </Field>
             <Field label="Assumed annual house price growth (%)">
               <NumberInput className="wmg-input" step="0.1" value={profile.homeValueGrowth} onChange={setField(["homeValueGrowth"])} />
@@ -424,6 +440,32 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
                 onUpgrade={onUpgrade}
                 text="Automatic monthly home value tracking is a Premium feature."
               />
+            ) : profile.propertyAddress && profile.propertyUprn ? (
+              // Confirmed and tracking — no search box, no editable value
+              // box, just a plain status line and a way back to manual.
+              <div>
+                <div className="wmg-sub">
+                  {profile.homeValueSource === "auto" && profile.homeValueUpdatedAt ? (
+                    <>
+                      Tracking <strong style={{ color: "var(--paper)" }}>{profile.propertyAddress}</strong> — last
+                      updated automatically on {new Date(profile.homeValueUpdatedAt).toLocaleDateString("en-GB")}.
+                    </>
+                  ) : (
+                    <>
+                      Tracking <strong style={{ color: "var(--paper)" }}>{profile.propertyAddress}</strong> — the
+                      first valuation will be ready by the next monthly update.
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="wmg-onboard-skip"
+                  style={{ marginTop: 6 }}
+                  onClick={switchToManualHomeValue}
+                >
+                  Switch to manual entry instead
+                </button>
+              </div>
             ) : (
               <div style={{ position: "relative" }}>
                 <input
@@ -462,15 +504,6 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
                 {addressResolveStatus === "error" && (
                   <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
                     Couldn't confirm that address — try selecting it again.
-                  </div>
-                )}
-                {profile.propertyAddress && profile.propertyUprn && addressSuggestions.length === 0 && (
-                  <div className="wmg-sub" style={{ marginTop: 6 }}>
-                    {profile.homeValueSource === "auto" && profile.homeValueUpdatedAt ? (
-                      <>Confirmed: {profile.propertyAddress}. Last updated automatically on {new Date(profile.homeValueUpdatedAt).toLocaleDateString("en-GB")}.</>
-                    ) : (
-                      <>Confirmed: {profile.propertyAddress}. The first valuation will be ready by the next monthly update.</>
-                    )}
                   </div>
                 )}
               </div>

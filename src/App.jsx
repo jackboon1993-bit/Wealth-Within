@@ -1428,6 +1428,7 @@ export default function App() {
         .wmg-address-suggestion { display: block; width: 100%; text-align: left; background: transparent; border: none; border-bottom: 1px solid var(--hair); padding: 10px 12px; font-size: 12.5px; color: var(--paper); cursor: pointer; }
         .wmg-address-suggestion:last-child { border-bottom: none; }
         .wmg-address-suggestion:hover { background: var(--ink-3); }
+        .wmg-readonly-value { padding: 11px 14px; font-size: 13.5px; color: var(--paper-dim); background: var(--ink-3); border: 1px solid var(--hair); border-radius: 10px; }
         .wmg-connect-bank-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
         .wmg-connect-bank-banner-text { flex: 1 1 240px; min-width: 0; }
         .wmg-connect-bank-banner-title { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14.5px; color: var(--paper); margin-bottom: 3px; }

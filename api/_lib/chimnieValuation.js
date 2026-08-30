@@ -33,6 +33,24 @@
 
 const CHIMNIE_BASE_URL = "https://api.chimnie.com";
 
+// The free UPRN-based AVM tier is limited to 1 request/second (per
+// Chimnie's docs). Two real callers can realistically hit this:
+//   - property-resolve-address.js calls resolveUprnFromSelectedAddress()
+//     then getAvmValue() back-to-back in the same request — close enough
+//     together to land in the same second.
+//   - update-home-values.js (the monthly cron) processes several
+//     households concurrently in small batches.
+// A single short retry covers both cases without adding real complexity
+// — the limit is generous (1/sec, not 1/minute), so waiting slightly
+// over a second almost always succeeds on the next attempt.
+async function fetchWithRateLimitRetry(url, options, maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const resp = await fetch(url, options);
+    if (resp.status !== 429 || attempt === maxAttempts) return resp;
+    await new Promise((r) => setTimeout(r, 1100));
+  }
+}
+
 export async function resolveUprnFromAddress(address, apiKey) {
   const resp = await fetch(`${CHIMNIE_BASE_URL}/residential/address`, {
     method: "POST",
@@ -101,7 +119,7 @@ export async function resolveUprnFromSelectedAddress(address, session, apiKey) {
 export async function getAvmValue(uprn, apiKey) {
   // Deliberately requests ONLY this one field — see the file-level note
   // above on why adding any other field here would make this billable.
-  const resp = await fetch(
+  const resp = await fetchWithRateLimitRetry(
     `${CHIMNIE_BASE_URL}/residential/uprn/${encodeURIComponent(uprn)}?fields=property.value.sale.property_value`,
     { headers: { Authorization: `Bearer ${apiKey}` } }
   );

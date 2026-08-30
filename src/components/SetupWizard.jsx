@@ -230,6 +230,14 @@ export function SetupWizard({ onFinish }) {
 
   const [hasMortgage, setHasMortgage] = useState(false);
   const [mortgage, setMortgage] = useState({ balance: 0, rate: 4.5, payment: 0 });
+  // Free text only, no Chimnie API call at signup — most people going
+  // through onboarding aren't Premium yet, and this shouldn't spend real
+  // money resolving an address for someone who may never subscribe. It
+  // just pre-fills profile.propertyAddress, which Debts' auto-tracking
+  // box already picks up automatically (same field name) — the person
+  // still confirms it via the real address dropdown there once they are
+  // Premium, which is what actually resolves and pays for the UPRN.
+  const [propertyAddress, setPropertyAddress] = useState("");
   const [loans, setLoans] = useState([]);
   const [cards, setCards] = useState([]);
 
@@ -271,6 +279,7 @@ export function SetupWizard({ onFinish }) {
       mortgage: hasMortgage
         ? { ...p.mortgage, balance: mortgage.balance, rate: mortgage.rate, payment: mortgage.payment, originalBalance: mortgage.balance, lastConfirmedAt: new Date().toISOString() }
         : { ...p.mortgage, balance: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() },
+      propertyAddress: propertyAddress.trim() || p.propertyAddress,
       loans,
       cards,
       savings: { ...p.savings, balance: savingsBalance },
@@ -456,6 +465,20 @@ export function SetupWizard({ onFinish }) {
                 </WizardMiniField>
               </div>
             )}
+
+            <div className="wmg-wizard-section-title">Property</div>
+            <WizardMiniField
+              label="Property address (optional)"
+              hint="If you own your home, adding this now means it's already filled in later if you go Premium and turn on automatic home value tracking — you won't need to type it twice."
+            >
+              <input
+                className="wmg-input"
+                type="text"
+                placeholder="e.g. 12 Example Street, Chatham, ME4 1AB"
+                value={propertyAddress}
+                onChange={(e) => setPropertyAddress(e.target.value)}
+              />
+            </WizardMiniField>
 
             <div className="wmg-wizard-section-title">Loans</div>
             <WizardListEditor
