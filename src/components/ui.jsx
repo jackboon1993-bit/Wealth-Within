@@ -164,6 +164,28 @@ export function StatIcon({ name }) {
           <path d="M8 3v4M16 3v4" />
         </svg>
       );
+    case "percent":
+      return (
+        <svg {...common}>
+          <path d="M5 19 19 5" />
+          <circle cx="6.5" cy="6.5" r="2.3" />
+          <circle cx="17.5" cy="17.5" r="2.3" />
+        </svg>
+      );
+    case "flag":
+      return (
+        <svg {...common}>
+          <path d="M5 3v18" />
+          <path d="M5 4.5c1.6-1 3.4-1 5 0s3.4 1 5 0v8c-1.6 1-3.4 1-5 0s-3.4-1-5 0z" />
+        </svg>
+      );
+    case "pin":
+      return (
+        <svg {...common}>
+          <path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21z" />
+          <circle cx="12" cy="9.5" r="2.3" />
+        </svg>
+      );
     default:
       return null;
   }

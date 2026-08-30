@@ -1429,6 +1429,10 @@ export default function App() {
         .wmg-address-suggestion:last-child { border-bottom: none; }
         .wmg-address-suggestion:hover { background: var(--ink-3); }
         .wmg-readonly-value { padding: 11px 14px; font-size: 13.5px; color: var(--paper-dim); background: var(--ink-3); border: 1px solid var(--hair); border-radius: 10px; }
+        .wmg-detail-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--hair); }
+        .wmg-detail-row:last-child { border-bottom: none; }
+        .wmg-detail-row-label { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--paper-dim); }
+        .wmg-detail-row-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14.5px; font-weight: 700; color: var(--paper); font-variant-numeric: tabular-nums; }
         .wmg-connect-bank-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
         .wmg-connect-bank-banner-text { flex: 1 1 240px; min-width: 0; }
         .wmg-connect-bank-banner-title { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14.5px; color: var(--paper); margin-bottom: 3px; }

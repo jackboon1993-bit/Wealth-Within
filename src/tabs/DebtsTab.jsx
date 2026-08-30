@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { gbp, clamp, daysSince, estimateBalanceToday, addMonths, getActiveMode, nextId } from "../lib/finance";
-import { Card, GrowthRing, WhyItMatters, InfoTip, DisclosureSection, Field, InlinePill, NumberInput } from "../components/ui";
+import { Card, GrowthRing, WhyItMatters, InfoTip, DisclosureSection, Field, InlinePill, NumberInput, StatIcon } from "../components/ui";
 import { QuickImport } from "../components/SetupWizard";
 import { API_BASE } from "../lib/apiBase";
 import { supabase } from "../lib/supabaseClient";
@@ -264,29 +264,6 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
       setAddressResolveStatus("error");
     }
   };
-  const [valuationFetchStatus, setValuationFetchStatus] = useState("idle"); // idle | fetching | error
-  const retryValuation = async () => {
-    if (!profile.propertyUprn) return;
-    setValuationFetchStatus("fetching");
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const resp = await fetch(`${API_BASE}/api/property-fetch-valuation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ uprn: profile.propertyUprn }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || "Couldn't fetch a valuation.");
-      setField(["homeValue"])(data.value);
-      setField(["homeValueSource"])("auto");
-      setField(["homeValueUpdatedAt"])(new Date().toISOString());
-      setValuationFetchStatus("idle");
-    } catch (e) {
-      setValuationFetchStatus("error");
-    }
-  };
   const switchToManualHomeValue = () => {
     setField(["propertyAddress"])("");
     setField(["propertyUprn"])(null);
@@ -351,23 +328,25 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
       <Card>
         {profile.mortgageDetailsConfirmed ? (
           <>
-            <div className="wmg-three-col">
-              <div>
-                <div className="wmg-field-label">Balance outstanding</div>
-                <div className="wmg-readonly-value">{gbp(profile.mortgage.balance)}</div>
-                <div className="wmg-sub" style={{ marginTop: 4 }}>
-                  {mortgageChanged ? `Estimated today: ${gbp(totals?.mortgageBalanceToday ?? profile.mortgage.balance)} — ` : ""}
-                  confirmed {gbp(profile.mortgage.balance)} {mortgageDaysSince === 0 ? "today" : `${mortgageDaysSince} day${mortgageDaysSince === 1 ? "" : "s"} ago`}
-                </div>
-              </div>
-              <div>
-                <div className="wmg-field-label">Monthly payment</div>
-                <div className="wmg-readonly-value">{gbp(profile.mortgage.payment)}</div>
-              </div>
-              <div>
-                <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Mortgage-free</div>
-                <div className="wmg-figure tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
-              </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="home" />Balance outstanding</span>
+              <span className="wmg-detail-row-value">{gbp(profile.mortgage.balance)}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="calendar" />Monthly payment</span>
+              <span className="wmg-detail-row-value">{gbp(profile.mortgage.payment)}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="percent" />Interest rate</span>
+              <span className="wmg-detail-row-value">{profile.mortgage.rate}%</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="flag" />Mortgage-free</span>
+              <span className="wmg-detail-row-value tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</span>
+            </div>
+            <div className="wmg-sub" style={{ marginTop: 8 }}>
+              {mortgageChanged ? `Estimated today: ${gbp(totals?.mortgageBalanceToday ?? profile.mortgage.balance)} — ` : ""}
+              confirmed {gbp(profile.mortgage.balance)} {mortgageDaysSince === 0 ? "today" : `${mortgageDaysSince} day${mortgageDaysSince === 1 ? "" : "s"} ago`}
             </div>
             <button
               type="button"
@@ -459,143 +438,14 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
         </label>
 
         <DisclosureSection label="See more details" defaultOpen={activeMode !== "guided"}>
-          <div className="wmg-three-col">
-            <Field label="Interest rate (%)">
-              {profile.mortgageDetailsConfirmed ? (
-                <div className="wmg-readonly-value">{profile.mortgage.rate}%</div>
-              ) : (
+          {!profile.mortgageDetailsConfirmed && (
+            <div className="wmg-three-col">
+              <Field label="Interest rate (%)">
                 <NumberInput className="wmg-input" step="0.1" value={profile.mortgage.rate} onChange={setField(["mortgage", "rate"])} />
-              )}
-            </Field>
-            <Field label="Estimated home value">
-              {profile.homeValueSource === "auto" && profile.propertyUprn ? (
-                // No editable box once a real address is confirmed and
-                // tracking automatically — an editable number next to an
-                // auto-updating one invited confusion about which was
-                // "real". Switching back to manual entry (below) is the
-                // only way to get an editable box back.
-                <div className="wmg-readonly-value">{gbp(profile.homeValue)}</div>
-              ) : (
-                <NumberInput
-                  className="wmg-input"
-                  value={profile.homeValue}
-                  onChange={(v) => {
-                    setField(["homeValue"])(v);
-                    // Typing a value in by hand doesn't clear the saved
-                    // address/UPRN — the next scheduled automatic run just
-                    // overwrites this again. Only the source label changes,
-                    // so the UI can say "you last edited this by hand"
-                    // rather than implying it's still being tracked live.
-                    setField(["homeValueSource"])("manual");
-                  }}
-                />
-              )}
-            </Field>
-            <Field label="Assumed annual house price growth (%)">
-              <NumberInput className="wmg-input" step="0.1" value={profile.homeValueGrowth} onChange={setField(["homeValueGrowth"])} />
-            </Field>
-          </div>
-
-          <div style={{ marginTop: 14 }}>
-            <div className="wmg-field-label">Track this automatically instead</div>
-            <div className="wmg-sub" style={{ marginBottom: 8 }}>
-              Add your property's address and we'll look up an estimated value once a month, so this stays current
-              without you having to check anywhere or update it by hand.
+              </Field>
             </div>
-            {!hasPremium ? (
-              <PremiumGate
-                subscriptionStatus={subscriptionStatus}
-                onUpgrade={onUpgrade}
-                text="Automatic monthly home value tracking is a Premium feature."
-              />
-            ) : profile.propertyAddress && profile.propertyUprn ? (
-              // Confirmed and tracking — no search box, no editable value
-              // box, just a plain status line and a way back to manual.
-              <div>
-                <div className="wmg-sub">
-                  {profile.homeValueSource === "auto" && profile.homeValueUpdatedAt ? (
-                    <>
-                      Tracking <strong style={{ color: "var(--paper)" }}>{profile.propertyAddress}</strong> — last
-                      updated automatically on {new Date(profile.homeValueUpdatedAt).toLocaleDateString("en-GB")}.
-                    </>
-                  ) : (
-                    <>
-                      Tracking <strong style={{ color: "var(--paper)" }}>{profile.propertyAddress}</strong> — no
-                      automatic valuation yet.
-                    </>
-                  )}
-                </div>
-                {!(profile.homeValueSource === "auto" && profile.homeValueUpdatedAt) && (
-                  <div style={{ marginTop: 6 }}>
-                    <button
-                      type="button"
-                      className="wmg-add-btn"
-                      style={{ width: "auto" }}
-                      disabled={valuationFetchStatus === "fetching"}
-                      onClick={retryValuation}
-                    >
-                      {valuationFetchStatus === "fetching" ? "Fetching…" : "Get valuation now"}
-                    </button>
-                    {valuationFetchStatus === "error" && (
-                      <div className="wmg-sub" style={{ marginTop: 4, color: "var(--rust)" }}>
-                        Couldn't fetch a valuation — try again in a moment.
-                      </div>
-                    )}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="wmg-onboard-skip"
-                  style={{ marginTop: 6 }}
-                  onClick={switchToManualHomeValue}
-                >
-                  Switch to manual entry instead
-                </button>
-              </div>
-            ) : (
-              <div style={{ position: "relative" }}>
-                <input
-                  className="wmg-input"
-                  type="text"
-                  placeholder="Start typing your address…"
-                  value={addressQuery}
-                  onChange={(e) => handleAddressQueryChange(e.target.value)}
-                  autoComplete="off"
-                />
-                {addressSearchStatus === "searching" && (
-                  <div className="wmg-sub" style={{ marginTop: 6 }}>Searching…</div>
-                )}
-                {addressSearchStatus === "error" && (
-                  <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
-                    Couldn't search addresses right now — try again in a moment.
-                  </div>
-                )}
-                {addressSuggestions.length > 0 && (
-                  <div className="wmg-address-suggestions">
-                    {addressSuggestions.map((addr) => (
-                      <button
-                        key={addr}
-                        type="button"
-                        className="wmg-address-suggestion"
-                        onClick={() => selectAddress(addr)}
-                      >
-                        {addr}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {addressResolveStatus === "resolving" && (
-                  <div className="wmg-sub" style={{ marginTop: 6 }}>Confirming that address…</div>
-                )}
-                {addressResolveStatus === "error" && (
-                  <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
-                    Couldn't confirm that address — try selecting it again.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="wmg-two-col" style={{ marginTop: 4 }}>
+          )}
+          <div className="wmg-two-col" style={{ marginTop: profile.mortgageDetailsConfirmed ? 0 : 4 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--paper-dim)" }}>
               <input
                 type="checkbox"
@@ -619,6 +469,135 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
             )}
           </div>
         </DisclosureSection>
+      </Card>
+
+      <div className="wmg-section-title">Home value</div>
+      <Card>
+        {profile.homeValueSource === "auto" && profile.propertyUprn && profile.homeValueUpdatedAt ? (
+          <>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label"><StatIcon name="home" />Estimated value</span>
+              <span className="wmg-detail-row-value">{gbp(profile.homeValue)}</span>
+            </div>
+            <div className="wmg-sub" style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <StatIcon name="pin" /> Tracking {profile.propertyAddress} — updated{" "}
+              {new Date(profile.homeValueUpdatedAt).toLocaleDateString("en-GB")}
+            </div>
+            <button
+              type="button"
+              className="wmg-onboard-skip"
+              style={{ marginTop: 6 }}
+              onClick={switchToManualHomeValue}
+            >
+              Switch to manual entry instead
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="wmg-three-col">
+              <Field label="Estimated home value">
+                <NumberInput
+                  className="wmg-input"
+                  value={profile.homeValue}
+                  onChange={(v) => {
+                    setField(["homeValue"])(v);
+                    setField(["homeValueSource"])("manual");
+                  }}
+                />
+              </Field>
+              <Field label="Assumed annual house price growth (%)">
+                <NumberInput className="wmg-input" step="0.1" value={profile.homeValueGrowth} onChange={setField(["homeValueGrowth"])} />
+              </Field>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <div className="wmg-field-label">Track this automatically instead</div>
+              <div className="wmg-sub" style={{ marginBottom: 8 }}>
+                Add your property's address and we'll look up an estimated value once a month, so this stays current
+                without you having to check anywhere or update it by hand.
+              </div>
+              {!hasPremium ? (
+                <PremiumGate
+                  subscriptionStatus={subscriptionStatus}
+                  onUpgrade={onUpgrade}
+                  text="Automatic monthly home value tracking is a Premium feature."
+                />
+              ) : profile.propertyAddress && profile.propertyUprn ? (
+                <div>
+                  <div className="wmg-sub">
+                    Tracking <strong style={{ color: "var(--paper)" }}>{profile.propertyAddress}</strong> — no
+                    automatic valuation yet.
+                  </div>
+                  <div style={{ marginTop: 6 }}>
+                    <button
+                      type="button"
+                      className="wmg-add-btn"
+                      style={{ width: "auto" }}
+                      disabled={valuationFetchStatus === "fetching"}
+                      onClick={retryValuation}
+                    >
+                      {valuationFetchStatus === "fetching" ? "Fetching…" : "Get valuation now"}
+                    </button>
+                    {valuationFetchStatus === "error" && (
+                      <div className="wmg-sub" style={{ marginTop: 4, color: "var(--rust)" }}>
+                        Couldn't fetch a valuation — try again in a moment.
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="wmg-onboard-skip"
+                    style={{ marginTop: 6 }}
+                    onClick={switchToManualHomeValue}
+                  >
+                    Switch to manual entry instead
+                  </button>
+                </div>
+              ) : (
+                <div style={{ position: "relative" }}>
+                  <input
+                    className="wmg-input"
+                    type="text"
+                    placeholder="Start typing your address…"
+                    value={addressQuery}
+                    onChange={(e) => handleAddressQueryChange(e.target.value)}
+                    autoComplete="off"
+                  />
+                  {addressSearchStatus === "searching" && (
+                    <div className="wmg-sub" style={{ marginTop: 6 }}>Searching…</div>
+                  )}
+                  {addressSearchStatus === "error" && (
+                    <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
+                      Couldn't search addresses right now — try again in a moment.
+                    </div>
+                  )}
+                  {addressSuggestions.length > 0 && (
+                    <div className="wmg-address-suggestions">
+                      {addressSuggestions.map((addr) => (
+                        <button
+                          key={addr}
+                          type="button"
+                          className="wmg-address-suggestion"
+                          onClick={() => selectAddress(addr)}
+                        >
+                          {addr}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {addressResolveStatus === "resolving" && (
+                    <div className="wmg-sub" style={{ marginTop: 6 }}>Confirming that address…</div>
+                  )}
+                  {addressResolveStatus === "error" && (
+                    <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
+                      Couldn't confirm that address — try selecting it again.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </Card>
 
       <div className="wmg-section-title">Quick add</div>
