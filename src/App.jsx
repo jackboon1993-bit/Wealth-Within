@@ -48,6 +48,16 @@ const ImportTab = lazy(() => import("./tabs/BankImportTab").then((m) => ({ defau
 export default function App() {
   const [profile, setProfile] = useState(defaultProfile);
   const [tab, setTab] = useState("overview");
+  // Which section of the Debts tab to land on when arriving from an
+  // Overview tile — "mortgage" | "loans" | null (null = show everything,
+  // same as clicking "Debts & Mortgage" in the nav bar directly). Reset
+  // to null on every navigation so a later plain nav-bar click isn't
+  // stuck showing a stale focus from an earlier tile tap.
+  const [debtsFocus, setDebtsFocus] = useState(null);
+  const navigateTo = (tabKey, focus) => {
+    setDebtsFocus(tabKey === "debts" ? focus || null : null);
+    setTab(tabKey);
+  };
   const [extraPayment, setExtraPayment] = useState(200);
   const [selectedDebtId, setSelectedDebtId] = useState(defaultProfile.loans[0].id);
   const [horizonYears, setHorizonYears] = useState(10);
@@ -1871,7 +1881,7 @@ export default function App() {
                 flowTotal={flowTotal}
                 coachTips={coachTips}
                 inFinancialHardship={inFinancialHardship}
-                onNavigate={setTab}
+                onNavigate={navigateTo}
                 hasConnectedBank={hasConnectedBank}
                 hasPremium={subscription.hasPremium}
                 subscriptionStatus={subscription.status}
@@ -1952,6 +1962,7 @@ export default function App() {
                 hasPremium={subscription.hasPremium}
                 subscriptionStatus={subscription.status}
                 onUpgrade={handleUpgrade}
+                initialFocus={debtsFocus}
               />
             )}
 

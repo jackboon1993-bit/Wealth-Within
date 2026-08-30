@@ -38,7 +38,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
 
   const heroStats = [
     { label: "Income & Expenditure", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
-    { label: "Loans & cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", icon: "debt", gradient: true },
+    { label: "Loans & cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", focus: "loans", icon: "debt", gradient: true },
     { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "goals", icon: "savings", gradient: true },
     // Debt-free and Mortgage-free payoff-date tiles were dropped from
     // here — they clustered with Debt/Home equity into four tiles all
@@ -46,8 +46,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     // Both dates are still fully visible on the Debts tab itself, just
     // not repeated here. Relabelled "Debt" -> "Loans & cards" and "Home
     // equity" -> "Mortgage equity" so it's clear at a glance which tile
-    // is mortgage-related and which explicitly isn't.
-    { label: "Mortgage equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts", icon: "home", gradient: true },
+    // is mortgage-related and which explicitly isn't. Each also carries
+    // its own `focus`, so tapping one lands only on the relevant section
+    // of Debts (mortgage+home value, or loans+cards) rather than the
+    // whole combined page — see DebtsTab.jsx's initialFocus handling.
+    { label: "Mortgage equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts", focus: "mortgage", icon: "home", gradient: true },
     { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "rust", tab: "pension", icon: "pension", gradient: true },
     { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "goals", icon: "invest", gradient: true },
   ];
@@ -225,7 +228,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             type="button"
             className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
             key={s.label}
-            onClick={() => onNavigate?.(s.tab)}
+            onClick={() => onNavigate?.(s.tab, s.focus)}
             aria-label={
               s.tab === "income"
                 ? `${s.label}: ${s.value}`

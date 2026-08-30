@@ -184,7 +184,13 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove, startEditing = fal
 }
 
 
-export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, addArrayItemWithId, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems, hasPremium, subscriptionStatus, onUpgrade }) {
+export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, addArrayItemWithId, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems, hasPremium, subscriptionStatus, onUpgrade, initialFocus }) {
+  // Which sections show — "all" (default, from the nav bar), "mortgage",
+  // or "loans" (arriving from an Overview tile). Not re-derived after
+  // mount: initialFocus only matters at the moment this tab is opened,
+  // same reasoning as every other "which view?" state in this app
+  // (IncomeTab's cashflowView, ForecastTab's forecastView).
+  const [debtsView, setDebtsView] = useState(initialFocus || "all");
   const [justAddedDebtId, setJustAddedDebtId] = useState(null);
   // Address autocomplete: typing debounces into a search against
   // api/property-address-search (Chimnie's Address Autocomplete), which
@@ -309,21 +315,33 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
           {celebration} is paid off — one less thing to worry about.
         </div>
       )}
-      {activeMode === "guided" && (
+      {activeMode === "guided" && debtsView !== "mortgage" && (
         <Card className="wmg-guided-summary-card">
           <p style={{ margin: 0 }}>
             {totals.totalDebt > 0 ? (
               <>
-                You have <strong>{gbp(totals.totalDebt)}</strong> in total debt across your mortgage, loans, and
-                cards. At your current pace, you're on track to be debt-free by{" "}
+                You have <strong>{gbp(totals.totalDebt)}</strong> in loans and card debt. At your current pace,
+                you're on track to be debt-free by{" "}
                 <strong>{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "an unclear date — check the figures below"}</strong>.
               </>
             ) : (
-              "You've got no debt currently added here — nice position to be in. Add anything you're paying off below if that changes."
+              "You've got no loans or card debt currently added here — nice position to be in. Add anything you're paying off below if that changes."
             )}
           </p>
         </Card>
       )}
+      {debtsView !== "all" && (
+        <button
+          type="button"
+          className="wmg-onboard-skip"
+          style={{ marginBottom: 12 }}
+          onClick={() => setDebtsView("all")}
+        >
+          Show everything (mortgage, loans and cards)
+        </button>
+      )}
+      {(debtsView === "all" || debtsView === "mortgage") && (
+        <>
       <div className="wmg-section-title">Mortgage</div>
       <Card>
         {profile.mortgageDetailsConfirmed ? (
@@ -599,7 +617,11 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
           </>
         )}
       </Card>
+        </>
+      )}
 
+      {(debtsView === "all" || debtsView === "loans") && (
+        <>
       <div className="wmg-section-title">Quick add</div>
       <QuickImport onAdd={addBulkItems} />
 
@@ -713,6 +735,8 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
           </div>
         )}
       </Card>
+        </>
+      )}
     </>
   );
 }
