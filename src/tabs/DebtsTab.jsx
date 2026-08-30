@@ -264,6 +264,29 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
       setAddressResolveStatus("error");
     }
   };
+  const [valuationFetchStatus, setValuationFetchStatus] = useState("idle"); // idle | fetching | error
+  const retryValuation = async () => {
+    if (!profile.propertyUprn) return;
+    setValuationFetchStatus("fetching");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch(`${API_BASE}/api/property-fetch-valuation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ uprn: profile.propertyUprn }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Couldn't fetch a valuation.");
+      setField(["homeValue"])(data.value);
+      setField(["homeValueSource"])("auto");
+      setField(["homeValueUpdatedAt"])(new Date().toISOString());
+      setValuationFetchStatus("idle");
+    } catch (e) {
+      setValuationFetchStatus("error");
+    }
+  };
   const switchToManualHomeValue = () => {
     setField(["propertyAddress"])("");
     setField(["propertyUprn"])(null);
@@ -497,11 +520,29 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
                     </>
                   ) : (
                     <>
-                      Tracking <strong style={{ color: "var(--paper)" }}>{profile.propertyAddress}</strong> — the
-                      first valuation will be ready by the next monthly update.
+                      Tracking <strong style={{ color: "var(--paper)" }}>{profile.propertyAddress}</strong> — no
+                      automatic valuation yet.
                     </>
                   )}
                 </div>
+                {!(profile.homeValueSource === "auto" && profile.homeValueUpdatedAt) && (
+                  <div style={{ marginTop: 6 }}>
+                    <button
+                      type="button"
+                      className="wmg-add-btn"
+                      style={{ width: "auto" }}
+                      disabled={valuationFetchStatus === "fetching"}
+                      onClick={retryValuation}
+                    >
+                      {valuationFetchStatus === "fetching" ? "Fetching…" : "Get valuation now"}
+                    </button>
+                    {valuationFetchStatus === "error" && (
+                      <div className="wmg-sub" style={{ marginTop: 4, color: "var(--rust)" }}>
+                        Couldn't fetch a valuation — try again in a moment.
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   type="button"
                   className="wmg-onboard-skip"
