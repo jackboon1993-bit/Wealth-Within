@@ -1750,7 +1750,7 @@ export default function App() {
               <div className="wmg-plan-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="wmg-feedback-title">Choose your plan</div>
                 <p className="wmg-feedback-sub">
-                  Both unlock the same Premium features — household sharing, the AI Pension Reader, spending
+                  Both unlock the same Premium features — household sharing, the AI Document Reader, spending
                   insights, and automatic nightly bank sync.
                 </p>
                 <button
@@ -1867,6 +1867,7 @@ export default function App() {
                 hasPremium={subscription.hasPremium}
                 subscriptionStatus={subscription.status}
                 onUpgrade={handleUpgrade}
+                setField={setField}
               />
             )}
 
@@ -1939,6 +1940,9 @@ export default function App() {
                 setExtraPayment={setExtraPayment}
                 extraCalc={extraCalc}
                 addBulkItems={addBulkItems}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
               />
             )}
 
@@ -1971,6 +1975,7 @@ export default function App() {
             {tab === "pension-reader" && (
               <PensionReaderTab
                 pensions={profile.pensions}
+                investmentsBalance={profile.investments.balance}
                 hasPremium={subscription.hasPremium}
                 subscriptionStatus={subscription.status}
                 onUpgrade={handleUpgrade}
@@ -1992,6 +1997,20 @@ export default function App() {
                   // all pots, so a statement's assumed retirement age updates
                   // it regardless of which pot the numbers went into.
                   if (result.retirementAge != null) setField(["pensionSettings", "retirementAge"])(result.retirementAge);
+                }}
+                onUseInInvestments={(result, mode) => {
+                  // Investments is a single running balance (not multiple
+                  // named pots like Pensions), so this is simpler than the
+                  // pension handler above — just add to or replace it.
+                  if (result.currentValue != null) {
+                    const newBalance = mode === "add" ? profile.investments.balance + result.currentValue : result.currentValue;
+                    setField(["investments", "balance"])(newBalance);
+                  }
+                  if (result.monthlyContribution != null) {
+                    const newContribution =
+                      mode === "add" ? profile.investments.monthlyContribution + result.monthlyContribution : result.monthlyContribution;
+                    setField(["investments", "monthlyContribution"])(newContribution);
+                  }
                 }}
               />
             )}

@@ -37,13 +37,17 @@ export function fileToBase64(file) {
 
 
 
-export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, subscriptionStatus, onUpgrade }) {
+export function PensionReaderTab({ onUseInPension, pensions = [], investmentsBalance = 0, onUseInInvestments, hasPremium, subscriptionStatus, onUpgrade }) {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | reading | done | error
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [applied, setApplied] = useState(false);
   const [targetPotId, setTargetPotId] = useState("new");
+  // "add" or "replace" — only relevant when result.category === "investment",
+  // since Investments is a single running balance rather than multiple
+  // named pots like Pensions, so there's no pot selector for it.
+  const [investmentMode, setInvestmentMode] = useState("add");
   const inputRef = useRef(null);
 
   const pickFile = (f) => {
@@ -102,6 +106,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, su
     setErrorMsg("");
     setApplied(false);
     setTargetPotId("new");
+    setInvestmentMode("add");
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -111,14 +116,20 @@ export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, su
     setApplied(true);
   };
 
+  const useInInvestments = () => {
+    if (!result) return;
+    onUseInInvestments(result, investmentMode);
+    setApplied(true);
+  };
+
   return (
     <>
-      <div className="wmg-section-title">Make sense of your pension in seconds</div>
+      <div className="wmg-section-title">Make sense of any pension or investment statement in seconds</div>
       <div className="wmg-section-desc">
-        Upload any pension statement — a PDF, or just a photo if it's on paper — and get a plain-English breakdown of
-        what it means for you: current value, fees, and what it's likely to be worth by retirement. It's something
-        none of the big budgeting apps offer. Nothing is saved unless you choose to use the numbers in your Pension
-        tab.
+        Upload a pension statement, an ISA or investment statement — a PDF, or just a photo if it's on paper — and
+        get a plain-English breakdown of what it means for you: current value, fees, and (for pensions) what it's
+        likely to be worth by retirement. Pension statements are something none of the big budgeting apps offer.
+        Nothing is saved unless you choose to use the numbers in your Pension or Investments tab.
       </div>
 
       {!hasPremium && status !== "done" && (
@@ -126,7 +137,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, su
           <PremiumGate
             subscriptionStatus={subscriptionStatus}
             onUpgrade={onUpgrade}
-            text="Reading and explaining a pension statement with AI is a Premium feature."
+            text="Reading and explaining a pension or investment statement with AI is a Premium feature."
           />
         </Card>
       )}
@@ -168,7 +179,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, su
             <PremiumGate
               subscriptionStatus={subscriptionStatus}
               onUpgrade={onUpgrade}
-              text="Reading and explaining a pension statement with AI is a Premium feature."
+              text="Reading and explaining a pension or investment statement with AI is a Premium feature."
             />
           )}
 
@@ -217,7 +228,7 @@ export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, su
             <p>{result.verdict.text}</p>
           </Card>
 
-          {onUseInPension && result.currentValue != null && !applied && (
+          {result.category === "pension" && onUseInPension && result.currentValue != null && !applied && (
             <Card style={{ marginTop: 12 }}>
               <div className="wmg-field-label">Where should these numbers go?</div>
               <select
@@ -233,11 +244,38 @@ export function PensionReaderTab({ onUseInPension, pensions = [], hasPremium, su
             </Card>
           )}
 
+          {result.category === "investment" && onUseInInvestments && result.currentValue != null && !applied && (
+            <Card style={{ marginTop: 12 }}>
+              <div className="wmg-field-label">Where should this go in your Investments tab?</div>
+              <select
+                className="wmg-input"
+                value={investmentMode}
+                onChange={(e) => setInvestmentMode(e.target.value)}
+              >
+                <option value="add">
+                  Add to my current balance ({gbp(investmentsBalance)} + {gbp(result.currentValue)} = {gbp(investmentsBalance + result.currentValue)})
+                </option>
+                <option value="replace">Replace my current balance with {gbp(result.currentValue)}</option>
+              </select>
+              <div className="wmg-sub" style={{ marginTop: 6 }}>
+                Investments is a single running total in this app, not separate named accounts — pick "Add" if this
+                statement is one of several accounts making up that total, or "Replace" if it's your only one.
+              </div>
+            </Card>
+          )}
+
           <div className="wmg-reader-actions">
-            {onUseInPension && result.currentValue != null && !applied && (
+            {result.category === "pension" && onUseInPension && result.currentValue != null && !applied && (
               <button className="wmg-btn-primary" onClick={useInPension}>Use these numbers in my Pension tab</button>
             )}
-            {applied && <div className="wmg-reader-applied">✓ Added to your Pension tab</div>}
+            {result.category === "investment" && onUseInInvestments && result.currentValue != null && !applied && (
+              <button className="wmg-btn-primary" onClick={useInInvestments}>Use these numbers in my Investments tab</button>
+            )}
+            {applied && (
+              <div className="wmg-reader-applied">
+                ✓ Added to your {result.category === "investment" ? "Investments" : "Pension"} tab
+              </div>
+            )}
             <button className="wmg-onboard-skip" onClick={reset}>Read another document</button>
           </div>
         </>

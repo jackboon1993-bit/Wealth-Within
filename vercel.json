@@ -7,6 +7,10 @@
     {
       "path": "/api/sync-bank-transactions",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/update-home-values",
+      "schedule": "0 5 1 * *"
     }
   ]
 }

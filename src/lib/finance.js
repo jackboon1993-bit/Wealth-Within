@@ -348,6 +348,27 @@ export const defaultProfile = {
   // rate-limit the manual "pull from my connected bank" action itself.
   // null means "never pulled", which always allows a pull.
   lastManualBankPullAt: null,
+  // Session-independent dismissals for the Overview banners — once
+  // dismissed they stay gone (unlike pendingSyncDismissed/hardshipDismissed
+  // in OverviewTab, which are deliberately session-only because that
+  // content is actionable/safety-relevant and should resurface).
+  dismissedConnectBankBanner: false,
+  dismissedPremiumBanner: false,
+  // Automatic monthly home valuation (Premium feature) — see
+  // api/update-home-values.js. propertyAddress is free text the person
+  // types in; propertyUprn is resolved from it once (server-side, cached
+  // forever since a property's UPRN never changes) and is what every
+  // subsequent monthly lookup actually uses. homeValueSource distinguishes
+  // an automatically-fetched homeValue from one the person typed in by
+  // hand, so the UI can show "last updated automatically on [date]"
+  // versus nothing. Editing homeValue by hand at any time does NOT clear
+  // propertyAddress/propertyUprn — the next scheduled run just overwrites
+  // it again, which is deliberate (this is a tracking feature, not a
+  // one-off estimate).
+  propertyAddress: "",
+  propertyUprn: null,
+  homeValueSource: "manual", // "manual" | "auto"
+  homeValueUpdatedAt: null,
 };
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a

@@ -342,7 +342,7 @@ function BenefitsPanel() {
 
       <ReaderPreviewCard />
       <p style={styles.previewCaption}>
-        Upload your own statement — a PDF, or just a photo — in the Pension Reader tab.
+        Upload your own statement — a PDF, or just a photo — in the Document Reader tab.
       </p>
 
       <div style={styles.bullets}>

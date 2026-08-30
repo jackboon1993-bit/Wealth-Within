@@ -1,7 +1,7 @@
 export const NAV = [
   { key: "overview", label: "Overview", icon: "overview" },
   { key: "pension", label: "Pension & Retirement", icon: "pension" },
-  { key: "pension-reader", label: "AI Pension Reader", icon: "reader" },
+  { key: "pension-reader", label: "AI Document Reader", icon: "reader" },
   { key: "forecast", label: "Cash Flow Forecast", icon: "forecast" },
   { key: "education", label: "Education", icon: "education" },
 ];
@@ -26,7 +26,7 @@ export const MASCOT_MESSAGES = {
   debts: "Tap the balance, rate, or payment on any debt to update it. Confirming it every so often keeps your \"debt-free by\" date accurate.",
   goals: "Set a target for anything you're saving towards — a holiday, a house deposit — and see when you'll realistically get there.",
   pension: "Your pension and State Pension both feed into your retirement forecast. Even rough numbers here are better than leaving it blank.",
-  "pension-reader": "Upload a PDF or a photo of any pension statement, and I'll explain what it actually says in plain English — free, and nothing's saved unless you choose to use it.",
+  "pension-reader": "Upload a PDF or a photo of any pension or investment statement, and I'll explain what it actually says in plain English — free, and nothing's saved unless you choose to use it.",
   forecast: "This projects your finances forward using everything else you've entered. Try the sliders to see how overpaying debt or saving more changes your future.",
   education: "General explainers on pensions, debt, and savings — not personalised advice, just the basics laid out plainly.",
   default: "Wealth Within pulls your income, debts, savings, and pension into one place, so you can see the full picture instead of piecing it together yourself.",

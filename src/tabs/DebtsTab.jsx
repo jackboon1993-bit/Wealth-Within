@@ -3,6 +3,23 @@ import { gbp, clamp, daysSince, estimateBalanceToday, addMonths, getActiveMode, 
 import { Card, GrowthRing, WhyItMatters, InfoTip, DisclosureSection, Field, InlinePill, NumberInput } from "../components/ui";
 import { QuickImport } from "../components/SetupWizard";
 
+// Deliberately duplicated from IncomeTab.jsx/BankImportTab.jsx/
+// AccountPanel.jsx rather than imported — DebtsTab is its own lazy-loaded
+// chunk (see the lazy() call in App.jsx), and importing across chunks
+// would couple two that were deliberately split apart, for the sake of
+// one small stateless component.
+function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
+  const isLapsed = subscriptionStatus === "canceled" || subscriptionStatus === "past_due";
+  return (
+    <div className="wmg-premium-gate" style={{ textAlign: "center", padding: "8px 0" }}>
+      <div className="wmg-sub" style={{ marginBottom: 10 }}>{text}</div>
+      <button className="wmg-btn-primary" onClick={onUpgrade}>
+        {isLapsed ? "Renew Premium" : "See Premium plans"}
+      </button>
+    </div>
+  );
+}
+
 export const DEBT_TYPE_LABELS = {
   loan: "Loan",
   card: "Credit card",
@@ -165,7 +182,7 @@ export function DebtCard({ debt, onEdit, onConfirm, onRemove, startEditing = fal
 }
 
 
-export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, addArrayItemWithId, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems }) {
+export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBalance, confirmMortgageBalance, addArrayItem, addArrayItemWithId, removeArrayItem, allDebts, mortgageMonths, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems, hasPremium, subscriptionStatus, onUpgrade }) {
   const [justAddedDebtId, setJustAddedDebtId] = useState(null);
   const handleAddDebt = (arrKey, blank) => () => {
     const id = nextId();
@@ -296,11 +313,60 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
               <NumberInput className="wmg-input" step="0.1" value={profile.mortgage.rate} onChange={setField(["mortgage", "rate"])} />
             </Field>
             <Field label="Estimated home value">
-              <NumberInput className="wmg-input" value={profile.homeValue} onChange={setField(["homeValue"])} />
+              <NumberInput
+                className="wmg-input"
+                value={profile.homeValue}
+                onChange={(v) => {
+                  setField(["homeValue"])(v);
+                  // Typing a value in by hand doesn't clear the saved
+                  // address/UPRN — the next scheduled automatic run just
+                  // overwrites this again. Only the source label changes,
+                  // so the UI can say "you last edited this by hand"
+                  // rather than implying it's still being tracked live.
+                  setField(["homeValueSource"])("manual");
+                }}
+              />
             </Field>
             <Field label="Assumed annual house price growth (%)">
               <NumberInput className="wmg-input" step="0.1" value={profile.homeValueGrowth} onChange={setField(["homeValueGrowth"])} />
             </Field>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div className="wmg-field-label">Track this automatically instead</div>
+            <div className="wmg-sub" style={{ marginBottom: 8 }}>
+              Add your property's address and we'll look up an estimated value once a month, so this stays current
+              without you having to check anywhere or update it by hand.
+            </div>
+            {!hasPremium ? (
+              <PremiumGate
+                subscriptionStatus={subscriptionStatus}
+                onUpgrade={onUpgrade}
+                text="Automatic monthly home value tracking is a Premium feature."
+              />
+            ) : (
+              <>
+                <input
+                  className="wmg-input"
+                  type="text"
+                  placeholder="e.g. 12 Example Street, Chatham, ME4 1AB"
+                  value={profile.propertyAddress}
+                  onChange={(e) => setField(["propertyAddress"])(e.target.value)}
+                />
+                {profile.propertyAddress && (
+                  <div className="wmg-sub" style={{ marginTop: 6 }}>
+                    {profile.homeValueSource === "auto" && profile.homeValueUpdatedAt ? (
+                      <>Last updated automatically on {new Date(profile.homeValueUpdatedAt).toLocaleDateString("en-GB")}.</>
+                    ) : (
+                      <>
+                        Saved — the next monthly update will fetch a value for this address (usually within a few
+                        weeks of adding it, depending on when the monthly run falls).
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <div className="wmg-two-col" style={{ marginTop: 4 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--paper-dim)" }}>

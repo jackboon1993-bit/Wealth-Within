@@ -5,7 +5,7 @@ import { FLOW_TONE_COLORS } from "../lib/constants";
 import { hasAccounts } from "../lib/storage";
 import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../components/ui";
 
-export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade }) {
+export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
@@ -99,7 +99,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && (
+      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && !profile.dismissedConnectBankBanner && (
         hasConnectedBank ? (
           <Card className="wmg-connect-bank-banner">
             <div className="wmg-connect-bank-banner-text">
@@ -124,11 +124,19 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
               Connect
             </button>
+            <button
+              type="button"
+              className="wmg-score-explainer-close"
+              aria-label="Dismiss"
+              onClick={() => setField?.(["dismissedConnectBankBanner"])(true)}
+            >
+              ×
+            </button>
           </Card>
         )
       )}
 
-      {!hasPremium && (
+      {!hasPremium && !profile.dismissedPremiumBanner && (
         <Card className="wmg-connect-bank-banner" style={{ background: "var(--brand-soft)", borderColor: "var(--brand)" }}>
           <div className="wmg-connect-bank-banner-text">
             <div className="wmg-connect-bank-banner-title">
@@ -141,6 +149,14 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           </div>
           <button type="button" className="wmg-btn-primary" onClick={onUpgrade}>
             {subscriptionStatus === "canceled" || subscriptionStatus === "past_due" ? "Renew" : "Choose a plan"}
+          </button>
+          <button
+            type="button"
+            className="wmg-score-explainer-close"
+            aria-label="Dismiss"
+            onClick={() => setField?.(["dismissedPremiumBanner"])(true)}
+          >
+            ×
           </button>
         </Card>
       )}
