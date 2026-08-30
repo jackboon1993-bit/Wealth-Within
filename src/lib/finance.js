@@ -307,6 +307,10 @@ export const defaultProfile = {
   ],
   assumptions: { incomeGrowth: 3, inflation: 2.5, growthUncertaintyPct: 2 },
   billsConfirmed: false,
+  // Same "enter once, confirm, then read-only until you choose to edit"
+  // pattern as billsConfirmed above — covers mortgage balance, payment,
+  // and interest rate together as one set. See DebtsTab.jsx.
+  mortgageDetailsConfirmed: false,
   // Phase 2 of the adaptive experience: recommendedMode comes from the two
   // onboarding preference questions and is never overwritten automatically.
   // preferredMode is null until the person explicitly picks a mode (either

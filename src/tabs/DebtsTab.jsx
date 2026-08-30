@@ -326,6 +326,37 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
       )}
       <div className="wmg-section-title">Mortgage</div>
       <Card>
+        {profile.mortgageDetailsConfirmed ? (
+          <>
+            <div className="wmg-three-col">
+              <div>
+                <div className="wmg-field-label">Balance outstanding</div>
+                <div className="wmg-readonly-value">{gbp(profile.mortgage.balance)}</div>
+                <div className="wmg-sub" style={{ marginTop: 4 }}>
+                  {mortgageChanged ? `Estimated today: ${gbp(totals?.mortgageBalanceToday ?? profile.mortgage.balance)} — ` : ""}
+                  confirmed {gbp(profile.mortgage.balance)} {mortgageDaysSince === 0 ? "today" : `${mortgageDaysSince} day${mortgageDaysSince === 1 ? "" : "s"} ago`}
+                </div>
+              </div>
+              <div>
+                <div className="wmg-field-label">Monthly payment</div>
+                <div className="wmg-readonly-value">{gbp(profile.mortgage.payment)}</div>
+              </div>
+              <div>
+                <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Mortgage-free</div>
+                <div className="wmg-figure tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="wmg-onboard-skip"
+              style={{ marginTop: 10 }}
+              onClick={() => setField(["mortgageDetailsConfirmed"])(false)}
+            >
+              Edit mortgage details
+            </button>
+          </>
+        ) : (
+          <>
         <div className="wmg-three-col">
           <div>
             <label className="wmg-field-label">Balance outstanding</label>
@@ -384,6 +415,16 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
             <div className="wmg-figure tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>
           </div>
         </div>
+        <button
+          type="button"
+          className="wmg-btn-primary"
+          style={{ marginTop: 10 }}
+          onClick={() => setField(["mortgageDetailsConfirmed"])(true)}
+        >
+          ✓ I've confirmed these mortgage details
+        </button>
+          </>
+        )}
         <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, color: "var(--paper-dim)", marginTop: 12 }}>
           <input
             type="checkbox"
@@ -397,7 +438,11 @@ export function DebtsTab({ profile, totals, setField, updateArrayItem, confirmBa
         <DisclosureSection label="See more details" defaultOpen={activeMode !== "guided"}>
           <div className="wmg-three-col">
             <Field label="Interest rate (%)">
-              <NumberInput className="wmg-input" step="0.1" value={profile.mortgage.rate} onChange={setField(["mortgage", "rate"])} />
+              {profile.mortgageDetailsConfirmed ? (
+                <div className="wmg-readonly-value">{profile.mortgage.rate}%</div>
+              ) : (
+                <NumberInput className="wmg-input" step="0.1" value={profile.mortgage.rate} onChange={setField(["mortgage", "rate"])} />
+              )}
             </Field>
             <Field label="Estimated home value">
               {profile.homeValueSource === "auto" && profile.propertyUprn ? (
