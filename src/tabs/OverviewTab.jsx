@@ -40,8 +40,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     { label: "Income & Expenditure", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
     { label: "Debt", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", icon: "debt", gradient: true },
     { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "goals", icon: "savings", gradient: true },
-    { label: "Debt-free", value: isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—", tone: "gold", tab: "debts", icon: "calendar", gradient: true },
-    { label: "Mortgage-free", value: isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—", tone: "gold", tab: "debts", icon: "calendar", gradient: true },
+    // Debt-free and Mortgage-free payoff-date tiles were dropped from
+    // here — they clustered with Debt/Home equity into four tiles all
+    // orbiting the same two underlying facts, which read as cluttered.
+    // Both dates are still fully visible on the Debts tab itself, just
+    // not repeated here.
     { label: "Home equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts", icon: "home", gradient: true },
     { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "rust", tab: "pension", icon: "pension", gradient: true },
     { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "goals", icon: "invest", gradient: true },
