@@ -765,7 +765,51 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
             )}
           </Card>
 
+          {profile.spendingSnapshots && profile.spendingSnapshots.length > 0 && (() => {
+            // Just the most recent frozen month — see
+            // api/monthly-spending-snapshot.js, which runs on the 1st and
+            // fills this in. Unlike categoryChartData above, this doesn't
+            // change if categories are edited later — it's a fixed record
+            // of what that month actually looked like.
+            const latest = profile.spendingSnapshots[profile.spendingSnapshots.length - 1];
+            const latestTotal = latest.total || 1;
+            const [year, monthNum] = latest.month.split("-");
+            const monthLabel = new Date(Number(year), Number(monthNum) - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+            return (
+              <>
+                <div className="wmg-section-title">Last month's spending</div>
+                <div className="wmg-section-desc">{monthLabel} — a fixed record, so it won't change even if you edit your categories later.</div>
+                <Card>
+                  <div className="wmg-category-chart-row">
+                    <div style={{ width: 160, height: 160, flexShrink: 0 }}>
+                      <ResponsiveContainer>
+                        <PieChart>
+                          <Pie data={latest.categories} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2} strokeWidth={0}>
+                            {latest.categories.map((entry, i) => (
+                              <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<CategoryTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="wmg-category-legend">
+                      {latest.categories.map((row, i) => (
+                        <div className="wmg-category-legend-item" key={row.name}>
+                          <span className="wmg-swatch" style={{ background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
+                          <span className="wmg-category-legend-name">{row.name}</span>
+                          <span className="wmg-category-legend-pct">{Math.round((row.value / latestTotal) * 100)}%</span>
+                          <span className="wmg-category-legend-val">{gbp(row.value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              </>
+            );
+          })()}
         </>
+
       ) : (
         <Card style={{ marginTop: 4 }}>
           <p style={{ marginBottom: 12 }}>Nothing added yet — add your outgoings to see where your money actually goes.</p>
