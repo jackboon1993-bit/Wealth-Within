@@ -267,6 +267,78 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         </>
       )}
 
+      {wizardStep === "reveal" && (
+        <>
+          <div className="wmg-section-title">Your cash flow</div>
+          <Card className="wmg-guided-summary-card">
+            <p style={{ margin: 0 }}>
+              Retiring at <strong>{profile.pensionSettings.retirementAge}</strong>
+              {wizardPriority && (
+                <>, prioritising{" "}
+                  <strong>
+                    {wizardPriority === "debt" ? "paying off debt faster" : wizardPriority === "savings" ? "building up savings" : "a bit of both"}
+                  </strong>
+                </>
+              )}
+              {profile.lifeEvents.length > 0 && (
+                <>, with {profile.lifeEvents.length === 1 ? profile.lifeEvents[0].name.toLowerCase() : `${profile.lifeEvents.length} upcoming life events`} factored in</>
+              )}
+              . Here's what that looks like:
+            </p>
+          </Card>
+          <Card>
+            {/* Deliberately its own copy of the chart, not shared with the
+                "Cash flow forecast" section below — that section is full
+                of sliders and technical labels (forecast horizon, growth
+                uncertainty, "surplus to debt vs saving") which is exactly
+                what this reveal is meant to NOT look like. Duplicating a
+                few lines of chart JSX here is a small maintenance cost
+                for keeping the reveal genuinely clean; if the chart's
+                data series or styling changes, both copies need updating. */}
+            <div style={{ width: "100%", height: 260 }}>
+              <ResponsiveContainer>
+                <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                  <CartesianGrid stroke="var(--hair)" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+                  <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey={key("netWorthLow")} name="" stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
+                  <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range" stackId="band" stroke="none" fill="#8A7FC9" fillOpacity={0.15} isAnimationActive={false} />
+                  <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8A7FC9" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey={key("debt")} name="Debt" stroke="#B2504F" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label">Net worth in {horizonYears} years</span>
+              <span className="wmg-detail-row-value" style={{ color: "var(--brand)" }}>{last ? gbpApprox(last[key("netWorth")]) : "—"}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label">Debt-free</span>
+              <span className="wmg-detail-row-value">{forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} yrs`}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label">Mortgage-free</span>
+              <span className="wmg-detail-row-value tone-sage">{forecast.mortgageFreeMonth !== null ? addMonths(forecast.mortgageFreeMonth) : `beyond ${horizonYears} yrs`}</span>
+            </div>
+            <button type="button" className="wmg-btn-primary" style={{ width: "100%", marginTop: 12 }} onClick={() => setWizardStep(1)}>
+              Adjust my answers
+            </button>
+            <button
+              type="button"
+              className="wmg-onboard-skip"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                setWizardStep(null);
+                setForecastView("forecast");
+              }}
+            >
+              See full details and fine-tune the numbers
+            </button>
+          </Card>
+        </>
+      )}
+
       {!wizardStep && forecastView !== "picker" && (
         <button
           type="button"
@@ -278,29 +350,8 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         </button>
       )}
 
-      {(wizardStep === "reveal" || (!wizardStep && (forecastView === "forecast" || forecastView === "all"))) && (
+      {!wizardStep && (forecastView === "forecast" || forecastView === "all") && (
         <>
-      {wizardStep === "reveal" && (
-        <Card className="wmg-guided-summary-card" style={{ marginBottom: 14 }}>
-          <p style={{ margin: 0 }}>
-            Retiring at <strong>{profile.pensionSettings.retirementAge}</strong>
-            {wizardPriority && (
-              <>, prioritising{" "}
-                <strong>
-                  {wizardPriority === "debt" ? "paying off debt faster" : wizardPriority === "savings" ? "building up savings" : "a bit of both"}
-                </strong>
-              </>
-            )}
-            {profile.lifeEvents.length > 0 && (
-              <>, with {profile.lifeEvents.length === 1 ? profile.lifeEvents[0].name.toLowerCase() : `${profile.lifeEvents.length} upcoming life events`} factored in</>
-            )}
-            . Here's what that looks like:
-          </p>
-          <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setWizardStep(1)}>
-            Adjust my answers
-          </button>
-        </Card>
-      )}
       <div className="wmg-section-title">Cash flow forecast</div>
       <div className="wmg-section-desc">
         This takes everything you've entered elsewhere — your income, spending, debts, savings, and pension — and
@@ -338,7 +389,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           </div>
           <div>
             <label className="wmg-field-label">
-              Surplus to debt vs. saving <InfoTip text="Your leftover money each month, after bills and debt payments. 100% sends all of it toward your highest-interest debt first; 0% puts all of it into savings and investments instead. Try both ends to see the trade-off." />
+              Spare money: debt vs. saving <InfoTip text="Your leftover money each month, after bills and debt payments. 100% sends all of it toward your highest-interest debt first; 0% puts all of it into savings and investments instead. Try both ends to see the trade-off." />
             </label>
             <div className="wmg-slider-row">
               <input type="range" min="0" max="100" step="5" value={allocationPct} className="wmg-slider" onChange={(e) => setAllocationPct(Number(e.target.value))} />
