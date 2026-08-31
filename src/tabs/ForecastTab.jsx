@@ -16,6 +16,15 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
   // Purely a view filter — nothing here duplicates a question asked
   // anywhere else in the tab.
   const [forecastView, setForecastView] = useState("picker");
+  // The guided "build my personalized forecast" flow — separate from
+  // forecastView above (which is just a view filter over existing
+  // sections). wizardStep null = not in the wizard; 1/2/3 = the three
+  // questions; "reveal" = show the Cash flow forecast section (below)
+  // with a personalized summary on top, since it's the same chart/data
+  // either way — no reason to duplicate it in a second place.
+  const [wizardStep, setWizardStep] = useState(null);
+  const [wizardPriority, setWizardPriority] = useState(null); // "debt" | "balanced" | "savings"
+  const [newEventDraft, setNewEventDraft] = useState({ name: "", amount: "", type: "expense", yearsFromNow: 1 });
   const suffix = realTerms ? "Real" : "";
   const last = forecast.series[forecast.series.length - 1];
   const key = (base) => `${base}${suffix}`;
@@ -60,17 +69,184 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
 
   return (
     <>
-      {forecastView === "picker" && (
+      {wizardStep === 1 && (
         <>
-          <div className="wmg-section-title">What would you like to check?</div>
+          <div className="wmg-section-title">Build my personalized forecast</div>
+          <div className="wmg-section-desc">Step 1 of 3</div>
+          <Card>
+            <div className="wmg-field-label">When would you like to retire?</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>
+              This sets your target retirement age everywhere in the app, including on the Pension tab.
+            </div>
+            <NumberInput
+              className="wmg-input"
+              value={profile.pensionSettings.retirementAge}
+              onChange={setField(["pensionSettings", "retirementAge"])}
+            />
+            <button type="button" className="wmg-btn-primary" style={{ width: "100%", marginTop: 14 }} onClick={() => setWizardStep(2)}>
+              Continue
+            </button>
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setWizardStep(null)}>
+              Cancel
+            </button>
+          </Card>
+        </>
+      )}
+
+      {wizardStep === 2 && (
+        <>
+          <div className="wmg-section-title">Build my personalized forecast</div>
+          <div className="wmg-section-desc">Step 2 of 3</div>
+          <Card>
+            <div className="wmg-field-label">If you have spare money each month, what matters more?</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>
+              This changes how your forecast splits leftover money between debt and savings — you can always fine-tune the exact split later.
+            </div>
+            <div className="wmg-sub-list">
+              {[
+                { id: "debt", label: "Paying off debt faster", pct: 100 },
+                { id: "balanced", label: "A bit of both", pct: 50 },
+                { id: "savings", label: "Building up savings", pct: 0 },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className="wmg-add-btn"
+                  style={wizardPriority === opt.id ? { borderColor: "var(--brand)", background: "var(--brand-soft)" } : undefined}
+                  onClick={() => {
+                    setWizardPriority(opt.id);
+                    setAllocationPct(opt.pct);
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 14 }}
+              disabled={!wizardPriority}
+              onClick={() => setWizardStep(3)}
+            >
+              Continue
+            </button>
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setWizardStep(1)}>
+              Back
+            </button>
+          </Card>
+        </>
+      )}
+
+      {wizardStep === 3 && (
+        <>
+          <div className="wmg-section-title">Build my personalized forecast</div>
+          <div className="wmg-section-desc">Step 3 of 3</div>
+          <Card>
+            <div className="wmg-field-label">Any big money moments coming up?</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>
+              A new car, a wedding, an inheritance — anything that'll add or take away a lump sum. Optional; skip if
+              nothing comes to mind.
+            </div>
+            {profile.lifeEvents.length > 0 && (
+              <div className="wmg-sub-list" style={{ marginBottom: 12 }}>
+                {profile.lifeEvents.map((ev) => (
+                  <div key={ev.id} className="wmg-detail-row">
+                    <span className="wmg-detail-row-label">{ev.name}</span>
+                    <span className="wmg-detail-row-value" style={{ color: ev.type === "expense" ? "var(--rust)" : "var(--sage)" }}>
+                      {ev.type === "expense" ? "−" : "+"}{gbp(ev.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="wmg-three-col">
+              <Field label="What is it?">
+                <input
+                  className="wmg-input"
+                  type="text"
+                  placeholder="e.g. New car"
+                  value={newEventDraft.name}
+                  onChange={(e) => setNewEventDraft((d) => ({ ...d, name: e.target.value }))}
+                />
+              </Field>
+              <Field label="Amount">
+                <NumberInput
+                  className="wmg-input"
+                  value={newEventDraft.amount}
+                  onChange={(v) => setNewEventDraft((d) => ({ ...d, amount: v }))}
+                />
+              </Field>
+              <Field label="Years from now">
+                <NumberInput
+                  className="wmg-input"
+                  value={newEventDraft.yearsFromNow}
+                  onChange={(v) => setNewEventDraft((d) => ({ ...d, yearsFromNow: v }))}
+                />
+              </Field>
+            </div>
+            <div className="wmg-sub-list" style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                className={newEventDraft.type === "expense" ? "wmg-add-btn" : "wmg-onboard-skip"}
+                onClick={() => setNewEventDraft((d) => ({ ...d, type: "expense" }))}
+              >
+                Money going out
+              </button>
+              <button
+                type="button"
+                className={newEventDraft.type === "income" ? "wmg-add-btn" : "wmg-onboard-skip"}
+                onClick={() => setNewEventDraft((d) => ({ ...d, type: "income" }))}
+              >
+                Money coming in
+              </button>
+            </div>
+            <button
+              type="button"
+              className="wmg-add-btn"
+              style={{ marginTop: 8 }}
+              disabled={!newEventDraft.name.trim() || !newEventDraft.amount}
+              onClick={() => {
+                addLifeEvent({ name: newEventDraft.name.trim(), amount: Number(newEventDraft.amount), type: newEventDraft.type, yearsFromNow: Number(newEventDraft.yearsFromNow) || 1 });
+                setNewEventDraft({ name: "", amount: "", type: "expense", yearsFromNow: 1 });
+              }}
+            >
+              + Add this
+            </button>
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 14 }}
+              onClick={() => setWizardStep("reveal")}
+            >
+              See my cash flow
+            </button>
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setWizardStep(2)}>
+              Back
+            </button>
+          </Card>
+        </>
+      )}
+
+      {!wizardStep && forecastView === "picker" && (
+        <>
+          <div className="wmg-section-title">Cash Flow Forecast</div>
           <div className="wmg-section-desc">
-            Pick one to jump straight there, or see the whole picture at once. Nothing here asks you to enter
-            anything twice — it's just a quicker way into what's already below.
+            Answer a few quick questions and we'll build a personalized forecast from your answers — or jump
+            straight to a specific view below.
           </div>
           <Card>
-            <div className="wmg-sub-list">
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%" }}
+              onClick={() => setWizardStep(1)}
+            >
+              Build my personalized forecast
+            </button>
+            <div className="wmg-sub-list" style={{ marginTop: 14 }}>
               <button type="button" className="wmg-add-btn" onClick={() => setForecastView("forecast")}>
-                Where am I heading overall?
+                Just show me the forecast
               </button>
               <button type="button" className="wmg-add-btn" onClick={() => setForecastView("scenarios")}>
                 {profile.scenarios.length > 0 ? "How do my different plans compare?" : "Save and compare different plans"}
@@ -81,8 +257,8 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
             </div>
             <button
               type="button"
-              className="wmg-btn-primary"
-              style={{ width: "100%", marginTop: 12 }}
+              className="wmg-onboard-skip"
+              style={{ marginTop: 12 }}
               onClick={() => setForecastView("all")}
             >
               Just show me everything
@@ -91,7 +267,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         </>
       )}
 
-      {forecastView !== "picker" && (
+      {!wizardStep && forecastView !== "picker" && (
         <button
           type="button"
           className="wmg-onboard-skip"
@@ -102,8 +278,29 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         </button>
       )}
 
-      {(forecastView === "forecast" || forecastView === "all") && (
+      {(wizardStep === "reveal" || (!wizardStep && (forecastView === "forecast" || forecastView === "all"))) && (
         <>
+      {wizardStep === "reveal" && (
+        <Card className="wmg-guided-summary-card" style={{ marginBottom: 14 }}>
+          <p style={{ margin: 0 }}>
+            Retiring at <strong>{profile.pensionSettings.retirementAge}</strong>
+            {wizardPriority && (
+              <>, prioritising{" "}
+                <strong>
+                  {wizardPriority === "debt" ? "paying off debt faster" : wizardPriority === "savings" ? "building up savings" : "a bit of both"}
+                </strong>
+              </>
+            )}
+            {profile.lifeEvents.length > 0 && (
+              <>, with {profile.lifeEvents.length === 1 ? profile.lifeEvents[0].name.toLowerCase() : `${profile.lifeEvents.length} upcoming life events`} factored in</>
+            )}
+            . Here's what that looks like:
+          </p>
+          <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setWizardStep(1)}>
+            Adjust my answers
+          </button>
+        </Card>
+      )}
       <div className="wmg-section-title">Cash flow forecast</div>
       <div className="wmg-section-desc">
         This takes everything you've entered elsewhere — your income, spending, debts, savings, and pension — and
