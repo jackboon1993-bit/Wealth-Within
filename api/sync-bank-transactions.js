@@ -215,7 +215,15 @@ async function syncOne(admin, apiKey, conn, results) {
   if (bankSyncTx.transactions.length === 0) {
     results.noNewTransactions++;
   } else {
-    const { categoryTotals, incomeEstimate } = await categorizeAndSummarize(bankSyncTx.transactions, categories, apiKey);
+    // Pass the real requested window through (see the comment on
+    // categorizeAndSummarize) rather than letting it fall back to
+    // deriving the span from wherever the transactions themselves happen
+    // to land — the whole point of this fix is that a narrow incremental
+    // sync with sparse transactions shouldn't get inflated by 30x.
+    const { categoryTotals, incomeEstimate } = await categorizeAndSummarize(bankSyncTx.transactions, categories, apiKey, {
+      fromDate: bankSyncTx.fromParam,
+      toDate: bankSyncTx.toParam,
+    });
     dataToWrite.pendingBankSync = {
       categoryTotals,
       incomeEstimate,

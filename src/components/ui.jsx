@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useId } from "react";
 import { gbp, clamp, uid } from "../lib/finance";
 import { MASCOT_MESSAGES } from "../lib/constants";
 
-export function Card({ children, className = "", style = {} }) {
+export function Card({ children, className = "", style = {}, ...rest }) {
   return (
-    <div className={`wmg-card ${className}`} style={style}>
+    <div className={`wmg-card ${className}`} style={style} {...rest}>
       {children}
     </div>
   );
@@ -520,6 +520,130 @@ export function CategoryTooltip({ active, payload }) {
         <span className="wmg-tooltip-name">{p.name}</span>
         <span className="wmg-tooltip-val">{gbp(p.value)}</span>
       </div>
+    </div>
+  );
+}
+
+
+/* ============================ motion & engagement ============================ */
+
+// Wraps children in a small fade-up-and-in entrance, staggered by index —
+// used anywhere a list of cards/rows appears at once (stat tiles, bar
+// breakdowns, goal cards) so they settle in rather than popping into
+// place all at once. All the actual animation lives in styles/motion.css
+// (the .wmg-reveal class and its :nth-child delay rules) — this component
+// just applies the class and an optional explicit delay for cases that
+// aren't simple siblings. Respects prefers-reduced-motion via a plain CSS
+// media query in that stylesheet, not JS, so it can't get out of sync
+// with the rest of the app's motion.
+export function Reveal({ children, delay = 0, className = "" }) {
+  return (
+    <div className={`wmg-reveal ${className}`} style={delay ? { animationDelay: `${delay}ms` } : undefined}>
+      {children}
+    </div>
+  );
+}
+
+/* Generic bottom-sheet popout — same visual pattern already used for the
+   Account and "More" sheets in App.jsx (wmg-more-sheet-backdrop /
+   wmg-more-sheet / wmg-more-sheet-handle / wmg-more-sheet-title), pulled
+   out here as a reusable component so the new progress/detail popouts
+   (goals, cash flow milestones) don't each hand-roll their own version of
+   the same markup. Closes on backdrop tap or the ✕, same as the existing
+   sheets. */
+export function Popout({ open, onClose, title, children, className = "" }) {
+  if (!open) return null;
+  return (
+    <div className="wmg-more-sheet-backdrop" onClick={onClose}>
+      <div className={`wmg-more-sheet ${className}`} onClick={(e) => e.stopPropagation()}>
+        <div className="wmg-more-sheet-handle" />
+        <div className="wmg-more-sheet-title">
+          {title}
+          <button className="wmg-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* A small celebratory moment for hitting a goal or milestone — a burst of
+   coloured dots behind a headline, built in SVG/CSS rather than an image
+   or external confetti library so it stays tiny and themeable via the
+   existing tone colours. Purely decorative: screen readers just get the
+   title/message text via normal DOM order, the burst is aria-hidden. */
+export function Celebration({ title, message, tone = "gold" }) {
+  const dotColors = {
+    gold: ["#FFCE6B", "#FFA400", "#FF9166"],
+    sage: ["#4FD1C5", "#17A398", "#4A7A3A"],
+    brand: ["#A78BFA", "#7C4DFF", "#FF6FA5"],
+  }[tone] || ["#FFCE6B", "#FFA400", "#FF9166"];
+  const dots = Array.from({ length: 14 });
+  return (
+    <div className="wmg-celebration">
+      <div className="wmg-celebration-burst" aria-hidden="true">
+        {dots.map((_, i) => {
+          const angle = (360 / dots.length) * i;
+          const dist = 46 + (i % 3) * 10;
+          const color = dotColors[i % dotColors.length];
+          return (
+            <span
+              key={i}
+              className="wmg-celebration-dot"
+              style={{
+                background: color,
+                transform: `rotate(${angle}deg) translateY(-${dist}px)`,
+                animationDelay: `${(i % 5) * 35}ms`,
+              }}
+            />
+          );
+        })}
+      </div>
+      <div className="wmg-celebration-body">
+        <div className="wmg-celebration-title">{title}</div>
+        {message && <div className="wmg-celebration-message">{message}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* A single labelled row with an animated horizontal bar — the "grow in"
+   equivalent of a pie slice, but reusing the app's existing
+   icon+label-left/value-right list idiom (see .wmg-detail-row) instead of
+   a chart legend. The bar itself animates its width in via a CSS
+   transition (see .wmg-bar-row-fill in motion.css) triggered by mounting
+   at width 0 and immediately being told its real width — no JS animation
+   loop needed. `max` sets what counts as a "full" bar; pass the largest
+   value in the set so the biggest row reads as ~100%, not the sum of
+   everything (which would make every bar look small). */
+export function BarRow({ label, value, max, tone = "brand", formatter }) {
+  const pct = clamp((value / Math.max(1, max)) * 100, 2, 100);
+  return (
+    <div className="wmg-bar-row">
+      <div className="wmg-bar-row-top">
+        <span className="wmg-bar-row-label">{label}</span>
+        <span className="wmg-bar-row-value">{formatter ? formatter(value) : value}</span>
+      </div>
+      <div className="wmg-bar-row-track">
+        <div className={`wmg-bar-row-fill tone-${tone}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/* Compact "N day streak" pill — shown on Overview once there's anything to
+   show (a streak of 1 is just "opened today", not really a streak yet, so
+   this only renders from 2 upward). Deliberately understated — a small
+   flame + number, not a modal or a badge collection, in keeping with the
+   rest of the app's low-pressure tone. */
+export function StreakBadge({ streakCount }) {
+  if (!streakCount || streakCount < 2) return null;
+  return (
+    <div className="wmg-streak-badge" title={`${streakCount} days in a row`}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 2c1 3-2 4.5-2 7.5a2 2 0 0 0 4 0c1.5 1.5 2 3 2 4.5a5 5 0 0 1-10 0c0-4 3-6 3-9.5C9 3.5 10.3 2.5 12 2z" />
+      </svg>
+      <span>{streakCount} day streak</span>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { LineChart, ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
 import { gbp, gbpApprox, addMonths, runForecast, getActiveMode } from "../lib/finance";
-import { Card, Field, ChartTooltip, InfoTip, WhyItMatters, NumberInput } from "../components/ui";
+import { Card, Field, ChartTooltip, InfoTip, WhyItMatters, NumberInput, GrowthRing, StatIcon, useCountUp, Reveal, Popout, Celebration } from "../components/ui";
 
 export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setAllocationPct, forecast, interestSavedFromAllocation, totals, profile, setField, updateLifeEvent, addLifeEvent, removeLifeEvent, addScenario, updateScenario, removeScenario }) {
   const activeMode = getActiveMode(profile);
@@ -25,9 +25,15 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
   const [wizardStep, setWizardStep] = useState(null);
   const [wizardPriority, setWizardPriority] = useState(null); // "debt" | "balanced" | "savings"
   const [newEventDraft, setNewEventDraft] = useState({ name: "", amount: "", type: "expense", yearsFromNow: 1 });
+  // Which milestone popout is open on the "reveal" screen — null | "networth" | "debt" | "mortgage".
+  const [revealPopout, setRevealPopout] = useState(null);
   const suffix = realTerms ? "Real" : "";
   const last = forecast.series[forecast.series.length - 1];
   const key = (base) => `${base}${suffix}`;
+  // Animated count-up for the reveal screen's headline figure — called
+  // unconditionally (hooks can't be conditional) even though it's only
+  // displayed when wizardStep === "reveal".
+  const revealNetWorthAnimated = useCountUp(last ? last[key("netWorth")] : 0);
 
   const growthUncertainty = profile.assumptions?.growthUncertaintyPct ?? 2;
   const forecastLow = useMemo(
@@ -52,6 +58,16 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
       netWorthBandReal: lo && hi ? Math.max(0, hi.netWorthReal - lo.netWorthReal) : 0,
     };
   });
+
+  // How far along the household actually is on paying off non-mortgage
+  // debt and the mortgage, as a genuine 0–1 progress ratio (original
+  // balance vs current), for the milestone rings on the reveal screen —
+  // a real "how far you've come" figure, not decoration.
+  const nonMortgageOriginal = [...profile.loans, ...profile.cards].reduce((s, d) => s + (d.originalBalance || d.balance || 0), 0);
+  const nonMortgageCurrent = [...profile.loans, ...profile.cards].reduce((s, d) => s + (d.balance || 0), 0);
+  const debtProgress = nonMortgageOriginal > 0 ? Math.max(0, Math.min(1, 1 - nonMortgageCurrent / nonMortgageOriginal)) : 1;
+  const mortgageOriginal = profile.mortgage.originalBalance || profile.mortgage.balance || 0;
+  const mortgageProgress = mortgageOriginal > 0 ? Math.max(0, Math.min(1, 1 - profile.mortgage.balance / mortgageOriginal)) : 1;
 
   const SCENARIO_COLORS = ["#8A7FC9", "#B5652F", "#97701A", "#4A7A3A", "#B2504F", "#5C6BA3"];
   const scenarioForecasts = useMemo(
@@ -270,72 +286,185 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
       {wizardStep === "reveal" && (
         <>
           <div className="wmg-section-title">Your cash flow</div>
-          <Card className="wmg-guided-summary-card">
-            <p style={{ margin: 0 }}>
-              Retiring at <strong>{profile.pensionSettings.retirementAge}</strong>
-              {wizardPriority && (
-                <>, prioritising{" "}
-                  <strong>
-                    {wizardPriority === "debt" ? "paying off debt faster" : wizardPriority === "savings" ? "building up savings" : "a bit of both"}
-                  </strong>
-                </>
-              )}
-              {profile.lifeEvents.length > 0 && (
-                <>, with {profile.lifeEvents.length === 1 ? profile.lifeEvents[0].name.toLowerCase() : `${profile.lifeEvents.length} upcoming life events`} factored in</>
-              )}
-              . Here's what that looks like:
+          <Reveal>
+            <Card className="wmg-guided-summary-card">
+              <p style={{ margin: 0 }}>
+                Retiring at <strong>{profile.pensionSettings.retirementAge}</strong>
+                {wizardPriority && (
+                  <>, prioritising{" "}
+                    <strong>
+                      {wizardPriority === "debt" ? "paying off debt faster" : wizardPriority === "savings" ? "building up savings" : "a bit of both"}
+                    </strong>
+                  </>
+                )}
+                {profile.lifeEvents.length > 0 && (
+                  <>, with {profile.lifeEvents.length === 1 ? profile.lifeEvents[0].name.toLowerCase() : `${profile.lifeEvents.length} upcoming life events`} factored in</>
+                )}
+                . Here's what that looks like:
+              </p>
+            </Card>
+          </Reveal>
+
+          <Reveal delay={70}>
+            <Card>
+              {/* Deliberately its own copy of the chart, not shared with the
+                  "Cash flow forecast" section below — that section is full
+                  of sliders and technical labels (forecast horizon, growth
+                  uncertainty, "surplus to debt vs saving") which is exactly
+                  what this reveal is meant to NOT look like. Duplicating a
+                  few lines of chart JSX here is a small maintenance cost
+                  for keeping the reveal genuinely clean; if the chart's
+                  data series or styling changes, both copies need updating. */}
+              <div style={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer>
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="var(--hair)" vertical={false} />
+                    <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+                    <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area type="monotone" dataKey={key("netWorthLow")} name="" stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
+                    <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range" stackId="band" stroke="none" fill="#8A7FC9" fillOpacity={0.15} isAnimationActive={false} />
+                    <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8A7FC9" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey={key("debt")} name="Debt" stroke="#B2504F" strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Big tappable headline, in place of the old flat "Net worth
+                  in X years" row — opens a popout with the low/high range
+                  instead of cramming it in as a second line here. */}
+              <button
+                type="button"
+                className="wmg-card-pressable"
+                style={{ width: "100%", textAlign: "left", background: "none", border: "none", padding: "14px 0 4px", cursor: "pointer" }}
+                onClick={() => setRevealPopout("networth")}
+              >
+                <div className="wmg-eyebrow">Net worth in {horizonYears} years</div>
+                <div className="wmg-figure tone-brand" style={{ fontSize: 30 }}>
+                  {last ? gbpApprox(revealNetWorthAnimated) : "—"}
+                </div>
+                <div className="wmg-sub">Tap for the likely range</div>
+              </button>
+            </Card>
+          </Reveal>
+
+          <div className="wmg-two-col" style={{ marginTop: 10, gap: 10 }}>
+            <Reveal delay={110}>
+              <Card
+                className="wmg-card-pressable"
+                style={{ textAlign: "center", height: "100%" }}
+                role="button"
+                tabIndex={0}
+                aria-label="Debt-free progress, tap for detail"
+                onClick={() => setRevealPopout("debt")}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setRevealPopout("debt")}
+              >
+                <GrowthRing progress={debtProgress} size={72} tone="rust">
+                  <StatIcon name="debt" />
+                </GrowthRing>
+                <div className="wmg-eyebrow" style={{ marginTop: 10 }}>Debt-free</div>
+                <div className="wmg-detail-row-value" style={{ fontWeight: 700 }}>
+                  {forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} yrs`}
+                </div>
+              </Card>
+            </Reveal>
+            <Reveal delay={150}>
+              <Card
+                className="wmg-card-pressable"
+                style={{ textAlign: "center", height: "100%" }}
+                role="button"
+                tabIndex={0}
+                aria-label="Mortgage-free progress, tap for detail"
+                onClick={() => setRevealPopout("mortgage")}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setRevealPopout("mortgage")}
+              >
+                <GrowthRing progress={mortgageProgress} size={72} tone="sage">
+                  <StatIcon name="home" />
+                </GrowthRing>
+                <div className="wmg-eyebrow" style={{ marginTop: 10 }}>Mortgage-free</div>
+                <div className="wmg-detail-row-value" style={{ fontWeight: 700 }}>
+                  {forecast.mortgageFreeMonth !== null ? addMonths(forecast.mortgageFreeMonth) : `beyond ${horizonYears} yrs`}
+                </div>
+              </Card>
+            </Reveal>
+          </div>
+
+          <Reveal delay={190}>
+            <div style={{ marginTop: 14 }}>
+              <button type="button" className="wmg-btn-primary" style={{ width: "100%" }} onClick={() => setWizardStep(1)}>
+                Adjust my answers
+              </button>
+              <button
+                type="button"
+                className="wmg-onboard-skip"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  setWizardStep(null);
+                  setForecastView("forecast");
+                }}
+              >
+                See full details and fine-tune the numbers
+              </button>
+            </div>
+          </Reveal>
+
+          <Popout open={revealPopout === "networth"} onClose={() => setRevealPopout(null)} title="Net worth range">
+            <p className="wmg-sub" style={{ marginBottom: 12 }}>
+              Nobody can promise a return, so this isn't a single number so much as a range — here's where you'd
+              likely land in {horizonYears} years if growth runs {growthUncertainty} percentage points below or
+              above what you've set.
             </p>
-          </Card>
-          <Card>
-            {/* Deliberately its own copy of the chart, not shared with the
-                "Cash flow forecast" section below — that section is full
-                of sliders and technical labels (forecast horizon, growth
-                uncertainty, "surplus to debt vs saving") which is exactly
-                what this reveal is meant to NOT look like. Duplicating a
-                few lines of chart JSX here is a small maintenance cost
-                for keeping the reveal genuinely clean; if the chart's
-                data series or styling changes, both copies need updating. */}
-            <div style={{ width: "100%", height: 260 }}>
-              <ResponsiveContainer>
-                <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="var(--hair)" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
-                  <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey={key("netWorthLow")} name="" stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-                  <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range" stackId="band" stroke="none" fill="#8A7FC9" fillOpacity={0.15} isAnimationActive={false} />
-                  <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8A7FC9" strokeWidth={2.5} dot={false} />
-                  <Line type="monotone" dataKey={key("debt")} name="Debt" stroke="#B2504F" strokeWidth={2} dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="wmg-detail-row">
-              <span className="wmg-detail-row-label">Net worth in {horizonYears} years</span>
-              <span className="wmg-detail-row-value" style={{ color: "var(--brand)" }}>{last ? gbpApprox(last[key("netWorth")]) : "—"}</span>
-            </div>
-            <div className="wmg-detail-row">
-              <span className="wmg-detail-row-label">Debt-free</span>
-              <span className="wmg-detail-row-value">{forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} yrs`}</span>
-            </div>
-            <div className="wmg-detail-row">
-              <span className="wmg-detail-row-label">Mortgage-free</span>
-              <span className="wmg-detail-row-value tone-sage">{forecast.mortgageFreeMonth !== null ? addMonths(forecast.mortgageFreeMonth) : `beyond ${horizonYears} yrs`}</span>
-            </div>
-            <button type="button" className="wmg-btn-primary" style={{ width: "100%", marginTop: 12 }} onClick={() => setWizardStep(1)}>
-              Adjust my answers
-            </button>
-            <button
-              type="button"
-              className="wmg-onboard-skip"
-              style={{ marginTop: 8 }}
-              onClick={() => {
-                setWizardStep(null);
-                setForecastView("forecast");
-              }}
-            >
-              See full details and fine-tune the numbers
-            </button>
-          </Card>
+            {lastLow && lastHigh && (
+              <div className="wmg-forecast-summary" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div>
+                  <div className="wmg-calc-item-label">Lower estimate</div>
+                  <div className="wmg-calc-item-val">{gbpApprox(lastLow[key("netWorth")])}</div>
+                </div>
+                <div>
+                  <div className="wmg-calc-item-label">Higher estimate</div>
+                  <div className="wmg-calc-item-val" style={{ color: "var(--sage)" }}>{gbpApprox(lastHigh[key("netWorth")])}</div>
+                </div>
+              </div>
+            )}
+          </Popout>
+
+          <Popout open={revealPopout === "debt"} onClose={() => setRevealPopout(null)} title="Debt-free progress">
+            {debtProgress >= 1 ? (
+              <Celebration title="Already debt-free!" message="No loans or card balances left to pay down — the ring's just for show at this point." tone="sage" />
+            ) : (
+              <>
+                <p className="wmg-sub" style={{ marginBottom: 10 }}>
+                  You've paid down <strong style={{ color: "var(--paper)" }}>{Math.round(debtProgress * 100)}%</strong> of
+                  your original loan and card balances so far.
+                </p>
+                <p className="wmg-sub">
+                  At this pace — with spare income going toward your highest-interest debt first — you'd be fully
+                  debt-free by <strong style={{ color: "var(--paper)" }}>{forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} years`}</strong>.
+                  This assumes your mortgage isn't included in "debt-free" — that's tracked separately.
+                </p>
+              </>
+            )}
+          </Popout>
+
+          <Popout open={revealPopout === "mortgage"} onClose={() => setRevealPopout(null)} title="Mortgage-free progress">
+            {mortgageProgress >= 1 ? (
+              <Celebration title="Mortgage paid off!" message="Nothing left owing on your home." tone="sage" />
+            ) : (
+              <>
+                <p className="wmg-sub" style={{ marginBottom: 10 }}>
+                  You've paid down <strong style={{ color: "var(--paper)" }}>{Math.round(mortgageProgress * 100)}%</strong> of
+                  your original mortgage balance so far.
+                </p>
+                <p className="wmg-sub">
+                  At this pace, you'd be mortgage-free by{" "}
+                  <strong style={{ color: "var(--paper)" }}>{forecast.mortgageFreeMonth !== null ? addMonths(forecast.mortgageFreeMonth) : `beyond ${horizonYears} years`}</strong>
+                  {profile.mortgage.allowOverpayment
+                    ? ` — this includes overpaying by up to ${profile.mortgage.overpaymentCapPct}% of the balance per year, the usual penalty-free limit.`
+                    : " — overpayment is currently switched off in Debts & Mortgage, so this is just the normal scheduled payoff."}
+                </p>
+              </>
+            )}
+          </Popout>
         </>
       )}
 

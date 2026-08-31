@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, getActiveMode, nextId } from "../lib/finance";
-import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput } from "../components/ui";
+import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput, BarRow, Reveal } from "../components/ui";
 import { API_BASE } from "../lib/apiBase";
 import { supabase } from "../lib/supabaseClient";
 
@@ -92,6 +92,12 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
 
 
 export const CATEGORY_COLORS = ["#8A7FC9", "#B5652F", "#97701A", "#5C6BA3", "#C97099", "#4A7A3A", "#B2504F", "#6C5FB0", "#C9708F", "#7972B5"];
+
+// Tone names (matching BarRow/motion.css's .tone-* classes) cycled through
+// for the bills bar breakdown — a smaller, named-tone palette rather than
+// the free-form hex CATEGORY_COLORS above, since BarRow's gradient fills
+// are pre-defined per tone rather than accepting an arbitrary colour.
+const CATEGORY_TONES = ["brand", "coral", "gold", "sage", "rust", "slate"];
 
 // Common UK household bills — used to nudge anyone entering their bills if
 // something obvious looks missing. Matched by loose substring against the
@@ -595,29 +601,23 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
             </>
           ) : (
             <Card style={{ marginBottom: 20 }}>
-              <div className="wmg-category-chart-row">
-                <div style={{ width: 140, height: 140, flexShrink: 0 }}>
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie data={billsChartData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={68} paddingAngle={2} strokeWidth={0}>
-                        {billsChartData.map((entry, i) => (
-                          <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CategoryTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="wmg-category-legend">
-                  {billsChartData.map((row, i) => (
-                    <div className="wmg-category-legend-item" key={row.name}>
-                      <span className="wmg-swatch" style={{ background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
-                      <span className="wmg-category-legend-name">{row.name}</span>
-                      <span className="wmg-category-legend-val">{gbp(row.value)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Bar breakdown instead of a pie + legend — easier to compare
+                  bill amounts at a glance than matching slice colours to a
+                  list, and it reuses the app's existing icon/label-left,
+                  value-right list rhythm instead of a chart-specific
+                  layout. Bars animate their width in on mount (see
+                  wmg-bar-row-fill in motion.css). Scaled against the
+                  largest single bill, not the total, so the biggest bar
+                  reads as ~full width rather than everything looking small
+                  next to a combined sum. */}
+              {(() => {
+                const maxBill = Math.max(1, ...billsChartData.map((r) => r.value));
+                return billsChartData.map((row, i) => (
+                  <Reveal key={row.name} delay={i * 45}>
+                    <BarRow label={row.name} value={row.value} max={maxBill} tone={CATEGORY_TONES[i % CATEGORY_TONES.length]} formatter={(v) => gbp(v)} />
+                  </Reveal>
+                ));
+              })()}
               <div className="wmg-subs-total">
                 <span>Total bills</span>
                 <span>{gbp(billsTotal, 2)}/month</span>

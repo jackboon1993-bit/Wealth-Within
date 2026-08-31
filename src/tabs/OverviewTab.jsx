@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, addMonths, getActiveMode } from "../lib/finance";
 import { FLOW_TONE_COLORS } from "../lib/constants";
 import { hasAccounts } from "../lib/storage";
-import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../components/ui";
+import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon, Reveal, StreakBadge } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
@@ -59,7 +59,10 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     <>
       <div className="wmg-mosaic-hero">
         <div className="wmg-mosaic-hero-top">
-          <div className="wmg-mosaic-hero-label">Net worth</div>
+          <div className="wmg-mosaic-hero-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span>Net worth</span>
+            <StreakBadge streakCount={profile.streakCount} />
+          </div>
           <button type="button" className="wmg-mosaic-hero-score" onClick={() => setScoreInfoOpen((o) => !o)} aria-expanded={scoreInfoOpen}>
             <GrowthRing progress={score / 100} size={24} tone={scoreTone} />
             <span className="wmg-mosaic-hero-score-val">{Math.round(animatedScore)}</span>
@@ -223,28 +226,30 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       )}
 
       <div className="wmg-stat-grid">
-        {heroStats.map((s) => (
-          <button
-            type="button"
-            className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
-            key={s.label}
-            onClick={() => onNavigate?.(s.tab, s.focus)}
-            aria-label={
-              s.tab === "income"
-                ? `${s.label}: ${s.value}`
-                : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
-            }
-          >
-            {s.gradient ? (
-              <span className="wmg-stat-tile-icon-badge" aria-hidden="true">
-                <StatIcon name={s.icon} />
-              </span>
-            ) : (
-              <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
-            )}
-            <div className="wmg-stat-tile-label">{s.label}</div>
-            <div className="wmg-stat-tile-val">{s.value}</div>
-          </button>
+        {heroStats.map((s, i) => (
+          <Reveal key={s.label} delay={i * 45}>
+            <button
+              type="button"
+              className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
+              style={{ width: "100%" }}
+              onClick={() => onNavigate?.(s.tab, s.focus)}
+              aria-label={
+                s.tab === "income"
+                  ? `${s.label}: ${s.value}`
+                  : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
+              }
+            >
+              {s.gradient ? (
+                <span className="wmg-stat-tile-icon-badge" aria-hidden="true">
+                  <StatIcon name={s.icon} />
+                </span>
+              ) : (
+                <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
+              )}
+              <div className="wmg-stat-tile-label">{s.label}</div>
+              <div className="wmg-stat-tile-val">{s.value}</div>
+            </button>
+          </Reveal>
         ))}
       </div>
 
