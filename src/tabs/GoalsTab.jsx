@@ -78,7 +78,10 @@ export function GoalCard({ goal: g, monthsAtPace, desired, requiredMonthly, extr
 export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGoalWithId, removeGoal }) {
   const [savingsEditing, setSavingsEditing] = useState(false);
   const [efEditing, setEfEditing] = useState(false);
-  const [justAddedGoalId, setJustAddedGoalId] = useState(null);
+  // Goals created via the wizard below arrive fully filled in (name,
+  // target, contribution all already answered), so — unlike other
+  // "+ Add" flows in this app — a freshly-added goal doesn't need to
+  // pop open in edit mode; it renders normally straight away.
   // The goal currently shown in the "View progress" popout — null when
   // closed. Doubles as the celebration popout when celebratingGoal is set
   // instead (see below), so only one of the two is ever open at once.
@@ -88,6 +91,30 @@ export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGo
   // taps into manually via "View progress" doesn't re-trigger the
   // celebration animation every time they look at it.
   const [celebratingGoal, setCelebratingGoal] = useState(null);
+  // The guided "+ Add savings goal" flow — replaces silently creating a
+  // generic "New goal, £1,000, £50/mo" for the person to rename after the
+  // fact. 0 = wizard closed; 1/2/3 = which question is showing. Draft
+  // answers live separately from the real goals list until the final
+  // step, so cancelling partway through (closing the popout) leaves
+  // nothing behind.
+  const [goalWizardStep, setGoalWizardStep] = useState(0);
+  const [goalDraft, setGoalDraft] = useState({ name: "", target: "", monthlyContribution: "" });
+  const openGoalWizard = () => {
+    setGoalDraft({ name: "", target: "", monthlyContribution: "" });
+    setGoalWizardStep(1);
+  };
+  const finishGoalWizard = () => {
+    const id = nextId();
+    addGoalWithId({
+      id,
+      name: goalDraft.name.trim() || "Savings goal",
+      target: Number(goalDraft.target) || 1000,
+      current: 0,
+      monthlyContribution: Number(goalDraft.monthlyContribution) || 0,
+      desiredMonths: null,
+    })();
+    setGoalWizardStep(0);
+  };
 
   // Detect any goal that's newly reached its target and hasn't had its
   // celebration shown yet (profile.celebratedGoals persists this across
@@ -106,11 +133,6 @@ export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGo
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.goals, profile.celebratedGoals]);
-  const handleAddGoal = () => {
-    const id = nextId();
-    addGoalWithId({ id, name: "New goal", target: 1000, current: 0, monthlyContribution: 50, desiredMonths: null })();
-    setJustAddedGoalId(id);
-  };
   // Feasibility check: purely arithmetic, no AI needed here — comparing what
   // each goal's chosen timeframe actually requires against real monthly
   // surplus (totals.available), not just showing the numbers in isolation.
@@ -248,12 +270,74 @@ export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGo
             available={available}
             updateGoal={updateGoal}
             removeGoal={removeGoal}
-            startEditing={g.id === justAddedGoalId}
+            startEditing={false}
             onViewProgress={(goal) => setProgressGoalId(goal.id)}
           />
         </Reveal>
       ))}
-      <button className="wmg-add-btn" onClick={handleAddGoal}>+ Add savings goal</button>
+      <button className="wmg-add-btn" onClick={openGoalWizard}>+ Add savings goal</button>
+
+      <Popout open={goalWizardStep > 0} onClose={() => setGoalWizardStep(0)} title="Add a savings goal">
+        {goalWizardStep === 1 && (
+          <>
+            <div className="wmg-field-label">What are you saving for?</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>A house deposit, a wedding, a new car — whatever it is.</div>
+            <input
+              className="wmg-input"
+              type="text"
+              autoFocus
+              placeholder="e.g. New car"
+              value={goalDraft.name}
+              onChange={(e) => setGoalDraft((d) => ({ ...d, name: e.target.value }))}
+            />
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 14 }}
+              disabled={!goalDraft.name.trim()}
+              onClick={() => setGoalWizardStep(2)}
+            >
+              Continue
+            </button>
+          </>
+        )}
+
+        {goalWizardStep === 2 && (
+          <>
+            <div className="wmg-field-label">How much do you need?</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>Your best estimate is fine — you can always change this later.</div>
+            <NumberInput className="wmg-input" value={goalDraft.target} onChange={(v) => setGoalDraft((d) => ({ ...d, target: v }))} />
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 14 }}
+              disabled={!goalDraft.target || Number(goalDraft.target) <= 0}
+              onClick={() => setGoalWizardStep(3)}
+            >
+              Continue
+            </button>
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setGoalWizardStep(1)}>
+              Back
+            </button>
+          </>
+        )}
+
+        {goalWizardStep === 3 && (
+          <>
+            <div className="wmg-field-label">Putting away each month? (optional)</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>
+              Skip this if you're not sure yet — you can set or change it any time from the goal itself.
+            </div>
+            <NumberInput className="wmg-input" value={goalDraft.monthlyContribution} onChange={(v) => setGoalDraft((d) => ({ ...d, monthlyContribution: v }))} />
+            <button type="button" className="wmg-btn-primary" style={{ width: "100%", marginTop: 14 }} onClick={finishGoalWizard}>
+              Add goal
+            </button>
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setGoalWizardStep(2)}>
+              Back
+            </button>
+          </>
+        )}
+      </Popout>
 
       {(() => {
         const progressGoal = profile.goals.find((g) => g.id === progressGoalId);

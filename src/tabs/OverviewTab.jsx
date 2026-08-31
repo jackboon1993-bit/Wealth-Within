@@ -18,6 +18,19 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   const [hardshipDismissed, setHardshipDismissed] = useState(false);
   const pendingBankSync = profile.pendingBankSync;
   const activeMode = getActiveMode(profile);
+  // "Complete setup — X/5" checklist (see finance.js's dismissedSetupChecklist
+  // for the dismiss-vs-auto-hide reasoning). Each item's `done` reads real
+  // profile/prop state already tracked elsewhere in the app — nothing new
+  // to maintain here if any of those five things' own logic changes.
+  const setupChecklistItems = [
+    { id: "bank", label: "Connect a bank", done: hasConnectedBank, action: () => onNavigate?.("import") },
+    { id: "mortgage", label: "Confirm mortgage details", done: !!profile.mortgageDetailsConfirmed, action: () => onNavigate?.("debts", "mortgage") },
+    { id: "pension", label: "Confirm retirement assumptions", done: !!profile.pensionAssumptionsConfirmed, action: () => onNavigate?.("pension") },
+    { id: "lifeevent", label: "Add a life event", done: (profile.lifeEvents || []).length > 0, action: () => onNavigate?.("forecast") },
+    { id: "premium", label: "Go Premium", done: hasPremium, action: onUpgrade },
+  ];
+  const incompleteSetupItems = setupChecklistItems.filter((i) => !i.done);
+  const showSetupChecklist = incompleteSetupItems.length > 0 && !profile.dismissedSetupChecklist;
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
@@ -88,6 +101,33 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           </div>
           <p>{scoreExplainer}</p>
         </Card>
+      )}
+
+      {showSetupChecklist && (
+        <Reveal>
+          <Card className="wmg-connect-bank-banner" style={{ flexDirection: "column", alignItems: "stretch" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div className="wmg-connect-bank-banner-title">
+                Complete setup — {setupChecklistItems.length - incompleteSetupItems.length}/{setupChecklistItems.length}
+              </div>
+              <button
+                type="button"
+                className="wmg-score-explainer-close"
+                aria-label="Dismiss setup checklist"
+                onClick={() => setField?.(["dismissedSetupChecklist"])(true)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="wmg-mascot-coach-list">
+              {incompleteSetupItems.map((item) => (
+                <button type="button" className="wmg-mascot-coach-tip" key={item.id} onClick={item.action}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+        </Reveal>
       )}
 
       {hasAccounts && pendingBankSync && !pendingSyncDismissed && (

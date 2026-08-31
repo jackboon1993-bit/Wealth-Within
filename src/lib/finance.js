@@ -386,6 +386,13 @@ export const defaultProfile = {
   // and appends to it once shown, so hitting 100% doesn't re-celebrate
   // on every subsequent visit to the tab.
   celebratedGoals: [],
+  // Overview's "Complete setup — X/5" checklist — dismissible, but only
+  // ever hides it for that household; it still auto-hides on its own once
+  // every underlying item is actually done, regardless of this flag (see
+  // OverviewTab's setupChecklistItems). This just lets someone who isn't
+  // interested in finishing setup get rid of it without completing
+  // everything first.
+  dismissedSetupChecklist: false,
 };
 
 // Called once per app load (see App.jsx). Compares today's date against

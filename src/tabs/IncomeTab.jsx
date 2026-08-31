@@ -7,6 +7,41 @@ import { supabase } from "../lib/supabaseClient";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
 
+// Curated real brand colours for common recurring payments — matched by
+// loose substring against the subscription's own name, same pattern as
+// COMMON_BILLS below, so "Disney Plus" and "Disney+" both match "disney+"
+// the same way "Council tax" and "Council Tax bill" both match "council
+// tax". Anything not recognised falls back to the existing rotating
+// SUB_AVATAR_TONES badge — this is additive, never a hard requirement.
+// `text` is the badge's text/icon colour, chosen per-brand for contrast
+// against `bg` (most are white-on-colour; a couple of pale brand colours
+// need a dark badge text instead).
+export const SUBSCRIPTION_BRANDS = [
+  { name: "Netflix", match: ["netflix"], bg: "#E50914", text: "#FFFFFF" },
+  { name: "Disney+", match: ["disney"], bg: "#113CCF", text: "#FFFFFF" },
+  { name: "Spotify", match: ["spotify"], bg: "#1DB954", text: "#FFFFFF" },
+  { name: "Xbox", match: ["xbox", "game pass"], bg: "#107C10", text: "#FFFFFF" },
+  { name: "PlayStation", match: ["playstation", "ps plus", "ps+"], bg: "#003791", text: "#FFFFFF" },
+  { name: "Amazon Prime", match: ["amazon prime", "prime video"], bg: "#00A8E1", text: "#0F1111" },
+  { name: "Apple Music", match: ["apple music"], bg: "#FA243C", text: "#FFFFFF" },
+  { name: "Apple TV", match: ["apple tv"], bg: "#000000", text: "#FFFFFF" },
+  { name: "iCloud", match: ["icloud"], bg: "#3693F3", text: "#FFFFFF" },
+  { name: "YouTube Premium", match: ["youtube"], bg: "#FF0000", text: "#FFFFFF" },
+  { name: "Now TV", match: ["now tv", "nowtv"], bg: "#00203F", text: "#FFFFFF" },
+  { name: "Audible", match: ["audible"], bg: "#F8991C", text: "#0F1111" },
+  { name: "Google One", match: ["google one", "google drive"], bg: "#4285F4", text: "#FFFFFF" },
+  { name: "Deezer", match: ["deezer"], bg: "#FEAA2D", text: "#0F1111" },
+  { name: "Discord", match: ["discord"], bg: "#5865F2", text: "#FFFFFF" },
+];
+
+// Returns the matching brand entry for a subscription name, or null if
+// nothing in SUBSCRIPTION_BRANDS matches — callers fall back to the
+// existing tone-rotation badge style in that case.
+export function getSubscriptionBrand(name) {
+  const nameLower = (name || "").toLowerCase();
+  return SUBSCRIPTION_BRANDS.find((b) => b.match.some((m) => nameLower.includes(m))) || null;
+}
+
 // Small reusable "this needs Premium" prompt — used everywhere an
 // AI-powered feature is gated (bill checker, spending insight, Pension
 // Reader). Wording matches the pattern used on Overview's own upgrade
@@ -28,12 +63,18 @@ export function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
 export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, startEditing = false }) {
   const [expanded, setExpanded] = useState(startEditing);
   const tone = SUB_AVATAR_TONES[index % SUB_AVATAR_TONES.length];
+  const brand = getSubscriptionBrand(sub.name);
   const initial = (sub.name || "?").trim().charAt(0).toUpperCase() || "?";
 
   return (
     <div className={`wmg-sub-card ${sub.cancelled ? "cancelled" : ""}`}>
       <button type="button" className="wmg-sub-summary" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
-        <span className={`wmg-sub-avatar tone-${tone}`}>{initial}</span>
+        <span
+          className={`wmg-sub-avatar ${brand ? "" : `tone-${tone}`}`}
+          style={brand ? { background: brand.bg, color: brand.text } : undefined}
+        >
+          {initial}
+        </span>
         <span className="wmg-sub-summary-info">
           <span className="wmg-sub-summary-name">{sub.name}</span>
           {sub.cancelled ? (
