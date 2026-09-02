@@ -24,7 +24,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   // to maintain here if any of those five things' own logic changes.
   const setupChecklistItems = [
     { id: "bank", label: "Connect a bank", done: hasConnectedBank, action: () => onNavigate?.("import") },
-    { id: "mortgage", label: "Confirm mortgage details", done: !!profile.mortgageDetailsConfirmed, action: () => onNavigate?.("debts", "mortgage") },
+    { id: "mortgage", label: "Confirm mortgage details", done: !!profile.mortgageDetailsConfirmed, action: () => onNavigate?.("mortgage") },
     { id: "pension", label: "Confirm retirement assumptions", done: !!profile.pensionAssumptionsConfirmed, action: () => onNavigate?.("pension") },
     { id: "lifeevent", label: "Add a life event", done: (profile.lifeEvents || []).length > 0, action: () => onNavigate?.("forecast") },
     { id: "premium", label: "Go Premium", done: hasPremium, action: onUpgrade },
@@ -51,21 +51,23 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
 
   const heroStats = [
     { label: "Budget", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
-    { label: "Loans & credit cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "debts", focus: "loans", icon: "debt", gradient: true },
-    { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "goals", icon: "savings", gradient: true },
+    { label: "Loans & credit cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "loans", icon: "debt", gradient: true },
+    { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "savings", icon: "savings", gradient: true },
     // Debt-free and Mortgage-free payoff-date tiles were dropped from
     // here — they clustered with Debt/Home equity into four tiles all
     // orbiting the same two underlying facts, which read as cluttered.
-    // Both dates are still fully visible on the Debts tab itself, just
-    // not repeated here. Relabelled "Debt" -> "Loans & cards" and "Home
+    // Both dates are still fully visible on their own tabs, just not
+    // repeated here. Relabelled "Debt" -> "Loans & cards" and "Home
     // equity" -> "Mortgage equity" so it's clear at a glance which tile
-    // is mortgage-related and which explicitly isn't. Each also carries
-    // its own `focus`, so tapping one lands only on the relevant section
-    // of Debts (mortgage+home value, or loans+cards) rather than the
-    // whole combined page — see DebtsTab.jsx's initialFocus handling.
-    { label: "Mortgage equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "debts", focus: "mortgage", icon: "home", gradient: true },
+    // is mortgage-related and which explicitly isn't. Loans & credit
+    // cards and Mortgage equity now each land on their own fully
+    // separate, single-purpose tab ("loans" / "mortgage") — see
+    // LoansAndCardsTab.jsx and MortgageTab.jsx. There's no combined
+    // "show everything" view any more; each tile is genuinely only
+    // about its own thing.
+    { label: "Mortgage equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "mortgage", icon: "home", gradient: true },
     { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "rust", tab: "pension", icon: "pension", gradient: true },
-    { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "goals", icon: "invest", gradient: true },
+    { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "investments", icon: "invest", gradient: true },
   ];
 
   return (
@@ -303,11 +305,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               type="button"
               className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
               style={{ width: "100%" }}
-              onClick={() => onNavigate?.(s.tab, s.focus)}
+              onClick={() => onNavigate?.(s.tab)}
               aria-label={
                 s.tab === "income"
                   ? `${s.label}: ${s.value}`
-                  : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
+                  : `${s.label}: ${s.value}. Go to ${s.label}`
               }
             >
               {s.gradient ? (
