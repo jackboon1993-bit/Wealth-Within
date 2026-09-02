@@ -277,7 +277,7 @@ export function SetupWizard({ onFinish }) {
   const [spendingFieldOpen, setSpendingFieldOpen] = useState(false);
 
   const [hasMortgage, setHasMortgage] = useState(false);
-  const [mortgage, setMortgage] = useState({ balance: 0, rate: 4.5, payment: 0 });
+  const [mortgage, setMortgage] = useState({ balance: 0, rate: 4.5, payment: 0, remainingTermYears: null });
   const [loans, setLoans] = useState([]);
   const [cards, setCards] = useState([]);
 
@@ -412,8 +412,8 @@ export function SetupWizard({ onFinish }) {
             ]
           : p.expenseCategories,
       mortgage: hasMortgage
-        ? { ...p.mortgage, balance: mortgage.balance, rate: mortgage.rate, payment: mortgage.payment, originalBalance: mortgage.balance, lastConfirmedAt: new Date().toISOString() }
-        : { ...p.mortgage, balance: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() },
+        ? { ...p.mortgage, balance: mortgage.balance, rate: mortgage.rate, payment: mortgage.payment, remainingTermYears: mortgage.remainingTermYears, originalBalance: mortgage.balance, lastConfirmedAt: new Date().toISOString() }
+        : { ...p.mortgage, balance: 0, payment: 0, remainingTermYears: null, originalBalance: 0, lastConfirmedAt: new Date().toISOString() },
       loans,
       cards,
       savings: { ...p.savings, balance: savingsBalance },
@@ -659,6 +659,13 @@ export function SetupWizard({ onFinish }) {
                     value={mortgage.payment}
                     placeholder="e.g. 950"
                     onChange={(v) => setMortgage((m) => ({ ...m, payment: v }))}
+                  />
+                </WizardMiniField>
+                <WizardMiniField label="Years left on term (optional)" hint="On your mortgage statement or lender's app. Just for comparison — skip if you're not sure.">
+                  <WizardNumberInput
+                    value={mortgage.remainingTermYears ?? ""}
+                    placeholder="e.g. 22"
+                    onChange={(v) => setMortgage((m) => ({ ...m, remainingTermYears: v === "" ? null : v }))}
                   />
                 </WizardMiniField>
               </div>

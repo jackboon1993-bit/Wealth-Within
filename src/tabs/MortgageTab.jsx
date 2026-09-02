@@ -55,25 +55,24 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
   // neither was ever actually declared anywhere in the original file —
   // this would have thrown a ReferenceError and crashed the tab the
   // moment a Premium user with a tracked address+UPRN saw this button.
-  // This is a best-effort fix, not a confirmed one: it re-runs the same
-  // property-resolve-address call selectAddress() already uses, against
-  // the already-saved address, since that's the only address-resolution
-  // endpoint currently visible in this file. If there's already a
-  // dedicated refresh/re-valuation endpoint elsewhere (e.g. reusing the
-  // monthly Chimnie valuation cron on demand), wire that in instead —
-  // check before shipping this as the final behaviour.
+  // FOLLOW-UP: the first fix called property-resolve-address again, which
+  // re-resolves the address and costs another 10p Chimnie call each time.
+  // api/property-fetch-valuation.js already exists specifically for this
+  // — it retries the free valuation-only step against an already-known
+  // propertyUprn, without touching address resolution at all. Confirmed
+  // working; this now calls that endpoint instead.
   const [valuationFetchStatus, setValuationFetchStatus] = useState("idle"); // idle | fetching | error
   const retryValuation = async () => {
-    if (!profile.propertyAddress) return;
+    if (!profile.propertyUprn) return;
     setValuationFetchStatus("fetching");
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const resp = await fetch(`${API_BASE}/api/property-resolve-address`, {
+      const resp = await fetch(`${API_BASE}/api/property-fetch-valuation`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ address: profile.propertyAddress, autocompleteSession }),
+        body: JSON.stringify({ uprn: profile.propertyUprn }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Couldn't fetch a valuation.");
@@ -180,6 +179,12 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
               <span className="wmg-detail-row-label"><StatIcon name="flag" />Mortgage-free</span>
               <span className="wmg-detail-row-value tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</span>
             </div>
+            {profile.mortgage.remainingTermYears != null && (
+              <div className="wmg-sub" style={{ marginTop: 2 }}>
+                {profile.mortgage.remainingTermYears} year{profile.mortgage.remainingTermYears === 1 ? "" : "s"} left on your actual mortgage term
+                {isFinite(mortgageMonths) ? ` — the figure above is our calculation of when you'll actually finish paying at your current rate and payment, which can land earlier or later than your contracted term.` : ""}
+              </div>
+            )}
             <div className="wmg-sub" style={{ marginTop: 8 }}>
               {mortgageChanged ? `Estimated today: ${gbp(totals?.mortgageBalanceToday ?? profile.mortgage.balance)} — ` : ""}
               confirmed {gbp(profile.mortgage.balance)} {mortgageDaysSince === 0 ? "today" : `${mortgageDaysSince} day${mortgageDaysSince === 1 ? "" : "s"} ago`}
@@ -278,6 +283,17 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
             <div className="wmg-three-col">
               <Field label="Interest rate (%)">
                 <NumberInput className="wmg-input" step="0.1" value={profile.mortgage.rate} onChange={setField(["mortgage", "rate"])} />
+              </Field>
+              <Field
+                label="Years left on your term"
+                hint="Optional. Your mortgage statement or lender's app will show this — it's just for comparison, not used in any calculation, since 'Mortgage-free' above is worked out from your balance, rate and payment instead."
+              >
+                <NumberInput
+                  className="wmg-input"
+                  step="1"
+                  value={profile.mortgage.remainingTermYears ?? ""}
+                  onChange={(v) => setField(["mortgage", "remainingTermYears"])(v === "" ? null : v)}
+                />
               </Field>
             </div>
           )}

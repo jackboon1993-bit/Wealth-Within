@@ -177,6 +177,16 @@ export const defaultProfile = {
     balance: 210000,
     rate: 4.5,
     payment: 1150,
+    // Years left on the actual mortgage contract, as of lastConfirmedAt —
+    // asked alongside balance/rate/payment, same status as those fields.
+    // Deliberately separate from the "Mortgage-free" figure shown
+    // elsewhere, which is *calculated* from balance/rate/payment via
+    // monthsToPayoff() and can differ from this (e.g. once overpayments
+    // are made, or if the person under/over-estimates their rate). This
+    // field is just the honest contractual term, for comparison — it is
+    // not used in any payoff/forecast calculation itself. null means not
+    // yet provided (optional field, same pattern as propertyUprn).
+    remainingTermYears: null,
     allowOverpayment: true,
     overpaymentCapPct: 10,
     originalBalance: 210000,
