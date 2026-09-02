@@ -17,22 +17,39 @@ export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
 // against `bg` (most are white-on-colour; a couple of pale brand colours
 // need a dark badge text instead).
 export const SUBSCRIPTION_BRANDS = [
-  { name: "Netflix", match: ["netflix"], bg: "#E50914", text: "#FFFFFF" },
-  { name: "Disney+", match: ["disney"], bg: "#113CCF", text: "#FFFFFF" },
-  { name: "Spotify", match: ["spotify"], bg: "#1DB954", text: "#FFFFFF" },
-  { name: "Xbox", match: ["xbox", "game pass"], bg: "#107C10", text: "#FFFFFF" },
-  { name: "PlayStation", match: ["playstation", "ps plus", "ps+"], bg: "#003791", text: "#FFFFFF" },
-  { name: "Amazon Prime", match: ["amazon prime", "prime video"], bg: "#00A8E1", text: "#0F1111" },
-  { name: "Apple Music", match: ["apple music"], bg: "#FA243C", text: "#FFFFFF" },
-  { name: "Apple TV", match: ["apple tv"], bg: "#000000", text: "#FFFFFF" },
-  { name: "iCloud", match: ["icloud"], bg: "#3693F3", text: "#FFFFFF" },
-  { name: "YouTube Premium", match: ["youtube"], bg: "#FF0000", text: "#FFFFFF" },
-  { name: "Now TV", match: ["now tv", "nowtv"], bg: "#00203F", text: "#FFFFFF" },
-  { name: "Audible", match: ["audible"], bg: "#F8991C", text: "#0F1111" },
-  { name: "Google One", match: ["google one", "google drive"], bg: "#4285F4", text: "#FFFFFF" },
-  { name: "Deezer", match: ["deezer"], bg: "#FEAA2D", text: "#0F1111" },
-  { name: "Discord", match: ["discord"], bg: "#5865F2", text: "#FFFFFF" },
+  { name: "Netflix", match: ["netflix"], domain: "netflix.com", bg: "#E50914", text: "#FFFFFF" },
+  { name: "Disney+", match: ["disney"], domain: "disneyplus.com", bg: "#113CCF", text: "#FFFFFF" },
+  { name: "Spotify", match: ["spotify"], domain: "spotify.com", bg: "#1DB954", text: "#FFFFFF" },
+  { name: "Xbox", match: ["xbox", "game pass"], domain: "xbox.com", bg: "#107C10", text: "#FFFFFF" },
+  { name: "PlayStation", match: ["playstation", "ps plus", "ps+"], domain: "playstation.com", bg: "#003791", text: "#FFFFFF" },
+  { name: "Amazon Prime", match: ["amazon prime", "prime video"], domain: "amazon.co.uk", bg: "#00A8E1", text: "#0F1111" },
+  { name: "Apple Music", match: ["apple music"], domain: "apple.com", bg: "#FA243C", text: "#FFFFFF" },
+  { name: "Apple TV", match: ["apple tv"], domain: "apple.com", bg: "#000000", text: "#FFFFFF" },
+  { name: "iCloud", match: ["icloud"], domain: "apple.com", bg: "#3693F3", text: "#FFFFFF" },
+  { name: "YouTube Premium", match: ["youtube"], domain: "youtube.com", bg: "#FF0000", text: "#FFFFFF" },
+  { name: "Now TV", match: ["now tv", "nowtv"], domain: "nowtv.com", bg: "#00203F", text: "#FFFFFF" },
+  { name: "Audible", match: ["audible"], domain: "audible.co.uk", bg: "#F8991C", text: "#0F1111" },
+  { name: "Google One", match: ["google one", "google drive"], domain: "google.com", bg: "#4285F4", text: "#FFFFFF" },
+  { name: "Deezer", match: ["deezer"], domain: "deezer.com", bg: "#FEAA2D", text: "#0F1111" },
+  { name: "Discord", match: ["discord"], domain: "discord.com", bg: "#5865F2", text: "#FFFFFF" },
 ];
+
+// Real logo images via Logo.dev (Clearbit's Logo API shut down for good on
+// 8 December 2025 — this app never actually shipped against it, so this
+// is a fresh integration, not a migration). Logo.dev's "publishable" token
+// is deliberately safe to ship in client-side code (same trust model as a
+// Stripe publishable key) — no backend endpoint needed, this is just a
+// plain <img src>. VITE_LOGO_DEV_TOKEN must be set in both .env.local (for
+// native builds) and Vercel's env vars (for the web build) — see Session
+// 4's handover for why those two are separate and both need updating.
+// Free tier is 500,000 logo requests/month, comfortably above what this
+// app needs; commercial use on the free tier requires a small attribution
+// link, added in the Subscriptions section below.
+const LOGO_DEV_TOKEN = import.meta.env.VITE_LOGO_DEV_TOKEN;
+export function logoDevUrl(domain) {
+  if (!LOGO_DEV_TOKEN || !domain) return null;
+  return `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=64&format=png`;
+}
 
 // Returns the matching brand entry for a subscription name, or null if
 // nothing in SUBSCRIPTION_BRANDS matches — callers fall back to the
@@ -65,16 +82,38 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
   const tone = SUB_AVATAR_TONES[index % SUB_AVATAR_TONES.length];
   const brand = getSubscriptionBrand(sub.name);
   const initial = (sub.name || "?").trim().charAt(0).toUpperCase() || "?";
+  // Try the real logo first; fall back to the existing colour+initial
+  // badge if there's no token configured, no matching brand, or the
+  // image itself fails to load (a brand not in Logo.dev's database, a
+  // network hiccup, etc.) — this can never show a broken-image icon,
+  // since imageFailed flips the badge back the moment onError fires.
+  const logoUrl = brand ? logoDevUrl(brand.domain) : null;
+  const [imageFailed, setImageFailed] = useState(false);
+  const showLogo = logoUrl && !imageFailed;
 
   return (
     <div className={`wmg-sub-card ${sub.cancelled ? "cancelled" : ""}`}>
       <button type="button" className="wmg-sub-summary" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
-        <span
-          className={`wmg-sub-avatar ${brand ? "" : `tone-${tone}`}`}
-          style={brand ? { background: brand.bg, color: brand.text } : undefined}
-        >
-          {initial}
-        </span>
+        {showLogo ? (
+          <span className="wmg-sub-avatar" style={{ background: "#FFFFFF", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <img
+              src={logoUrl}
+              alt=""
+              width={22}
+              height={22}
+              loading="lazy"
+              style={{ objectFit: "contain" }}
+              onError={() => setImageFailed(true)}
+            />
+          </span>
+        ) : (
+          <span
+            className={`wmg-sub-avatar ${brand ? "" : `tone-${tone}`}`}
+            style={brand ? { background: brand.bg, color: brand.text } : undefined}
+          >
+            {initial}
+          </span>
+        )}
         <span className="wmg-sub-summary-info">
           <span className="wmg-sub-summary-name">{sub.name}</span>
           {sub.cancelled ? (
@@ -936,6 +975,18 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           worth reconsidering. Marking one cancelled just stops it counting in your total here — it doesn't cancel
           it with the provider, so you'll still need to do that yourself.
         </div>
+        {/* Required by Logo.dev's free tier for commercial use — see the
+            SUBSCRIPTION_BRANDS comment above. Small and out of the way
+            deliberately; remove only if/when this moves to a paid
+            Logo.dev plan, which drops the attribution requirement. */}
+        {LOGO_DEV_TOKEN && (
+          <div className="wmg-sub" style={{ marginTop: 8, fontSize: 11 }}>
+            Logos provided by{" "}
+            <a href="https://logo.dev" target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>
+              Logo.dev
+            </a>
+          </div>
+        )}
       </Card>
 
       {!hasPremium && (!profile.pendingSubscriptions || profile.pendingSubscriptions.length === 0) && (
