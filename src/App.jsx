@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
+import "./styles/motion.css";
 import { API_BASE } from "./lib/apiBase";
 import { startUpgrade, fetchSubscriptionStatus } from "./lib/subscription";
 import { getData, setData, deleteData, subscribeToHouseholdData, getHouseholdId, hasAccounts } from "./lib/storage";
@@ -16,6 +17,7 @@ import {
   monthKey,
   defaultProfile,
   mergeWithDefaults,
+  applyDailyOpenStreak,
   estimateUKIncomeTax,
   totalIncome,
   runForecast,
@@ -33,10 +35,13 @@ import { syncWidgetData } from "./utils/widgetSync";
 // would just trade one big blocking download for a different one.
 import { OverviewTab } from "./tabs/OverviewTab";
 const IncomeTab = lazy(() => import("./tabs/IncomeTab").then((m) => ({ default: m.IncomeTab })));
-const DebtsTab = lazy(() => import("./tabs/DebtsTab").then((m) => ({ default: m.DebtsTab })));
-const GoalsTab = lazy(() => import("./tabs/GoalsTab").then((m) => ({ default: m.GoalsTab })));
+const LoansAndCardsTab = lazy(() => import("./tabs/LoansAndCardsTab").then((m) => ({ default: m.LoansAndCardsTab })));
+const MortgageTab = lazy(() => import("./tabs/MortgageTab").then((m) => ({ default: m.MortgageTab })));
+const SavingsTab = lazy(() => import("./tabs/SavingsTab").then((m) => ({ default: m.SavingsTab })));
+const InvestmentsTab = lazy(() => import("./tabs/InvestmentsTab").then((m) => ({ default: m.InvestmentsTab })));
 const PensionTab = lazy(() => import("./tabs/PensionTab").then((m) => ({ default: m.PensionTab })));
 const ForecastTab = lazy(() => import("./tabs/ForecastTab").then((m) => ({ default: m.ForecastTab })));
+const MortgageOverpaymentTab = lazy(() => import("./tabs/MortgageOverpaymentTab").then((m) => ({ default: m.MortgageOverpaymentTab })));
 const EducationTab = lazy(() => import("./tabs/EducationTab").then((m) => ({ default: m.EducationTab })));
 
 // Thin wrappers so PensionReaderTab/ImportTab (two named exports from one
@@ -49,13 +54,13 @@ export default function App() {
   const [profile, setProfile] = useState(defaultProfile);
   const [tab, setTab] = useState("overview");
   // Which section of the Debts tab to land on when arriving from an
-  // Overview tile — "mortgage" | "loans" | null (null = show everything,
-  // same as clicking "Debts & Mortgage" in the nav bar directly). Reset
-  // to null on every navigation so a later plain nav-bar click isn't
-  // stuck showing a stale focus from an earlier tile tap.
-  const [debtsFocus, setDebtsFocus] = useState(null);
-  const navigateTo = (tabKey, focus) => {
-    setDebtsFocus(tabKey === "debts" ? focus || null : null);
+  // Loans & credit cards and Mortgage used to be one "debts" tab with a
+  // focus filter (debtsFocus: "mortgage" | "loans" | null) and a "show
+  // everything" fallback back to the combined view. They're now two
+  // separate tab keys ("loans" and "mortgage") with their own dedicated
+  // components, so navigateTo no longer needs to track or pass a focus —
+  // the tab key itself is the full answer to "which screen".
+  const navigateTo = (tabKey) => {
     setTab(tabKey);
   };
   const [extraPayment, setExtraPayment] = useState(200);
@@ -109,17 +114,34 @@ export default function App() {
   };
 
   const [subscription, setSubscription] = useState({ hasPremium: false, status: "none" });
+  // True once refreshSubscriptionStatus has resolved (successfully or not)
+  // at least once — Overview's setup checklist waits on this (alongside
+  // connectedBankAccounts !== null) before it renders at all, so it can't
+  // flash a wrong "X/5" using the default { hasPremium: false } before the
+  // real status has loaded.
+  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
+  // Both underlying fetches (bank connections, subscription status) need
+  // to have actually resolved at least once before the setup checklist
+  // can trust hasConnectedBank/hasPremium enough to compute a real count —
+  // otherwise it briefly renders against their false-by-default initial
+  // values and can show (then correct) a wrong "X/5".
+  const setupChecklistReady = connectedBankAccounts !== null && subscriptionLoaded;
 
   const refreshSubscriptionStatus = async () => {
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
+      if (!session?.access_token) {
+        setSubscriptionLoaded(true);
+        return;
+      }
       const data = await fetchSubscriptionStatus(session.access_token);
       setSubscription(data);
     } catch (err) {
       console.error("Failed to refresh subscription status:", err);
+    } finally {
+      setSubscriptionLoaded(true);
     }
   };
 
@@ -249,11 +271,16 @@ export default function App() {
       try {
         const result = await getData();
         if (!cancelled && result) {
-          const merged = mergeWithDefaults(result);
+          const merged = applyDailyOpenStreak(mergeWithDefaults(result));
           setProfile(merged);
           if (merged.loans && merged.loans[0]) setSelectedDebtId(merged.loans[0].id);
           setStorageStatus("ready");
         } else if (!cancelled) {
+          // First-ever open, nothing saved yet — still worth starting the
+          // streak at 1 rather than leaving lastOpenedAt null, so it
+          // correctly reads as a 2-day streak (not a broken one) if they
+          // come back tomorrow.
+          setProfile((p) => applyDailyOpenStreak(p));
           setStorageStatus("ready");
         }
       } catch (err) {
@@ -493,9 +520,20 @@ export default function App() {
     const newPayment = selectedDebt.payment + Number(extraPayment || 0);
     const newMonths = monthsToPayoff(selectedDebt.balance, selectedDebt.rate, newPayment);
     const newInterest = totalInterestOwed(selectedDebt.balance, selectedDebt.rate, newPayment, newMonths);
-    const monthsSaved = isFinite(baseMonths) && isFinite(newMonths) ? baseMonths - newMonths : 0;
-    const interestSaved = isFinite(baseInterest) && isFinite(newInterest) ? baseInterest - newInterest : 0;
-    return { baseMonths, newMonths, monthsSaved, interestSaved };
+    // Baseline "never pays off" (current payment doesn't cover the monthly
+    // interest) is a different case from "extra payment makes no
+    // difference" — the old code collapsed both to a flat 0/£0, which
+    // silently hid the fact that the extra payment is what makes the debt
+    // payable off at all. wasUnpayable lets the UI say that explicitly
+    // instead of showing a misleading "no effect".
+    const wasUnpayable = !isFinite(baseMonths);
+    const monthsSaved = wasUnpayable
+      ? (isFinite(newMonths) ? Infinity : 0)
+      : (isFinite(newMonths) ? baseMonths - newMonths : 0);
+    const interestSaved = wasUnpayable
+      ? (isFinite(newInterest) ? Infinity : 0)
+      : (isFinite(baseInterest) && isFinite(newInterest) ? baseInterest - newInterest : 0);
+    return { baseMonths, newMonths, monthsSaved, interestSaved, wasUnpayable };
   }, [selectedDebt, extraPayment]);
 
   const flaggedSavings = useMemo(
@@ -526,13 +564,13 @@ export default function App() {
     }
     if (profile.emergencyFund.balance < profile.emergencyFund.target && totals.available > 0) {
       const suggestedMove = Math.max(50, Math.round(Math.min(totals.available * 0.4, profile.emergencyFund.target - profile.emergencyFund.balance) / 10) * 10);
-      tips.push({ tone: "sage", tab: "goals", text: `Move ${gbp(suggestedMove)}/month into your emergency fund — you'll reach ${gbp(profile.emergencyFund.target)} in about ${Math.ceil((profile.emergencyFund.target - profile.emergencyFund.balance) / suggestedMove)} months.` });
+      tips.push({ tone: "sage", tab: "savings", text: `Move ${gbp(suggestedMove)}/month into your emergency fund — you'll reach ${gbp(profile.emergencyFund.target)} in about ${Math.ceil((profile.emergencyFund.target - profile.emergencyFund.balance) / suggestedMove)} months.` });
     }
     if (ccAnnualCost > 50) {
-      tips.push({ tone: "rust", tab: "debts", text: `Your credit card is costing you roughly ${gbp(ccAnnualCost)} a year in interest. Paying above the minimum here beats most savings rates.` });
+      tips.push({ tone: "rust", tab: "loans", text: `Your credit card is costing you roughly ${gbp(ccAnnualCost)} a year in interest. Paying above the minimum here beats most savings rates.` });
     }
     if (extraCalc && isFinite(extraCalc.interestSaved) && extraCalc.interestSaved > 0) {
-      tips.push({ tone: "gold", tab: "debts", text: `An extra ${gbp(extraPayment)}/month on your ${selectedDebt.name.toLowerCase()} saves roughly ${gbp(extraCalc.interestSaved)} in interest and clears it ${Math.round(extraCalc.monthsSaved)} months earlier.` });
+      tips.push({ tone: "gold", tab: "loans", text: `An extra ${gbp(extraPayment)}/month on your ${selectedDebt.name.toLowerCase()} saves roughly ${gbp(extraCalc.interestSaved)} in interest and clears it ${Math.round(extraCalc.monthsSaved)} months earlier.` });
     }
     if (totals.available > comfortableTarget) {
       tips.push({ tone: "sage", tab: "forecast", text: `You're already ${gbp(totals.available - comfortableTarget)}/month past "comfortable." Consider directing the surplus at your highest-interest debt or your pension.` });
@@ -1597,7 +1635,22 @@ export default function App() {
       `}</style>
 
       {storageStatus !== "loading" && !profile.onboarded ? (
-        <SetupWizard onFinish={setProfile} />
+        <SetupWizard
+          onFinish={(updater) => {
+            // Connecting a bank mid-wizard reuses the same OAuth-return
+            // handler as connecting from the main app (handleBankReturn,
+            // above), which sets tab="import" so a normal in-app bank
+            // connection lands you on Import to review the sync. That's
+            // right in that context, but tab is global state — if it was
+            // set to "import" partway through the wizard, it would
+            // otherwise still be "import" the moment onboarding finishes
+            // and the main app appears, landing a brand new user on
+            // Import instead of Overview. Force it back explicitly here,
+            // exactly when (and only when) the wizard actually completes.
+            setProfile(updater);
+            setTab("overview");
+          }}
+        />
       ) : (
       <div className="wmg-app">
         {/* sidebar */}
@@ -1887,6 +1940,7 @@ export default function App() {
                 subscriptionStatus={subscription.status}
                 onUpgrade={handleUpgrade}
                 setField={setField}
+                setupChecklistReady={setupChecklistReady}
               />
             )}
 
@@ -1939,19 +1993,15 @@ export default function App() {
               />
             )}
 
-            {tab === "debts" && (
-              <DebtsTab
+            {tab === "loans" && (
+              <LoansAndCardsTab
                 profile={profile}
                 totals={totals}
-                setField={setField}
                 updateArrayItem={updateArrayItem}
                 confirmBalance={confirmBalance}
-                confirmMortgageBalance={confirmMortgageBalance}
-                addArrayItem={addArrayItem}
                 addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
                 allDebts={allDebts}
-                mortgageMonths={mortgageMonths}
                 debtFreeMonths={debtFreeMonths}
                 selectedDebtId={selectedDebtId}
                 setSelectedDebtId={setSelectedDebtId}
@@ -1959,15 +2009,25 @@ export default function App() {
                 setExtraPayment={setExtraPayment}
                 extraCalc={extraCalc}
                 addBulkItems={addBulkItems}
-                hasPremium={subscription.hasPremium}
-                subscriptionStatus={subscription.status}
-                onUpgrade={handleUpgrade}
-                initialFocus={debtsFocus}
               />
             )}
 
-            {tab === "goals" && (
-              <GoalsTab
+            {tab === "mortgage" && (
+              <MortgageTab
+                profile={profile}
+                totals={totals}
+                setField={setField}
+                confirmMortgageBalance={confirmMortgageBalance}
+                mortgageMonths={mortgageMonths}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
+                onNavigate={navigateTo}
+              />
+            )}
+
+            {tab === "savings" && (
+              <SavingsTab
                 profile={profile}
                 totals={totals}
                 setField={setField}
@@ -1975,6 +2035,14 @@ export default function App() {
                 addGoal={addGoal}
                 addGoalWithId={addGoalWithId}
                 removeGoal={removeGoal}
+              />
+            )}
+
+            {tab === "investments" && (
+              <InvestmentsTab
+                profile={profile}
+                setField={setField}
+                onNavigate={navigateTo}
               />
             )}
 
@@ -1989,6 +2057,7 @@ export default function App() {
                 addArrayItem={addArrayItem}
                 addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
+                onNavigate={navigateTo}
               />
             )}
 
@@ -2053,6 +2122,10 @@ export default function App() {
                 updateScenario={updateScenario}
                 removeScenario={removeScenario}
               />
+            )}
+
+            {tab === "mortgage-overpayment" && (
+              <MortgageOverpaymentTab profile={profile} totals={totals} setField={setField} onNavigate={navigateTo} />
             )}
 
             {tab === "education" && (

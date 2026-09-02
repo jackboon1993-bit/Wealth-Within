@@ -42,6 +42,21 @@ Respond with ONLY a JSON object, no other text, no markdown fences, in exactly t
 
 const MONTHLY_FACTOR_FOR_WEEKLY = 52 / 12; // ~4.33 weeks per month, matching how every other monthly figure in this app is derived from a shorter time span
 
+// Backstop for the SYSTEM_PROMPT's "don't report loans/finance/credit
+// providers" instruction. That instruction is prompt-only — nothing
+// previously checked the model's actual output against it, so a single
+// off call could let a lender or finance-shaped name (e.g. "Creation
+// Finance", "V12 Retail Finance") through as if it were a genuine
+// subscription. This is a second, deterministic layer on top of the
+// prompt, not a replacement for it — the prompt still does the main work
+// of understanding context; this just catches the obvious, name-based
+// misses the prompt-only approach let through in practice.
+const DEBT_LIKE_NAME_PATTERN = /\b(loan|finance|financing|credit|mortgage|lending|lender|hp|hire purchase)\b/i;
+
+function looksLikeDebtRepayment(name) {
+  return DEBT_LIKE_NAME_PATTERN.test(String(name || ""));
+}
+
 export async function detectRecurringPayments(transactions, existingNames, apiKey) {
   const payload = transactions.map((t, i) => ({
     index: i,
@@ -118,6 +133,7 @@ export async function detectRecurringPayments(transactions, existingNames, apiKe
 
   const suggestions = parsed.suggestions
     .filter((s) => s && s.name && typeof s.amount === "number" && (s.frequency === "weekly" || s.frequency === "monthly"))
+    .filter((s) => !looksLikeDebtRepayment(s.name))
     .map((s) => ({
       id: `sub_${Math.random().toString(36).slice(2, 10)}`,
       name: String(s.name).slice(0, 80),

@@ -1,0 +1,342 @@
+import React, { useState, useRef } from "react";
+import { gbp, clamp, daysSince, estimateBalanceToday, addMonths, nextId } from "../lib/finance";
+import { Card, GrowthRing, WhyItMatters, InfoTip, InlinePill, NumberInput } from "../components/ui";
+import { QuickImport } from "../components/SetupWizard";
+
+// Split out of DebtsTab.jsx so "Loans & credit cards" on Overview lands
+// on a screen that's genuinely only about loans and cards — no mortgage
+// content mixed in, and no "show everything" fallback back to a combined
+// view. See MortgageTab.jsx for the other half of the old DebtsTab.jsx.
+//
+// NOTE: DebtCard and DEBT_TYPE_LABELS used to be exported from
+// DebtsTab.jsx — if anything else in the codebase imports them from
+// there (e.g. a bank-connect "update existing debt" flow), update that
+// import path to this file.
+
+export const DEBT_TYPE_LABELS = {
+  loan: "Loan",
+  card: "Credit card",
+  "car-finance": "Car finance",
+  overdraft: "Overdraft",
+  other: "Other",
+};
+
+export function DebtCard({ debt, onEdit, onConfirm, onRemove, startEditing = false }) {
+  const [editing, setEditing] = useState(false);
+  const [draftBalance, setDraftBalance] = useState(debt.balance);
+  const [detailsEditing, setDetailsEditing] = useState(startEditing);
+  const estimatedToday = estimateBalanceToday(debt.balance, debt.rate, debt.payment, debt.lastConfirmedAt);
+  const original = debt.originalBalance || debt.balance || 1;
+  const progress = clamp(1 - estimatedToday / original, 0, 1);
+  const days = daysSince(debt.lastConfirmedAt);
+  const needsCheck = days >= 30;
+  const changed = Math.abs(estimatedToday - debt.balance) > 1;
+  const debtType = debt.debtType || "loan";
+
+  const finishConfirm = () => {
+    onConfirm(draftBalance);
+    setEditing(false);
+  };
+
+  return (
+    <Card className="wmg-debt-card">
+      <div className="wmg-debt-card-top">
+        <GrowthRing progress={progress} size={76} tone="brand">
+          <div className="wmg-debt-ring-label">{Math.round(progress * 100)}%</div>
+        </GrowthRing>
+        <div className="wmg-debt-card-info">
+          {detailsEditing ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <input className="wmg-goal-name-input" value={debt.name} onChange={(e) => onEdit("name", e.target.value)} />
+              <select
+                className="wmg-select"
+                style={{ fontSize: 11, padding: "4px 8px" }}
+                value={debtType}
+                onChange={(e) => onEdit("debtType", e.target.value)}
+                aria-label="Debt type"
+              >
+                {Object.entries(DEBT_TYPE_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span className="wmg-entry-title" style={{ fontSize: 15.5 }}>{debt.name}</span>
+              <span className="wmg-tag" style={{ fontSize: 10.5 }}>{DEBT_TYPE_LABELS[debtType]}</span>
+            </div>
+          )}
+          <div className="wmg-debt-card-balance">
+            {editing ? (
+              <>
+                <NumberInput
+                  className="wmg-input wmg-inline-input"
+                  autoFocus
+                  value={draftBalance}
+                  onChange={setDraftBalance}
+                  onKeyDown={(e) => e.key === "Enter" && finishConfirm()}
+                />
+                <button className="wmg-debt-card-edit" onClick={finishConfirm}>Save</button>
+              </>
+            ) : (
+              <>
+                <span className="wmg-debt-card-balance-val">{gbp(estimatedToday)}</span>
+                <button
+                  className="wmg-debt-card-edit"
+                  onClick={() => {
+                    setDraftBalance(Math.round(estimatedToday));
+                    setEditing(true);
+                  }}
+                >
+                  Edit
+                </button>
+              </>
+            )}
+          </div>
+          <div className="wmg-sub">
+            {changed ? "Estimated today \u2014 confirmed " : "Confirmed "}
+            {gbp(debt.balance)} {days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"} ago`}
+          </div>
+        </div>
+        <button type="button" className="wmg-entry-edit-btn" onClick={() => setDetailsEditing((e) => !e)} aria-label={detailsEditing ? "Done editing debt details" : "Edit debt details"}>
+          {detailsEditing ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          )}
+        </button>
+        <button className="wmg-icon-btn" onClick={onRemove} aria-label="Remove">✕</button>
+      </div>
+
+      {detailsEditing ? (
+        <div className="wmg-sentence-card" style={{ marginTop: 12 }}>
+          Charging{" "}
+          <InlinePill value={debt.rate} onChange={(v) => onEdit("rate", v)} step="0.1" formatter={(v) => `${v}%`} ariaLabel="Interest rate" />{" "}
+          <InfoTip text="The interest rate this debt charges each year — sometimes called APR. You'll find it on your credit agreement, statement, or the provider's app." />{" "}
+          interest, you pay{" "}
+          <InlinePill value={debt.payment} onChange={(v) => onEdit("payment", v)} formatter={(v) => gbp(v)} ariaLabel="Monthly payment" />{" "}
+          a month, usually taken on the{" "}
+          <InlinePill
+            value={debt.paymentDayOfMonth || 1}
+            onChange={(v) => onEdit("paymentDayOfMonth", Math.min(31, Math.max(1, Math.round(v))))}
+            formatter={(v) => `${v}${v === 1 || v === 21 || v === 31 ? "st" : v === 2 || v === 22 ? "nd" : v === 3 || v === 23 ? "rd" : "th"}`}
+            ariaLabel="Payment day of month"
+          />{" "}
+          of the month
+          <InfoTip text="Optional, but improves accuracy — with this set, the balance shown between updates only drops once that day has actually passed each month, instead of a smooth day-by-day guess." />
+          .
+        </div>
+      ) : (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>
+          {debt.rate}% APR · {gbp(debt.payment)}/mo
+        </div>
+      )}
+
+      {debtType === "car-finance" && (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>
+          If this is PCP or HP finance with a final "balloon" payment due at the end of the agreement, add that
+          amount to the balance above now — the payoff calculator assumes a normal reducing loan and won't account
+          for a lump sum due later otherwise.
+        </div>
+      )}
+      {debtType === "overdraft" && (
+        <div className="wmg-sub" style={{ marginTop: 8 }}>
+          Overdrafts usually don't have a fixed monthly repayment — it's fine to leave the payment at £0. Just know
+          this debt won't get a "debt-free by" date until you set one.
+        </div>
+      )}
+
+      {needsCheck && !editing && (
+        <div className="wmg-debt-nudge">
+          It's been {days} days since you confirmed this — still about {gbp(Math.round(estimatedToday))}?
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button className="wmg-onboard-next" style={{ padding: "8px 16px", fontSize: 12.5, flex: "none" }} onClick={() => onConfirm(estimatedToday)}>
+              Yes, still about right
+            </button>
+            <button
+              className="wmg-reset-btn"
+              onClick={() => {
+                setDraftBalance(Math.round(estimatedToday));
+                setEditing(true);
+              }}
+            >
+              It's changed
+            </button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function LoansAndCardsTab({ profile, totals, updateArrayItem, confirmBalance, addArrayItemWithId, removeArrayItem, allDebts, debtFreeMonths, selectedDebtId, setSelectedDebtId, extraPayment, setExtraPayment, extraCalc, addBulkItems }) {
+  const [justAddedDebtId, setJustAddedDebtId] = useState(null);
+  const selectedDebt = allDebts.find((d) => d.id === selectedDebtId) || allDebts[0];
+  const [celebration, setCelebration] = useState(null);
+  const celebrationTimer = useRef(null);
+
+  const handleAddDebt = (arrKey, blank) => () => {
+    const id = nextId();
+    addArrayItemWithId(arrKey, { id, ...blank })();
+    setJustAddedDebtId(id);
+  };
+
+  return (
+    <>
+      {celebration && (
+        <div className="wmg-celebration">
+          <span className="wmg-celebration-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </span>
+          {celebration} is paid off — one less thing to worry about.
+        </div>
+      )}
+
+      <Card className="wmg-guided-summary-card">
+        <p style={{ margin: 0 }}>
+          {totals.totalDebt > 0 ? (
+            <>
+              You have <strong>{gbp(totals.totalDebt)}</strong> in loans and card debt. At your current pace,
+              you're on track to be debt-free by{" "}
+              <strong>{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "an unclear date — check the figures below"}</strong>.
+            </>
+          ) : (
+            "You've got no loans or card debt currently added here — nice position to be in. Add anything you're paying off below if that changes."
+          )}
+        </p>
+      </Card>
+
+      <div className="wmg-section-title">Quick add</div>
+      <QuickImport onAdd={addBulkItems} />
+
+      <div className="wmg-section-title">Loans</div>
+      {profile.loans.map((loan) => (
+        <DebtCard
+          key={loan.id}
+          debt={loan}
+          onEdit={(field, value) => updateArrayItem("loans")(loan.id, field, value)}
+          onConfirm={(newBalance) => {
+            if (Number(newBalance) <= 0 && Number(loan.balance) > 0) {
+              setCelebration(loan.name);
+              if (celebrationTimer.current) window.clearTimeout(celebrationTimer.current);
+              celebrationTimer.current = window.setTimeout(() => setCelebration(null), 5000);
+            }
+            confirmBalance("loans")(loan.id, newBalance);
+          }}
+          onRemove={() => removeArrayItem("loans")(loan.id)}
+          startEditing={loan.id === justAddedDebtId}
+        />
+      ))}
+      <button
+        className="wmg-add-btn"
+        onClick={handleAddDebt("loans", { name: "New loan", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "loan" })}
+      >
+        + Add loan
+      </button>
+      <button
+        className="wmg-add-btn"
+        style={{ marginTop: 8 }}
+        onClick={handleAddDebt("loans", { name: "Car finance", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "car-finance" })}
+      >
+        + Add car finance (PCP / HP)
+      </button>
+
+      <div className="wmg-section-title">Credit cards</div>
+      {profile.cards.map((card) => (
+        <DebtCard
+          key={card.id}
+          debt={card}
+          onEdit={(field, value) => updateArrayItem("cards")(card.id, field, value)}
+          onConfirm={(newBalance) => {
+            if (Number(newBalance) <= 0 && Number(card.balance) > 0) {
+              setCelebration(card.name);
+              if (celebrationTimer.current) window.clearTimeout(celebrationTimer.current);
+              celebrationTimer.current = window.setTimeout(() => setCelebration(null), 5000);
+            }
+            confirmBalance("cards")(card.id, newBalance);
+          }}
+          onRemove={() => removeArrayItem("cards")(card.id)}
+          startEditing={card.id === justAddedDebtId}
+        />
+      ))}
+      <button
+        className="wmg-add-btn"
+        onClick={handleAddDebt("cards", { name: "New card", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "card" })}
+      >
+        + Add credit card
+      </button>
+      <button
+        className="wmg-add-btn"
+        style={{ marginTop: 8 }}
+        onClick={handleAddDebt("cards", { name: "Overdraft", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "overdraft" })}
+      >
+        + Add overdraft
+      </button>
+
+      <div className="wmg-section-title">Debt-free calculator</div>
+      <WhyItMatters>
+        Every pound of interest you pay is money that never becomes yours — it goes straight to the lender with
+        nothing to show for it. Clearing higher-interest debt first, even with a small amount extra each month, often
+        does more for your finances than any investment could, because you're guaranteed to "earn" whatever interest
+        rate you stop paying.
+      </WhyItMatters>
+      <Card>
+        <div className="wmg-eyebrow" style={{ marginBottom: 2 }}>Debt-free date, at current payments: <span className="wmg-mono" style={{ color: "var(--paper)" }}>{isFinite(debtFreeMonths) ? addMonths(debtFreeMonths) : "—"}</span></div>
+        <div className="wmg-sub" style={{ marginBottom: 10 }}>Based on each debt's payment staying as it is now, with no extra money redirected between debts. See the Cash Flow Forecast for a date that assumes any spare income goes toward debt first.</div>
+        <div className="wmg-two-col">
+          <div>
+            <label className="wmg-field-label">Target debt</label>
+            <select className="wmg-select" value={selectedDebtId} onChange={(e) => setSelectedDebtId(Number(e.target.value))}>
+              {allDebts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} — {gbp(d.balance)} at {d.rate}%
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="wmg-field-label">Extra payment / month</label>
+            <div className="wmg-slider-row">
+              <input type="range" min="0" max="500" step="10" value={extraPayment} className="wmg-slider" onChange={(e) => setExtraPayment(Number(e.target.value))} />
+              <div className="wmg-slider-val">{gbp(extraPayment)}</div>
+            </div>
+          </div>
+        </div>
+        {extraCalc && selectedDebt && extraCalc.wasUnpayable && extraPayment > 0 && isFinite(extraCalc.newMonths) && (
+          <div className="wmg-sub" style={{ marginTop: 10, color: "var(--gold)" }}>
+            At its current payment, this debt would never actually clear — the payment doesn't cover the interest
+            building up each month. An extra {gbp(extraPayment)}/month changes that: it'd be paid off by{" "}
+            <strong style={{ color: "var(--paper)" }}>{addMonths(extraCalc.newMonths)}</strong>.
+          </div>
+        )}
+        {extraCalc && selectedDebt && extraCalc.wasUnpayable && extraPayment > 0 && !isFinite(extraCalc.newMonths) && (
+          <div className="wmg-sub" style={{ marginTop: 10, color: "var(--rust)" }}>
+            Even with an extra {gbp(extraPayment)}/month, this payment still wouldn't cover the interest building up
+            — try a larger amount.
+          </div>
+        )}
+        {extraCalc && selectedDebt && !extraCalc.wasUnpayable && (
+          <div className="wmg-calc-result">
+            <div>
+              <div className="wmg-calc-item-label">Interest saved</div>
+              <div className="wmg-calc-item-val">{isFinite(extraCalc.interestSaved) ? gbp(Math.round(extraCalc.interestSaved)) : "—"}</div>
+            </div>
+            <div>
+              <div className="wmg-calc-item-label">Cleared earlier by</div>
+              <div className="wmg-calc-item-val">{isFinite(extraCalc.monthsSaved) ? `${Math.round(extraCalc.monthsSaved)} months` : "—"}</div>
+            </div>
+            <div>
+              <div className="wmg-calc-item-label">New payoff date</div>
+              <div className="wmg-calc-item-val" style={{ color: "var(--paper)" }}>{isFinite(extraCalc.newMonths) ? addMonths(extraCalc.newMonths) : "—"}</div>
+            </div>
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}

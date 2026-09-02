@@ -77,14 +77,14 @@ export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSaving
       if (resp.status === 404) {
         setAccounts(null); // not connected yet — normal, not an error
         setStatus("idle");
-        onAccountsChanged?.();
+        onAccountsChanged?.(null);
         return;
       }
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error);
       setAccounts(data.accounts);
       setStatus("idle");
-      onAccountsChanged?.();
+      onAccountsChanged?.(data.accounts);
     } catch {
       setStatus("error");
     }

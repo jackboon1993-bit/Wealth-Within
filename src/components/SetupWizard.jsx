@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { gbp, nextId, MODE_LABELS, deriveRecommendedMode, parseDebtLines } from "../lib/finance";
-import { Card, Field, NavIcon, InfoTip } from "./ui";
+import React, { useEffect, useRef, useState } from "react";
+import { gbp, nextId, MODE_LABELS, deriveRecommendedMode, parseDebtLines, defaultProfile } from "../lib/finance";
+import { Card, Field, NavIcon, InfoTip, Reveal, StatIcon } from "./ui";
 import { hasAccounts, getHouseholdId } from "../lib/storage";
 import { BankConnectPanel } from "../tabs/BankConnectPanel";
+import { supabase } from "../lib/supabaseClient";
+import { API_BASE } from "../lib/apiBase";
 
 export function WizardNumberInput({ value, onChange, placeholder, style, disabled, ariaLabel }) {
   return (
@@ -122,7 +124,48 @@ export function QuickImport({ onAdd }) {
 
 export const WIZARD_DATA_STEPS = ["mode", "income", "debts", "savings", "pension"];
 
-export const WIZARD_STEPS = ["welcome", "connect", ...WIZARD_DATA_STEPS, "done"];
+export const WIZARD_STEPS = ["welcome", "connect", ...WIZARD_DATA_STEPS, "showcase", "done"];
+
+// What gets highlighted on the "showcase" step, right after someone's
+// finished entering their numbers and right before they land on their
+// actual dashboard — the moment they're most engaged, so it's the right
+// place to show off what the app can actually do rather than burying
+// these behind menus they might never find. Deliberately a fixed list
+// here rather than pulling from anywhere dynamic — these are the
+// flagship features worth a proper introduction, not everything the app
+// does.
+const SHOWCASE_FEATURES = [
+  {
+    icon: "pin",
+    tone: "sage",
+    title: "Live home value tracking",
+    body: "Add your address on Debts & Mortgage and we'll track your home's value automatically, so your net worth stays accurate without you doing anything.",
+  },
+  {
+    icon: "document",
+    tone: "brand",
+    title: "AI Document Reader",
+    body: "Upload a pension statement, mortgage offer, or payslip and let AI pull out the numbers for you — no manual typing.",
+  },
+  {
+    icon: "sparkle",
+    tone: "gold",
+    title: "Automatic bill & subscription detection",
+    body: "Connect a bank and we'll spot your recurring bills and subscriptions for you, ready to review and add in one tap.",
+  },
+  {
+    icon: "percent",
+    tone: "rust",
+    title: "Smart spending insights",
+    body: "Get an AI read on where your money's actually going each month, not just a list of numbers.",
+  },
+  {
+    icon: "networth",
+    tone: "slate",
+    title: "Cash Flow Forecast",
+    body: "See your future net worth, when you'll be debt-free, and your retirement outlook — all in one guided view.",
+  },
+];
 
 
 export const blankLoan = () => ({ id: nextId(), name: "", balance: 0, rate: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString(), debtType: "loan" });
@@ -227,17 +270,14 @@ export function SetupWizard({ onFinish }) {
 
   const [income, setIncome] = useState(0);
   const [spendingEstimate, setSpendingEstimate] = useState(0);
+  // Whether the optional spending-estimate field is expanded — see the
+  // "income" step above. Starts open automatically once bank prefill
+  // actually provides a value (handled by the `spendingEstimate > 0`
+  // check there), so this only matters for the fully-manual path.
+  const [spendingFieldOpen, setSpendingFieldOpen] = useState(false);
 
   const [hasMortgage, setHasMortgage] = useState(false);
   const [mortgage, setMortgage] = useState({ balance: 0, rate: 4.5, payment: 0 });
-  // Free text only, no Chimnie API call at signup — most people going
-  // through onboarding aren't Premium yet, and this shouldn't spend real
-  // money resolving an address for someone who may never subscribe. It
-  // just pre-fills profile.propertyAddress, which Debts' auto-tracking
-  // box already picks up automatically (same field name) — the person
-  // still confirms it via the real address dropdown there once they are
-  // Premium, which is what actually resolves and pays for the UPRN.
-  const [propertyAddress, setPropertyAddress] = useState("");
   const [loans, setLoans] = useState([]);
   const [cards, setCards] = useState([]);
 
@@ -249,6 +289,101 @@ export function SetupWizard({ onFinish }) {
   const [statePensionIncluded, setStatePensionIncluded] = useState(true);
   const [pensionStatus, setPensionStatus] = useState(null); // "yes" | "no" | "unsure" | null
   const [pensionValueUnknown, setPensionValueUnknown] = useState(false);
+
+  // Prefilling income/spending from a bank connected mid-wizard — see
+  // pullAndPrefillFromBank below. "idle" until a bank's connected,
+  // "loading" while fetching+categorising, "done" or "error" after.
+  // hasPrefilledRef guards against re-running this every time
+  // BankConnectPanel reports accounts changed (e.g. after a reconnect).
+  const [bankPrefillStatus, setBankPrefillStatus] = useState("idle");
+  const hasPrefilledRef = useRef(false);
+
+  // Once a bank's connected via the wizard's own "connect" step, pull a
+  // one-time transaction history (same api/truelayer-transactions +
+  // categorize-transactions pipeline BankImportTab's manual pull uses —
+  // see its `categorize` function) and use it to pre-fill the income and
+  // spending-estimate questions later in the wizard, rather than leaving
+  // them at 0 for someone who just told the app which bank they use.
+  // Categorises against defaultProfile's category names since there's no
+  // real profile yet to categorise against at this point in onboarding —
+  // a fresh household starts with exactly those categories anyway.
+  // Guards against overwriting anything the person's already typed (e.g.
+  // if they connected a bank, went back, and typed a number by hand
+  // first) by only setting a field if it's still at its untouched 0.
+  const pullAndPrefillFromBank = async () => {
+    if (hasPrefilledRef.current) return;
+    hasPrefilledRef.current = true;
+    setBankPrefillStatus("loading");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch(`${API_BASE}/api/truelayer-transactions`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Couldn't fetch transactions.");
+      const txs = (data.transactions || []).map((t) => ({ description: t.description, amount: t.amount, date: new Date(t.date) }));
+      if (txs.length === 0) {
+        setBankPrefillStatus("done");
+        return;
+      }
+
+      const categories = defaultProfile.expenseCategories.map((c) => c.name);
+      const batchSize = 150;
+      const results = new Array(txs.length).fill(null);
+      for (let start = 0; start < txs.length; start += batchSize) {
+        const batch = txs.slice(start, start + batchSize);
+        const catResp = await fetch(`${API_BASE}/api/categorize-transactions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transactions: batch.map((t) => ({ description: t.description, amount: t.amount })),
+            categories,
+          }),
+        });
+        const catData = await catResp.json();
+        if (!catResp.ok) throw new Error(catData.error || "Couldn't categorise transactions.");
+        (catData.results || []).forEach((r, i) => {
+          results[start + i] = r;
+        });
+      }
+
+      const dates = txs.map((t) => t.date.getTime());
+      const spanDays = Math.max(1, (Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24));
+      const spanMonths = Math.max(spanDays / 30, 1 / 30);
+
+      let incomeTotal = 0;
+      let spendingTotal = 0;
+      txs.forEach((t, i) => {
+        const r = results[i];
+        if (!r) return;
+        if (r.isIncome) {
+          if (t.amount > 0) incomeTotal += t.amount;
+          return;
+        }
+        if (r.category) spendingTotal += Math.abs(t.amount);
+      });
+
+      setIncome((prev) => (prev === 0 && incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : prev));
+      setSpendingEstimate((prev) => (prev === 0 && spendingTotal > 0 ? Math.round(spendingTotal / spanMonths) : prev));
+      setBankPrefillStatus("done");
+    } catch (e) {
+      setBankPrefillStatus("error");
+    }
+  };
+
+  // Existing cards found on the connected bank, offered via
+  // BankConnectPanel's card-debt matcher — starts empty since there's no
+  // profile to compare against yet during onboarding, so every card
+  // shows as "Add as a new card" rather than "Update existing".
+  const handleUseAsCardDebt = (selectedId, balance, name) => {
+    if (selectedId === "__new__") {
+      setCards((prev) => [...prev, { id: nextId(), name, balance, rate: 0, payment: 0, originalBalance: balance, lastConfirmedAt: new Date().toISOString(), debtType: "card" }]);
+    } else {
+      setCards((prev) => prev.map((c) => (c.id === selectedId ? { ...c, balance } : c)));
+    }
+  };
 
   const goNext = () => setStepIdx((i) => Math.min(WIZARD_STEPS.length - 1, i + 1));
   const goBack = () => setStepIdx((i) => Math.max(0, i - 1));
@@ -279,7 +414,6 @@ export function SetupWizard({ onFinish }) {
       mortgage: hasMortgage
         ? { ...p.mortgage, balance: mortgage.balance, rate: mortgage.rate, payment: mortgage.payment, originalBalance: mortgage.balance, lastConfirmedAt: new Date().toISOString() }
         : { ...p.mortgage, balance: 0, payment: 0, originalBalance: 0, lastConfirmedAt: new Date().toISOString() },
-      propertyAddress: propertyAddress.trim() || p.propertyAddress,
       loans,
       cards,
       savings: { ...p.savings, balance: savingsBalance },
@@ -345,7 +479,47 @@ export function SetupWizard({ onFinish }) {
               from Overview.
             </p>
             {hasAccounts && householdId ? (
-              <BankConnectPanel householdId={householdId} />
+              <>
+                <BankConnectPanel
+                  householdId={householdId}
+                  onAccountsChanged={(accounts) => {
+                    // BankConnectPanel reports every status check here, not
+                    // just real connections — including its own initial
+                    // "not connected yet" 404 check on mount, before the
+                    // person has done anything. Only treat this as "a bank
+                    // just got connected" when real account data actually
+                    // comes back, otherwise pullAndPrefillFromBank would
+                    // fire immediately on page load (before any bank
+                    // exists), fail, and — since it only ever runs once —
+                    // never get a second chance even after a real
+                    // connection succeeds moments later.
+                    if (Array.isArray(accounts) && accounts.length > 0) {
+                      pullAndPrefillFromBank();
+                    }
+                  }}
+                  onUseAsSavings={(balance) => setSavingsBalance((prev) => (prev === 0 ? balance : prev))}
+                  onUseAsCardDebt={handleUseAsCardDebt}
+                  existingCards={cards}
+                  savingsBalance={savingsBalance}
+                />
+                {bankPrefillStatus === "loading" && (
+                  <div className="wmg-sub" style={{ marginTop: 10 }}>
+                    Reading your recent transactions to fill in the next few questions for you…
+                  </div>
+                )}
+                {bankPrefillStatus === "done" && (
+                  <div className="wmg-sub" style={{ marginTop: 10, color: "var(--sage)" }}>
+                    ✓ Income and spending on the next screens have been pre-filled from your bank — check them over,
+                    they're easy to adjust.
+                  </div>
+                )}
+                {bankPrefillStatus === "error" && (
+                  <div className="wmg-sub" style={{ marginTop: 10 }}>
+                    Couldn't read transaction history right now — no problem, just enter income and spending by hand
+                    on the next screens.
+                  </div>
+                )}
+              </>
             ) : (
               <p className="wmg-sub">Loading…</p>
             )}
@@ -415,18 +589,42 @@ export function SetupWizard({ onFinish }) {
           <div className="wmg-wizard-step">
             <h2 className="wmg-wizard-step-title">Income & spending</h2>
             <p className="wmg-wizard-step-sub">The money that actually lands in your bank account each month.</p>
+            {bankPrefillStatus === "done" && (income > 0 || spendingEstimate > 0) && (
+              <div className="wmg-sub" style={{ marginBottom: 10, color: "var(--sage)" }}>
+                Pre-filled from your connected bank — adjust anything that doesn't look right.
+              </div>
+            )}
             <Field
               label="Monthly income"
               hint="This is your take-home pay after tax and National Insurance — check a recent payslip if you're not sure. Include any other regular income too, like a second job, benefits, or child benefit."
             >
               <WizardNumberInput value={income} placeholder="e.g. 3200" onChange={setIncome} />
             </Field>
-            <Field
-              label="Approximate monthly spending"
-              hint="Normal household and lifestyle costs — rent, bills, food, travel, subscriptions and so on. Don't include mortgage or debt repayments, those come next. An estimate is fine — you can add the full breakdown later."
-            >
-              <WizardNumberInput value={spendingEstimate} placeholder="e.g. 1600" onChange={setSpendingEstimate} />
-            </Field>
+            {/* When nothing came from a connected bank, forcing a single
+                blind-guess spending number felt pointless — it just gets
+                replaced by real categories on the Income tab anyway.
+                Collapsed behind an optional toggle instead of a mandatory
+                field, so it's there for anyone who wants a rough starting
+                point, without making everyone type a guess they'll
+                immediately redo properly. When it WAS bank-prefilled, it's
+                real data worth showing prominently, so it stays open. */}
+            {spendingEstimate > 0 || spendingFieldOpen ? (
+              <Field
+                label="Approximate monthly spending"
+                hint="Normal household and lifestyle costs — rent, bills, food, travel, subscriptions and so on. Don't include mortgage or debt repayments, those come next. An estimate is fine — you'll add the full breakdown on the Income tab later."
+              >
+                <WizardNumberInput value={spendingEstimate} placeholder="e.g. 1600" onChange={setSpendingEstimate} />
+              </Field>
+            ) : (
+              <button
+                type="button"
+                className="wmg-onboard-skip"
+                style={{ marginTop: 4 }}
+                onClick={() => setSpendingFieldOpen(true)}
+              >
+                + Add a rough spending estimate (optional — you'll set up real categories on Income later either way)
+              </button>
+            )}
           </div>
         )}
 
@@ -465,20 +663,6 @@ export function SetupWizard({ onFinish }) {
                 </WizardMiniField>
               </div>
             )}
-
-            <div className="wmg-wizard-section-title">Property</div>
-            <WizardMiniField
-              label="Property address (optional)"
-              hint="If you own your home, adding this now means it's already filled in later if you go Premium and turn on automatic home value tracking — you won't need to type it twice."
-            >
-              <input
-                className="wmg-input"
-                type="text"
-                placeholder="e.g. 12 Example Street, Chatham, ME4 1AB"
-                value={propertyAddress}
-                onChange={(e) => setPropertyAddress(e.target.value)}
-              />
-            </WizardMiniField>
 
             <div className="wmg-wizard-section-title">Loans</div>
             <WizardListEditor
@@ -671,6 +855,31 @@ export function SetupWizard({ onFinish }) {
           </div>
         )}
 
+        {step === "showcase" && (
+          <div className="wmg-wizard-step">
+            <h2 className="wmg-wizard-step-title">Here's what's waiting for you</h2>
+            <p className="wmg-wizard-step-sub">A few things worth knowing about before you dive in.</p>
+            {SHOWCASE_FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={i * 90}>
+                <Card style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
+                  <span className={`wmg-showcase-icon tone-${f.tone}`} style={{ flexShrink: 0 }} aria-hidden="true">
+                    <StatIcon name={f.icon} />
+                  </span>
+                  <div>
+                    <div className="wmg-entry-title" style={{ fontSize: 14, marginBottom: 3 }}>{f.title}</div>
+                    <div className="wmg-sub">{f.body}</div>
+                  </div>
+                </Card>
+              </Reveal>
+            ))}
+            <Reveal delay={SHOWCASE_FEATURES.length * 90}>
+              <div className="wmg-sub" style={{ textAlign: "center", marginTop: 4 }}>
+                Most of this is part of Premium — free for 14 days, cancel any time.
+              </div>
+            </Reveal>
+          </div>
+        )}
+
         {step === "done" && (
           <div className="wmg-wizard-step">
             <div className="wmg-onboard-icon">
@@ -685,12 +894,12 @@ export function SetupWizard({ onFinish }) {
         )}
 
         <div className="wmg-onboard-actions">
-          {step !== "done" && (
+          {step !== "done" && step !== "showcase" && (
             <button className="wmg-onboard-skip" onClick={skipAll}>
               Skip for now
             </button>
           )}
-          {dataStepPos > 0 && (
+          {(dataStepPos > 0 || step === "showcase") && (
             <button className="wmg-wizard-back" onClick={goBack}>
               Back
             </button>

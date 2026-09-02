@@ -3,9 +3,9 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, addMonths, getActiveMode } from "../lib/finance";
 import { FLOW_TONE_COLORS } from "../lib/constants";
 import { hasAccounts } from "../lib/storage";
-import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon } from "../components/ui";
+import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon, Reveal, StreakBadge } from "../components/ui";
 
-export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField }) {
+export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField, setupChecklistReady }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
@@ -18,6 +18,19 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   const [hardshipDismissed, setHardshipDismissed] = useState(false);
   const pendingBankSync = profile.pendingBankSync;
   const activeMode = getActiveMode(profile);
+  // "Complete setup — X/5" checklist (see finance.js's dismissedSetupChecklist
+  // for the dismiss-vs-auto-hide reasoning). Each item's `done` reads real
+  // profile/prop state already tracked elsewhere in the app — nothing new
+  // to maintain here if any of those five things' own logic changes.
+  const setupChecklistItems = [
+    { id: "bank", label: "Connect a bank", done: hasConnectedBank, action: () => onNavigate?.("import") },
+    { id: "mortgage", label: "Confirm mortgage details", done: !!profile.mortgageDetailsConfirmed, action: () => onNavigate?.("debts", "mortgage") },
+    { id: "pension", label: "Confirm retirement assumptions", done: !!profile.pensionAssumptionsConfirmed, action: () => onNavigate?.("pension") },
+    { id: "lifeevent", label: "Add a life event", done: (profile.lifeEvents || []).length > 0, action: () => onNavigate?.("forecast") },
+    { id: "premium", label: "Go Premium", done: hasPremium, action: onUpgrade },
+  ];
+  const incompleteSetupItems = setupChecklistItems.filter((i) => !i.done);
+  const showSetupChecklist = setupChecklistReady && incompleteSetupItems.length > 0 && !profile.dismissedSetupChecklist;
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
@@ -59,7 +72,10 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     <>
       <div className="wmg-mosaic-hero">
         <div className="wmg-mosaic-hero-top">
-          <div className="wmg-mosaic-hero-label">Net worth</div>
+          <div className="wmg-mosaic-hero-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span>Net worth</span>
+            <StreakBadge streakCount={profile.streakCount} />
+          </div>
           <button type="button" className="wmg-mosaic-hero-score" onClick={() => setScoreInfoOpen((o) => !o)} aria-expanded={scoreInfoOpen}>
             <GrowthRing progress={score / 100} size={24} tone={scoreTone} />
             <span className="wmg-mosaic-hero-score-val">{Math.round(animatedScore)}</span>
@@ -85,6 +101,38 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           </div>
           <p>{scoreExplainer}</p>
         </Card>
+      )}
+
+      {showSetupChecklist && (
+        <Reveal>
+          <Card className="wmg-connect-bank-banner" style={{ flexDirection: "column", alignItems: "stretch" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div className="wmg-connect-bank-banner-title">
+                Complete setup — {setupChecklistItems.length - incompleteSetupItems.length}/{setupChecklistItems.length}
+              </div>
+              <button
+                type="button"
+                className="wmg-score-explainer-close"
+                aria-label="Dismiss setup checklist"
+                onClick={() => setField?.(["dismissedSetupChecklist"])(true)}
+              >
+                ×
+              </button>
+            </div>
+            <div>
+              {incompleteSetupItems.map((item) => (
+                <button type="button" className="wmg-checklist-item" key={item.id} onClick={item.action}>
+                  <span>{item.label}</span>
+                  <span className="wmg-checklist-item-chevron" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </Reveal>
       )}
 
       {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
@@ -169,6 +217,32 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
+      {!profile.dismissedReaderBanner && (
+        <Card className="wmg-connect-bank-banner" style={{ background: "var(--brand-soft)", borderColor: "var(--brand)" }}>
+          <span className="wmg-showcase-icon tone-brand" style={{ flexShrink: 0 }} aria-hidden="true">
+            <StatIcon name="document" />
+          </span>
+          <div className="wmg-connect-bank-banner-text">
+            <div className="wmg-connect-bank-banner-title">Try AI Document Reader</div>
+            <div className="wmg-connect-bank-banner-sub">
+              Upload a pension statement, mortgage offer, or payslip and let AI pull out the numbers for you — no
+              manual typing.
+            </div>
+          </div>
+          <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("pension-reader")}>
+            Try it
+          </button>
+          <button
+            type="button"
+            className="wmg-score-explainer-close"
+            aria-label="Dismiss"
+            onClick={() => setField?.(["dismissedReaderBanner"])(true)}
+          >
+            ×
+          </button>
+        </Card>
+      )}
+
       {activeMode === "guided" && (
         <Card className="wmg-guided-summary-card">
           <p style={{ margin: 0 }}>
@@ -223,28 +297,30 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       )}
 
       <div className="wmg-stat-grid">
-        {heroStats.map((s) => (
-          <button
-            type="button"
-            className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
-            key={s.label}
-            onClick={() => onNavigate?.(s.tab, s.focus)}
-            aria-label={
-              s.tab === "income"
-                ? `${s.label}: ${s.value}`
-                : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
-            }
-          >
-            {s.gradient ? (
-              <span className="wmg-stat-tile-icon-badge" aria-hidden="true">
-                <StatIcon name={s.icon} />
-              </span>
-            ) : (
-              <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
-            )}
-            <div className="wmg-stat-tile-label">{s.label}</div>
-            <div className="wmg-stat-tile-val">{s.value}</div>
-          </button>
+        {heroStats.map((s, i) => (
+          <Reveal key={s.label} delay={i * 45}>
+            <button
+              type="button"
+              className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
+              style={{ width: "100%" }}
+              onClick={() => onNavigate?.(s.tab, s.focus)}
+              aria-label={
+                s.tab === "income"
+                  ? `${s.label}: ${s.value}`
+                  : `${s.label}: ${s.value}. Go to ${s.tab === "debts" ? "Debts & Mortgage" : s.tab === "goals" ? "Savings & Goals" : "Pension"}`
+              }
+            >
+              {s.gradient ? (
+                <span className="wmg-stat-tile-icon-badge" aria-hidden="true">
+                  <StatIcon name={s.icon} />
+                </span>
+              ) : (
+                <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
+              )}
+              <div className="wmg-stat-tile-label">{s.label}</div>
+              <div className="wmg-stat-tile-val">{s.value}</div>
+            </button>
+          </Reveal>
         ))}
       </div>
 

@@ -88,10 +88,28 @@ export async function categorizeBatch(transactions, categories, apiKey) {
 // and returns { categoryTotals, incomeEstimate } using the same
 // monthly-average logic the frontend review screen uses — sum spending
 // per matched category, sum income, then divide by the number of months
-// spanned by the transaction dates (clamped to a minimum of one day's
-// worth of a month, so a single day of transactions doesn't get
-// multiplied up into an inflated monthly figure).
-export async function categorizeAndSummarize(transactions, categories, apiKey) {
+// spanned.
+//
+// `window`, when given, is the actual { fromDate, toDate } (ISO date
+// strings) that was requested from the bank — NOT derived from which
+// transactions happened to come back. This matters a lot for the
+// overnight incremental sync (see sync-bank-transactions.js): that job
+// only fetches since the last *applied* sync, so a given run might only
+// catch a single salary payment or a single bill. If spanMonths were
+// derived from the spread of transactions that happen to appear (the
+// previous behaviour), a single transaction gives minDate === maxDate,
+// spanDays floors to 1, and spanMonths floors to 1/30 — dividing that
+// one transaction by 1/30 multiplies it by 30. A single ~£2,900 salary
+// payment could be reported as ~£87,000/month. Using the real requested
+// window instead means the denominator reflects how much calendar time
+// was actually covered, regardless of how sparsely transactions happen
+// to land inside it.
+//
+// `window` is omitted for CSV import and the manual "pull last 90 days"
+// flow, which don't have a single fixed request window in the same way
+// (a CSV's date range *is* its own data) — those keep deriving the span
+// from the transactions' own dates, same as before.
+export async function categorizeAndSummarize(transactions, categories, apiKey, window = null) {
   const results = new Array(transactions.length).fill(null);
   for (let start = 0; start < transactions.length; start += MAX_BATCH) {
     const batch = transactions.slice(start, start + MAX_BATCH);
@@ -101,11 +119,24 @@ export async function categorizeAndSummarize(transactions, categories, apiKey) {
     });
   }
 
-  const dates = transactions.map((t) => new Date(t.date).getTime());
-  const minDate = Math.min(...dates);
-  const maxDate = Math.max(...dates);
-  const spanDays = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24));
-  const spanMonths = Math.max(spanDays / 30, 1 / 30);
+  let spanDays;
+  if (window?.fromDate && window?.toDate) {
+    spanDays = Math.max(1, (new Date(window.toDate).getTime() - new Date(window.fromDate).getTime()) / (1000 * 60 * 60 * 24));
+  } else {
+    const dates = transactions.map((t) => new Date(t.date).getTime());
+    const minDate = Math.min(...dates);
+    const maxDate = Math.max(...dates);
+    spanDays = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24));
+  }
+  // A floor of one week, not one day, when working from a real requested
+  // window — an incremental sync can legitimately be just a day or two
+  // if a household reviews often, and extrapolating a whole month's
+  // figure from one or two days of data is still unreliable even though
+  // it's no longer catastrophically wrong the way the old per-transaction
+  // floor was. One week is a more honest lower bound for "enough data to
+  // guess a monthly rate from" while still never dividing by zero.
+  const floorMonths = window?.fromDate && window?.toDate ? 7 / 30 : 1 / 30;
+  const spanMonths = Math.max(spanDays / 30, floorMonths);
 
   const totals = {};
   let incomeTotal = 0;

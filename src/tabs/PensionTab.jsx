@@ -3,6 +3,22 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { gbp, gbpApprox, getActiveMode, nextId } from "../lib/finance";
 import { Card, WhyItMatters, DisclosureSection, Field, ChartTooltip, NumberInput, StatIcon } from "../components/ui";
 
+// A deliberately simple, illustrative-only annuity rate table — NOT real
+// market data, no external quote provider involved. Broadly reflects how
+// real annuity rates behave (higher the older you are when you buy one,
+// since payments are expected to run for fewer years), so the estimate
+// moves in a sensible direction as the retirement age assumption changes,
+// without pretending to be an actual quote. Real annuity rates also
+// depend on health, postcode, and annuity type (single/joint, level/
+// escalating) — none of which this attempts to model.
+function annuityRateForAge(age) {
+  if (age < 60) return 4.5;
+  if (age < 65) return 5.0;
+  if (age < 70) return 5.8;
+  if (age < 75) return 6.8;
+  return 8.0;
+}
+
 export function PensionPotCard({ pot, canRemove, activeMode, updateArrayItem, removeArrayItem, startEditing = false }) {
   const [editing, setEditing] = useState(startEditing);
   return (
@@ -112,6 +128,12 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
   const projectedAtRetirement = pensionScenarios?.series?.[pensionScenarios.series.length - 1];
   const pots = profile.pensions;
   const [justAddedId, setJustAddedId] = useState(null);
+  // Session-only close for the top summary card — same reasoning as
+  // OverviewTab's pendingSyncDismissed/hardshipDismissed: it reappears
+  // next time the tab is opened rather than being gone forever after one
+  // dismissal, since it's genuinely useful context, just not something
+  // that needs to sit on screen permanently every single visit.
+  const [summaryDismissed, setSummaryDismissed] = useState(false);
   const handleAddPot = () => {
     const id = nextId();
     addArrayItemWithId("pensions", { id, name: "New pension", balance: 0, contribution: 0, growthLow: 3, growthMedium: 5, growthHigh: 7 })();
@@ -121,9 +143,18 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
   return (
     <>
       <div className="wmg-section-title">Pension details</div>
-      {activeMode === "guided" && projectedAtRetirement && (
-        <Card className="wmg-guided-summary-card">
-          <p style={{ margin: 0 }}>
+      {activeMode === "guided" && projectedAtRetirement && !summaryDismissed && (
+        <Card className="wmg-guided-summary-card" style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="wmg-score-explainer-close"
+            style={{ position: "absolute", top: 10, right: 10 }}
+            aria-label="Close"
+            onClick={() => setSummaryDismissed(true)}
+          >
+            ×
+          </button>
+          <p style={{ margin: 0, paddingRight: 20 }}>
             At your current pot{pots.length > 1 ? "s" : ""} and contributions, with a medium growth assumption, your
             pension{pots.length > 1 ? "s" : ""} could be worth around{" "}
             <strong>{gbpApprox(projectedAtRetirement.medium)}</strong> combined by the time you retire in{" "}
@@ -272,6 +303,44 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
           />
           Include the State Pension in retirement income estimates and the Cash Flow Forecast
         </label>
+      </Card>
+
+      <div className="wmg-section-title">Rough annuity estimate</div>
+      <div className="wmg-section-desc">
+        A very rough illustration of what your projected pot could buy as an annuity — a guaranteed income for life
+        in exchange for the pot. Real annuity rates depend on your exact age, health, and the type of annuity, and
+        change with market conditions, so treat this as a ballpark, not a quote. Worth getting real quotes from a
+        broker as you get closer to retirement — this can't replace that.
+      </div>
+      <Card>
+        {(() => {
+          const annuityRate = annuityRateForAge(profile.pensionSettings.retirementAge);
+          const potAtRetirement = projectedAtRetirement?.medium ?? 0;
+          const annualIncome = potAtRetirement * (annuityRate / 100);
+          return (
+            <>
+              <div className="wmg-three-col">
+                <div>
+                  <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Illustrative rate at {profile.pensionSettings.retirementAge}</div>
+                  <div className="wmg-figure tone-paper">{annuityRate.toFixed(1)}%</div>
+                </div>
+                <div>
+                  <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Rough annual income</div>
+                  <div className="wmg-figure tone-paper">{gbpApprox(annualIncome)}</div>
+                </div>
+                <div>
+                  <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Rough monthly income</div>
+                  <div className="wmg-figure tone-paper">{gbpApprox(annualIncome / 12)}</div>
+                </div>
+              </div>
+              <div className="wmg-sub" style={{ marginTop: 10 }}>
+                Based on your projected pot of {gbpApprox(potAtRetirement)} at a medium growth assumption. Annuity
+                rates are generally higher the older you are when you buy one, since payments are expected to run for
+                fewer years — this figure moves with the retirement age set above.
+              </div>
+            </>
+          );
+        })()}
       </Card>
 
       <div className="wmg-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>

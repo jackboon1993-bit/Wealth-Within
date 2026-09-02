@@ -361,6 +361,9 @@ export const defaultProfile = {
   // content is actionable/safety-relevant and should resurface).
   dismissedConnectBankBanner: false,
   dismissedPremiumBanner: false,
+  // AI Document Reader discovery banner on Overview — same
+  // dismiss-once-per-household pattern as the two above.
+  dismissedReaderBanner: false,
   // Automatic monthly home valuation (Premium feature) — see
   // api/update-home-values.js. propertyAddress is free text the person
   // types in; propertyUprn is resolved from it once (server-side, cached
@@ -376,7 +379,45 @@ export const defaultProfile = {
   propertyUprn: null,
   homeValueSource: "manual", // "manual" | "auto"
   homeValueUpdatedAt: null,
+  // Daily-open streak (consecutive calendar days the app's been opened) —
+  // see applyDailyOpenStreak below, called once per load in App.jsx.
+  // Purely a light engagement signal, never gates any feature.
+  streakCount: 0,
+  lastOpenedAt: null,
+  // Goal ids that have already shown their "reached!" celebration —
+  // GoalsTab checks a goal against this before popping the celebration,
+  // and appends to it once shown, so hitting 100% doesn't re-celebrate
+  // on every subsequent visit to the tab.
+  celebratedGoals: [],
+  // Overview's "Complete setup — X/5" checklist — dismissible, but only
+  // ever hides it for that household; it still auto-hides on its own once
+  // every underlying item is actually done, regardless of this flag (see
+  // OverviewTab's setupChecklistItems). This just lets someone who isn't
+  // interested in finishing setup get rid of it without completing
+  // everything first.
+  dismissedSetupChecklist: false,
 };
+
+// Called once per app load (see App.jsx). Compares today's date against
+// the last recorded open date and either continues, extends, or resets
+// the streak — never mutates the passed-in profile, returns a new one.
+// Deliberately calendar-day based (not "last 24 hours"), so opening once
+// in the morning and again that evening still counts as one day, and
+// opening once today then once tomorrow extends the streak by one
+// regardless of the exact hours between them.
+export function applyDailyOpenStreak(profile) {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const lastKey = profile.lastOpenedAt ? new Date(profile.lastOpenedAt).toISOString().slice(0, 10) : null;
+  if (lastKey === todayKey) return profile; // already counted today
+  let streakCount = 1;
+  if (lastKey) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toISOString().slice(0, 10);
+    if (lastKey === yesterdayKey) streakCount = (profile.streakCount || 0) + 1;
+  }
+  return { ...profile, streakCount, lastOpenedAt: new Date().toISOString() };
+}
 
 /* Backfills any fields missing from previously-saved data (e.g. saved before a
    feature like State Pension existed) with sensible defaults, so old saves never
@@ -389,7 +430,7 @@ export function mergeWithDefaults(saved) {
   nestedObjectKeys.forEach((k) => {
     merged[k] = { ...defaultProfile[k], ...(saved[k] && typeof saved[k] === "object" ? saved[k] : {}) };
   });
-  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals", "lifeEvents", "scenarios", "spendingSnapshots", "seenTabTips", "pendingSubscriptions"];
+  const arrayKeys = ["loans", "cards", "expenseCategories", "subscriptions", "goals", "lifeEvents", "scenarios", "spendingSnapshots", "seenTabTips", "pendingSubscriptions", "celebratedGoals"];
   arrayKeys.forEach((k) => {
     merged[k] = Array.isArray(saved[k]) ? saved[k] : defaultProfile[k];
   });

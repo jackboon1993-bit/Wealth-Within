@@ -1,8 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { gbp, addMonths, nextId } from "../lib/finance";
-import { Card, GrowthRing, ProgressBar, WhyItMatters, InfoTip, InlinePill, NumberInput } from "../components/ui";
+import { Card, GrowthRing, ProgressBar, WhyItMatters, InfoTip, InlinePill, NumberInput, Reveal, Popout, Celebration } from "../components/ui";
 
-export function GoalCard({ goal: g, monthsAtPace, desired, requiredMonthly, extraNeeded, available, updateGoal, removeGoal, startEditing = false }) {
+// Split out of the old GoalsTab.jsx so "Savings" on Overview lands on a
+// screen that's genuinely only about savings — emergency fund and
+// savings goals both belong here (they're saving-specific), but the
+// investments balance does not. See InvestmentsTab.jsx for that half.
+
+export function GoalCard({ goal: g, monthsAtPace, desired, requiredMonthly, extraNeeded, available, updateGoal, removeGoal, startEditing = false, onViewProgress }) {
   const [editing, setEditing] = useState(startEditing);
   return (
     <Card className="wmg-goal-card">
@@ -53,9 +58,16 @@ export function GoalCard({ goal: g, monthsAtPace, desired, requiredMonthly, extr
           </div>
         </>
       ) : (
-        <div className="wmg-sub" style={{ marginTop: 8 }}>
-          {gbp(g.current)} of {gbp(g.target)} · {gbp(g.monthlyContribution)}/mo · on track for {isFinite(monthsAtPace) ? addMonths(monthsAtPace) : "—"}
-        </div>
+        <>
+          <div className="wmg-sub" style={{ marginTop: 8 }}>
+            {gbp(g.current)} of {gbp(g.target)} · {gbp(g.monthlyContribution)}/mo · on track for {isFinite(monthsAtPace) ? addMonths(monthsAtPace) : "—"}
+          </div>
+          {onViewProgress && (
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => onViewProgress(g)}>
+              View progress
+            </button>
+          )}
+        </>
       )}
       {extraNeeded > 0.5 && (
         <div className="wmg-sub" style={{ marginTop: 8, color: extraNeeded <= available ? "var(--gold)" : "var(--rust)" }}>
@@ -68,18 +80,41 @@ export function GoalCard({ goal: g, monthsAtPace, desired, requiredMonthly, extr
   );
 }
 
-export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGoalWithId, removeGoal }) {
+export function SavingsTab({ profile, totals, setField, updateGoal, addGoal, addGoalWithId, removeGoal }) {
   const [savingsEditing, setSavingsEditing] = useState(false);
   const [efEditing, setEfEditing] = useState(false);
-  const [justAddedGoalId, setJustAddedGoalId] = useState(null);
-  const handleAddGoal = () => {
-    const id = nextId();
-    addGoalWithId({ id, name: "New goal", target: 1000, current: 0, monthlyContribution: 50, desiredMonths: null })();
-    setJustAddedGoalId(id);
+  const [progressGoalId, setProgressGoalId] = useState(null);
+  const [celebratingGoal, setCelebratingGoal] = useState(null);
+  const [goalWizardStep, setGoalWizardStep] = useState(0);
+  const [goalDraft, setGoalDraft] = useState({ name: "", target: "", monthlyContribution: "" });
+  const openGoalWizard = () => {
+    setGoalDraft({ name: "", target: "", monthlyContribution: "" });
+    setGoalWizardStep(1);
   };
-  // Feasibility check: purely arithmetic, no AI needed here — comparing what
-  // each goal's chosen timeframe actually requires against real monthly
-  // surplus (totals.available), not just showing the numbers in isolation.
+  const finishGoalWizard = () => {
+    const id = nextId();
+    addGoalWithId({
+      id,
+      name: goalDraft.name.trim() || "Savings goal",
+      target: Number(goalDraft.target) || 1000,
+      current: 0,
+      monthlyContribution: Number(goalDraft.monthlyContribution) || 0,
+      desiredMonths: null,
+    })();
+    setGoalWizardStep(0);
+  };
+
+  useEffect(() => {
+    if (celebratingGoal) return;
+    const celebrated = profile.celebratedGoals || [];
+    const newlyDone = profile.goals.find((g) => g.current >= g.target && g.target > 0 && !celebrated.includes(g.id));
+    if (newlyDone) {
+      setCelebratingGoal(newlyDone);
+      setField(["celebratedGoals"])([...celebrated, newlyDone.id]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.goals, profile.celebratedGoals]);
+
   const goalPlans = profile.goals.map((g) => {
     const monthsAtPace = g.monthlyContribution > 0 ? Math.ceil((g.target - g.current) / g.monthlyContribution) : Infinity;
     const desired = g.desiredMonths && g.desiredMonths > 0 ? g.desiredMonths : Math.max(1, Math.round(isFinite(monthsAtPace) ? monthsAtPace : 12));
@@ -94,16 +129,14 @@ export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGo
 
   return (
     <>
-      <div className="wmg-section-title">Savings & investments</div>
+      <div className="wmg-section-title">Savings</div>
       <Card>
         {savingsEditing ? (
           <>
             <div className="wmg-sentence-card">
               You currently have{" "}
               <InlinePill value={profile.savings.balance} onChange={(v) => setField(["savings", "balance"])(v)} formatter={(v) => gbp(v)} ariaLabel="Savings balance" />{" "}
-              in general savings, and{" "}
-              <InlinePill value={profile.investments.balance} onChange={(v) => setField(["investments", "balance"])(v)} formatter={(v) => gbp(v)} ariaLabel="Investments balance" />{" "}
-              in investments (outside your pension) <InfoTip text="This is your ISA, general investment account, or other non-pension investments — pension balance is tracked separately on the Pension screen." />.
+              in general savings.
             </div>
             <div className="wmg-entry-edit-actions" style={{ marginTop: 10 }}>
               <button type="button" className="wmg-entry-done-btn" onClick={() => setSavingsEditing(false)}>Done</button>
@@ -112,9 +145,9 @@ export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGo
         ) : (
           <div className="wmg-entry-view">
             <div className="wmg-entry-view-text">
-              <div className="wmg-entry-title">{gbp(profile.savings.balance)} savings · {gbp(profile.investments.balance)} investments</div>
+              <div className="wmg-entry-title">{gbp(profile.savings.balance)} in savings</div>
             </div>
-            <button type="button" className="wmg-entry-edit-btn" onClick={() => setSavingsEditing(true)} aria-label="Edit savings and investments">
+            <button type="button" className="wmg-entry-edit-btn" onClick={() => setSavingsEditing(true)} aria-label="Edit savings">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -203,23 +236,120 @@ export function GoalsTab({ profile, totals, setField, updateGoal, addGoal, addGo
         </Card>
       )}
 
-      {goalPlans.map(({ goal: g, monthsAtPace, desired, requiredMonthly, extraNeeded }) => (
-        <GoalCard
-          key={g.id}
-          goal={g}
-          monthsAtPace={monthsAtPace}
-          desired={desired}
-          requiredMonthly={requiredMonthly}
-          extraNeeded={extraNeeded}
-          available={available}
-          updateGoal={updateGoal}
-          removeGoal={removeGoal}
-          startEditing={g.id === justAddedGoalId}
-        />
+      {goalPlans.map(({ goal: g, monthsAtPace, desired, requiredMonthly, extraNeeded }, i) => (
+        <Reveal key={g.id} delay={i * 60}>
+          <GoalCard
+            goal={g}
+            monthsAtPace={monthsAtPace}
+            desired={desired}
+            requiredMonthly={requiredMonthly}
+            extraNeeded={extraNeeded}
+            available={available}
+            updateGoal={updateGoal}
+            removeGoal={removeGoal}
+            startEditing={false}
+            onViewProgress={(goal) => setProgressGoalId(goal.id)}
+          />
+        </Reveal>
       ))}
-      <button className="wmg-add-btn" onClick={handleAddGoal}>+ Add savings goal</button>
+      <button className="wmg-add-btn" onClick={openGoalWizard}>+ Add savings goal</button>
+
+      <Popout open={goalWizardStep > 0} onClose={() => setGoalWizardStep(0)} title="Add a savings goal">
+        {goalWizardStep === 1 && (
+          <>
+            <div className="wmg-field-label">What are you saving for?</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>A house deposit, a wedding, a new car — whatever it is.</div>
+            <input
+              className="wmg-input"
+              type="text"
+              autoFocus
+              placeholder="e.g. New car"
+              value={goalDraft.name}
+              onChange={(e) => setGoalDraft((d) => ({ ...d, name: e.target.value }))}
+            />
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 14 }}
+              disabled={!goalDraft.name.trim()}
+              onClick={() => setGoalWizardStep(2)}
+            >
+              Continue
+            </button>
+          </>
+        )}
+
+        {goalWizardStep === 2 && (
+          <>
+            <div className="wmg-field-label">How much do you need?</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>Your best estimate is fine — you can always change this later.</div>
+            <NumberInput className="wmg-input" value={goalDraft.target} onChange={(v) => setGoalDraft((d) => ({ ...d, target: v }))} />
+            <button
+              type="button"
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 14 }}
+              disabled={!goalDraft.target || Number(goalDraft.target) <= 0}
+              onClick={() => setGoalWizardStep(3)}
+            >
+              Continue
+            </button>
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setGoalWizardStep(1)}>
+              Back
+            </button>
+          </>
+        )}
+
+        {goalWizardStep === 3 && (
+          <>
+            <div className="wmg-field-label">Putting away each month? (optional)</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>
+              Skip this if you're not sure yet — you can set or change it any time from the goal itself.
+            </div>
+            <NumberInput className="wmg-input" value={goalDraft.monthlyContribution} onChange={(v) => setGoalDraft((d) => ({ ...d, monthlyContribution: v }))} />
+            <button type="button" className="wmg-btn-primary" style={{ width: "100%", marginTop: 14 }} onClick={finishGoalWizard}>
+              Add goal
+            </button>
+            <button type="button" className="wmg-onboard-skip" style={{ marginTop: 8 }} onClick={() => setGoalWizardStep(2)}>
+              Back
+            </button>
+          </>
+        )}
+      </Popout>
+
+      {(() => {
+        const progressGoal = profile.goals.find((g) => g.id === progressGoalId);
+        if (!progressGoal) return null;
+        const progress = Math.max(0, Math.min(1, progressGoal.current / Math.max(1, progressGoal.target)));
+        const stillToSave = Math.max(0, progressGoal.target - progressGoal.current);
+        return (
+          <Popout open onClose={() => setProgressGoalId(null)} title={progressGoal.name}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+              <GrowthRing progress={progress} size={140} tone="gold">
+                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--paper)" }}>{Math.round(progress * 100)}%</div>
+                <div className="wmg-sub" style={{ fontSize: 11 }}>{gbp(progressGoal.current)} of {gbp(progressGoal.target)}</div>
+              </GrowthRing>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label">Still to save</span>
+              <span className="wmg-detail-row-value">{gbp(stillToSave)}</span>
+            </div>
+            <div className="wmg-detail-row">
+              <span className="wmg-detail-row-label">Putting away</span>
+              <span className="wmg-detail-row-value">{gbp(progressGoal.monthlyContribution)}/mo</span>
+            </div>
+          </Popout>
+        );
+      })()}
+
+      <Popout open={!!celebratingGoal} onClose={() => setCelebratingGoal(null)} title="">
+        {celebratingGoal && (
+          <Celebration
+            title={`"${celebratingGoal.name}" reached!`}
+            message={`You've saved the full ${gbp(celebratingGoal.target)} — nice work. You can raise the target or start a new goal any time.`}
+            tone="gold"
+          />
+        )}
+      </Popout>
     </>
   );
 }
-
-

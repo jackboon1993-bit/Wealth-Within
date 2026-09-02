@@ -1,11 +1,46 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, getActiveMode, nextId } from "../lib/finance";
-import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput } from "../components/ui";
+import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput, BarRow, Reveal } from "../components/ui";
 import { API_BASE } from "../lib/apiBase";
 import { supabase } from "../lib/supabaseClient";
 
 export const SUB_AVATAR_TONES = ["brand", "coral", "sage", "gold", "rust"];
+
+// Curated real brand colours for common recurring payments — matched by
+// loose substring against the subscription's own name, same pattern as
+// COMMON_BILLS below, so "Disney Plus" and "Disney+" both match "disney+"
+// the same way "Council tax" and "Council Tax bill" both match "council
+// tax". Anything not recognised falls back to the existing rotating
+// SUB_AVATAR_TONES badge — this is additive, never a hard requirement.
+// `text` is the badge's text/icon colour, chosen per-brand for contrast
+// against `bg` (most are white-on-colour; a couple of pale brand colours
+// need a dark badge text instead).
+export const SUBSCRIPTION_BRANDS = [
+  { name: "Netflix", match: ["netflix"], bg: "#E50914", text: "#FFFFFF" },
+  { name: "Disney+", match: ["disney"], bg: "#113CCF", text: "#FFFFFF" },
+  { name: "Spotify", match: ["spotify"], bg: "#1DB954", text: "#FFFFFF" },
+  { name: "Xbox", match: ["xbox", "game pass"], bg: "#107C10", text: "#FFFFFF" },
+  { name: "PlayStation", match: ["playstation", "ps plus", "ps+"], bg: "#003791", text: "#FFFFFF" },
+  { name: "Amazon Prime", match: ["amazon prime", "prime video"], bg: "#00A8E1", text: "#0F1111" },
+  { name: "Apple Music", match: ["apple music"], bg: "#FA243C", text: "#FFFFFF" },
+  { name: "Apple TV", match: ["apple tv"], bg: "#000000", text: "#FFFFFF" },
+  { name: "iCloud", match: ["icloud"], bg: "#3693F3", text: "#FFFFFF" },
+  { name: "YouTube Premium", match: ["youtube"], bg: "#FF0000", text: "#FFFFFF" },
+  { name: "Now TV", match: ["now tv", "nowtv"], bg: "#00203F", text: "#FFFFFF" },
+  { name: "Audible", match: ["audible"], bg: "#F8991C", text: "#0F1111" },
+  { name: "Google One", match: ["google one", "google drive"], bg: "#4285F4", text: "#FFFFFF" },
+  { name: "Deezer", match: ["deezer"], bg: "#FEAA2D", text: "#0F1111" },
+  { name: "Discord", match: ["discord"], bg: "#5865F2", text: "#FFFFFF" },
+];
+
+// Returns the matching brand entry for a subscription name, or null if
+// nothing in SUBSCRIPTION_BRANDS matches — callers fall back to the
+// existing tone-rotation badge style in that case.
+export function getSubscriptionBrand(name) {
+  const nameLower = (name || "").toLowerCase();
+  return SUBSCRIPTION_BRANDS.find((b) => b.match.some((m) => nameLower.includes(m))) || null;
+}
 
 // Small reusable "this needs Premium" prompt — used everywhere an
 // AI-powered feature is gated (bill checker, spending insight, Pension
@@ -28,12 +63,18 @@ export function PremiumGate({ subscriptionStatus, onUpgrade, text }) {
 export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, startEditing = false }) {
   const [expanded, setExpanded] = useState(startEditing);
   const tone = SUB_AVATAR_TONES[index % SUB_AVATAR_TONES.length];
+  const brand = getSubscriptionBrand(sub.name);
   const initial = (sub.name || "?").trim().charAt(0).toUpperCase() || "?";
 
   return (
     <div className={`wmg-sub-card ${sub.cancelled ? "cancelled" : ""}`}>
       <button type="button" className="wmg-sub-summary" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
-        <span className={`wmg-sub-avatar tone-${tone}`}>{initial}</span>
+        <span
+          className={`wmg-sub-avatar ${brand ? "" : `tone-${tone}`}`}
+          style={brand ? { background: brand.bg, color: brand.text } : undefined}
+        >
+          {initial}
+        </span>
         <span className="wmg-sub-summary-info">
           <span className="wmg-sub-summary-name">{sub.name}</span>
           {sub.cancelled ? (
@@ -93,6 +134,12 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
 
 export const CATEGORY_COLORS = ["#8A7FC9", "#B5652F", "#97701A", "#5C6BA3", "#C97099", "#4A7A3A", "#B2504F", "#6C5FB0", "#C9708F", "#7972B5"];
 
+// Tone names (matching BarRow/motion.css's .tone-* classes) cycled through
+// for the bills bar breakdown — a smaller, named-tone palette rather than
+// the free-form hex CATEGORY_COLORS above, since BarRow's gradient fills
+// are pre-defined per tone rather than accepting an arbitrary colour.
+const CATEGORY_TONES = ["brand", "coral", "gold", "sage", "rust", "slate"];
+
 // Common UK household bills — used to nudge anyone entering their bills if
 // something obvious looks missing. Matched by loose substring against the
 // names of items already in their bill categories, so "Electricity & gas"
@@ -110,6 +157,32 @@ export const COMMON_BILLS = [
   { name: "Car insurance", match: ["car insurance"] },
   { name: "Life insurance", match: ["life insurance"] },
 ];
+
+// Groups a category NAME (not a fixed list — categories are freely named
+// by the person, or generated by AI categorisation from a bank pull) into
+// one of a small set of clear buckets, purely by loose substring match,
+// same pattern as COMMON_BILLS above. This is computed on the fly rather
+// than stored on the category itself, so it works retroactively on every
+// existing category without needing a data migration, and stays correct
+// automatically if someone renames a category later. "Everything else"
+// is the deliberate fallback for genuinely miscellaneous spending (food,
+// travel, entertainment, childcare, etc.) — grouping it under a clear
+// header too, rather than leaving it feeling like an unsorted leftover
+// pile, is part of the point.
+const CATEGORY_GROUPS = [
+  { name: "Housing", match: ["rent", "mortgage", "council tax", "ground rent", "service charge"] },
+  { name: "Utilities", match: ["electric", "gas", "water", "broadband", "internet", "wifi", "mobile", "phone", "tv licence", "tv license", "energy"] },
+  { name: "Insurance & Protection", match: ["insurance", "protection", "life cover", "critical illness", "warranty"] },
+];
+function categoryGroupName(name) {
+  const nameLower = (name || "").toLowerCase();
+  const match = CATEGORY_GROUPS.find((g) => g.match.some((m) => nameLower.includes(m)));
+  return match ? match.name : "Everything else";
+}
+// Fixed display order for the groups above — CATEGORY_GROUPS' own order
+// plus the fallback bucket last, rather than whatever order categories
+// happen to be inferred in.
+const CATEGORY_GROUP_ORDER = [...CATEGORY_GROUPS.map((g) => g.name), "Everything else"];
 
 /* Collapsible expense category card — badge/budget/progress always visible at
    a glance, but the individual line items (the real source of visual clutter
@@ -282,21 +355,42 @@ export function EditSpendingSheet({ profile, addCategory, removeCategory, update
           </Card>
         )}
 
-        {visibleCategories.map((cat) => {
-          const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
-          return (
-            <CategoryCard
-              key={cat.id}
-              cat={cat}
-              subtotal={subtotal}
-              onUpdateCategoryField={updateCategoryField}
-              onRemoveCategory={() => removeCategory(cat.id)}
-              onAddItem={() => addItem(cat.id)}
-              onRemoveItem={(itemId) => removeItem(cat.id, itemId)}
-              onUpdateItem={(itemId, field, value) => updateItem(cat.id, itemId, field, value)}
-            />
-          );
-        })}
+        {(() => {
+          // Group visibleCategories by CATEGORY_GROUP_ORDER, preserving
+          // each group's own category order, and skip any group that
+          // has nothing in it rather than showing an empty header.
+          const grouped = CATEGORY_GROUP_ORDER.map((groupName) => ({
+            groupName,
+            cats: visibleCategories.filter((c) => categoryGroupName(c.name) === groupName),
+          })).filter((g) => g.cats.length > 0);
+
+          return grouped.map(({ groupName, cats }) => {
+            const groupSubtotal = cats.reduce((s, c) => s + c.items.reduce((si, i) => si + Number(i.amount || 0), 0), 0);
+            return (
+              <div key={groupName} style={{ marginBottom: 4 }}>
+                <div className="wmg-eyebrow" style={{ display: "flex", justifyContent: "space-between", margin: "14px 0 6px" }}>
+                  <span>{groupName}</span>
+                  <span>{gbp(groupSubtotal)}/mo</span>
+                </div>
+                {cats.map((cat) => {
+                  const subtotal = cat.items.reduce((s, i) => s + Number(i.amount || 0), 0);
+                  return (
+                    <CategoryCard
+                      key={cat.id}
+                      cat={cat}
+                      subtotal={subtotal}
+                      onUpdateCategoryField={updateCategoryField}
+                      onRemoveCategory={() => removeCategory(cat.id)}
+                      onAddItem={() => addItem(cat.id)}
+                      onRemoveItem={(itemId) => removeItem(cat.id, itemId)}
+                      onUpdateItem={(itemId, field, value) => updateItem(cat.id, itemId, field, value)}
+                    />
+                  );
+                })}
+              </div>
+            );
+          });
+        })()}
         <button className="wmg-add-btn" onClick={() => addCategory()} style={{ marginBottom: 8 }}>
           + Add category
         </button>
@@ -497,8 +591,17 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
             {profile.incomes.length > 1 ? ` across ${profile.incomes.length} income sources` : ""}.
           </div>
           <div>
-            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>This month, total outgoings</div>
-            <div className="wmg-figure tone-paper">{gbp(totals.essential + totals.debtPayments + totals.lifestyle)}</div>
+            {/* Was a bare "total outgoings" figure — removed per feedback
+                that it wasn't adding much next to the income line above
+                it. This shows something genuinely different from
+                Overview's "Budget" tile instead: that tile deliberately
+                excludes lifestyle spending (fixed costs only), so this is
+                the one place that shows what's left after literally
+                everything, essentials + debt + lifestyle included. */}
+            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Leaves you with</div>
+            <div className="wmg-figure tone-paper">
+              {gbp(totals.income - totals.essential - totals.debtPayments - totals.lifestyle)}/mo
+            </div>
           </div>
         </div>
       </Card>
@@ -595,29 +698,23 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
             </>
           ) : (
             <Card style={{ marginBottom: 20 }}>
-              <div className="wmg-category-chart-row">
-                <div style={{ width: 140, height: 140, flexShrink: 0 }}>
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie data={billsChartData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={68} paddingAngle={2} strokeWidth={0}>
-                        {billsChartData.map((entry, i) => (
-                          <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CategoryTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="wmg-category-legend">
-                  {billsChartData.map((row, i) => (
-                    <div className="wmg-category-legend-item" key={row.name}>
-                      <span className="wmg-swatch" style={{ background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
-                      <span className="wmg-category-legend-name">{row.name}</span>
-                      <span className="wmg-category-legend-val">{gbp(row.value)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Bar breakdown instead of a pie + legend — easier to compare
+                  bill amounts at a glance than matching slice colours to a
+                  list, and it reuses the app's existing icon/label-left,
+                  value-right list rhythm instead of a chart-specific
+                  layout. Bars animate their width in on mount (see
+                  wmg-bar-row-fill in motion.css). Scaled against the
+                  largest single bill, not the total, so the biggest bar
+                  reads as ~full width rather than everything looking small
+                  next to a combined sum. */}
+              {(() => {
+                const maxBill = Math.max(1, ...billsChartData.map((r) => r.value));
+                return billsChartData.map((row, i) => (
+                  <Reveal key={row.name} delay={i * 45}>
+                    <BarRow label={row.name} value={row.value} max={maxBill} tone={CATEGORY_TONES[i % CATEGORY_TONES.length]} formatter={(v) => gbp(v)} />
+                  </Reveal>
+                ));
+              })()}
               <div className="wmg-subs-total">
                 <span>Total bills</span>
                 <span>{gbp(billsTotal, 2)}/month</span>
@@ -697,30 +794,27 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
             separately, so they're not counted here.
           </div>
           <Card>
-            <div className="wmg-category-chart-row">
-              <div style={{ width: 160, height: 160, flexShrink: 0 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie data={categoryChartData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={2} strokeWidth={0}>
-                      {categoryChartData.map((entry, i) => (
-                        <Cell key={entry.name} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CategoryTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="wmg-category-legend">
-                {categoryChartData.map((row, i) => (
-                  <div className="wmg-category-legend-item" key={row.name}>
-                    <span className="wmg-swatch" style={{ background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
-                    <span className="wmg-category-legend-name">{row.name}</span>
-                    <span className="wmg-category-legend-pct">{Math.round((row.value / categoryChartTotal) * 100)}%</span>
-                    <span className="wmg-category-legend-val">{gbp(row.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Same reasoning as the bills breakdown above — a bar per
+                category, sorted by size, showing both the amount and the
+                % of total spend it represents, is easier to actually read
+                than matching pie slice colours to a legend list. Shows
+                percentage alongside the amount specifically because a raw
+                £ figure alone doesn't convey "is this a lot" the way
+                "38% of your spending" does. */}
+            {(() => {
+              const maxCat = Math.max(1, ...categoryChartData.map((r) => r.value));
+              return categoryChartData.map((row, i) => (
+                <Reveal key={row.name} delay={i * 45}>
+                  <BarRow
+                    label={row.name}
+                    value={row.value}
+                    max={maxCat}
+                    tone={CATEGORY_TONES[i % CATEGORY_TONES.length]}
+                    formatter={(v) => `${gbp(v)} · ${Math.round((v / categoryChartTotal) * 100)}%`}
+                  />
+                </Reveal>
+              ));
+            })()}
           </Card>
 
           <Card style={{ marginBottom: 20 }}>
