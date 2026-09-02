@@ -191,7 +191,7 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
             </div>
             <button
               type="button"
-              className="wmg-onboard-skip"
+              className="wmg-debt-card-edit"
               style={{ marginTop: 10 }}
               onClick={() => setField(["mortgageDetailsConfirmed"])(false)}
             >
@@ -298,27 +298,28 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
             </div>
           )}
           <div className="wmg-two-col" style={{ marginTop: profile.mortgageDetailsConfirmed ? 0 : 4 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--paper-dim)" }}>
-              <input
-                type="checkbox"
-                checked={profile.mortgage.allowOverpayment}
-                onChange={(e) => setField(["mortgage", "allowOverpayment"])(e.target.checked)}
+            {/* Removed the "let surplus go toward the mortgage too" toggle
+                per Jack's request — it was a separate mechanism from house
+                price growth (which is already factored into the Cash Flow
+                Forecast automatically via homeValueGrowth, regardless of
+                this setting) and he found the toggle itself unnecessary
+                clutter. Surplus-to-mortgage is now always on by default
+                (profile.mortgage.allowOverpayment stays true in
+                defaultProfile) rather than user-controlled — this field
+                is still shown since it's real UK mortgage terminology used
+                by both this forecast and the separate Mortgage
+                Overpayment Calculator tab. */}
+            <Field
+              label="Penalty-free overpayment allowance (% of balance/year)"
+              hint="Most mortgages let you pay extra off the balance up to a limit each year — usually 10% — without being charged a fee. Check your mortgage documents or ask your lender for your actual limit."
+            >
+              <NumberInput
+                className="wmg-input"
+                step="1"
+                value={profile.mortgage.overpaymentCapPct}
+                onChange={setField(["mortgage", "overpaymentCapPct"])}
               />
-              Let the Cash Flow Forecast put spare surplus toward the mortgage too, not just loans and cards
-            </label>
-            {profile.mortgage.allowOverpayment && (
-              <Field
-                label="Penalty-free overpayment allowance (% of balance/year)"
-                hint="Most mortgages let you pay extra off the balance up to a limit each year — usually 10% — without being charged a fee. Check your mortgage documents or ask your lender for your actual limit."
-              >
-                <NumberInput
-                  className="wmg-input"
-                  step="1"
-                  value={profile.mortgage.overpaymentCapPct}
-                  onChange={setField(["mortgage", "overpaymentCapPct"])}
-                />
-              </Field>
-            )}
+            </Field>
             {profile.mortgage.balance > 0 && (
               <button
                 type="button"
