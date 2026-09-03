@@ -6,11 +6,44 @@ const LOCAL_KEY = "wealth-within-profile-v1";
 // cleared on sign-out so a second person signing in on the same browser tab
 // never accidentally reuses the previous person's household. See
 // household-sharing-design.md for the full schema this depends on.
+//
+// BUG FOUND: this cache was ONLY ever cleared on SIGNED_OUT — never when
+// household membership changes without a full sign-out (e.g. leaving/
+// removing a household link mid-session). That meant every place that
+// calls getHouseholdId() (SetupWizard's "connect" step, ImportTab's main
+// Connect-a-bank panel) kept resolving the OLD household id after a
+// removal, so a bank connection made afterward genuinely completed and
+// saved successfully server-side — just against the stale household, not
+// the real current one. Nothing showed as connected because the app was
+// then checking the correct (new) household for accounts that were
+// actually saved under the old one. clearHouseholdCache() below is the
+// fix — whatever code performs "remove household link" / "leave
+// household" must call it immediately after that action succeeds, so the
+// next getHouseholdId() call re-resolves fresh instead of returning the
+// stale value.
 let cachedHouseholdId = null;
+// Deduplicates concurrent calls to resolveHouseholdId() below. Without
+// this, two components mounting at nearly the same moment (e.g. ImportTab
+// and SetupWizard both checking on load) could each see cachedHouseholdId
+// as empty, each find no existing membership, and each independently call
+// create_household() — creating two (or more) separate households for
+// the same person instead of one. Every caller now shares this single
+// in-flight promise instead of racing their own lookups.
+let inFlightResolve = null;
 if (supabase) {
   supabase.auth.onAuthStateChange((event) => {
     if (event === "SIGNED_OUT") cachedHouseholdId = null;
   });
+}
+
+// Call this immediately after any action that changes which household
+// the signed-in user belongs to WITHOUT a full sign-out — leaving a
+// shared household, being removed from one, or anything else that
+// changes household_members for the current user mid-session. The next
+// getHouseholdId() call will then re-resolve from the database instead
+// of returning the old cached id.
+export function clearHouseholdCache() {
+  cachedHouseholdId = null;
 }
 
 /**
@@ -22,28 +55,47 @@ if (supabase) {
  */
 async function resolveHouseholdId() {
   if (cachedHouseholdId) return cachedHouseholdId;
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // A resolution is already running (from another component that called
+  // this a moment ago) — share its result instead of starting a second,
+  // competing one. This is the actual fix for the race: every concurrent
+  // caller awaits the exact same promise, so only one of them ever
+  // reaches the "no membership found, create one" branch below.
+  if (inFlightResolve) return inFlightResolve;
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("household_members")
-    .select("household_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-  if (membershipError) throw membershipError;
+  inFlightResolve = (async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
 
-  if (membership) {
-    cachedHouseholdId = membership.household_id;
-    return cachedHouseholdId;
-  }
+      const { data: membership, error: membershipError } = await supabase
+        .from("household_members")
+        .select("household_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      if (membershipError) throw membershipError;
 
-  const { data: newHouseholdId, error: createError } = await supabase.rpc("create_household");
-  if (createError) throw createError;
-  cachedHouseholdId = newHouseholdId;
-  return cachedHouseholdId;
+      if (membership) {
+        cachedHouseholdId = membership.household_id;
+        return cachedHouseholdId;
+      }
+
+      const { data: newHouseholdId, error: createError } = await supabase.rpc("create_household");
+      if (createError) throw createError;
+      cachedHouseholdId = newHouseholdId;
+      return cachedHouseholdId;
+    } finally {
+      // Whether it succeeded or threw, this specific resolution attempt
+      // is over — clear the slot so a genuinely new call later (e.g.
+      // after clearHouseholdCache()) can start its own fresh lookup
+      // rather than being stuck sharing a long-finished promise.
+      inFlightResolve = null;
+    }
+  })();
+
+  return inFlightResolve;
 }
 
 // Exposed so UI components that need the household id directly (e.g.

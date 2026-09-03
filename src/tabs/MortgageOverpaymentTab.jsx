@@ -17,7 +17,6 @@ export function MortgageOverpaymentTab({ profile, totals, setField, onNavigate }
   const balance = totals?.mortgageBalanceToday ?? profile.mortgage.balance;
   const rate = profile.mortgage.rate;
   const payment = profile.mortgage.payment;
-  const overpaymentOn = profile.mortgage.allowOverpayment;
   const capPct = profile.mortgage.overpaymentCapPct;
   // The usual UK penalty-free overpayment allowance is a percentage of
   // the outstanding balance per year — same figure Debts & Mortgage and
@@ -54,11 +53,17 @@ export function MortgageOverpaymentTab({ profile, totals, setField, onNavigate }
         <div className="wmg-section-title">Mortgage overpayment calculator</div>
         <Card>
           <p className="wmg-sub" style={{ marginBottom: 12 }}>
-            Add your mortgage details on Debts &amp; Mortgage first, and this calculator will be ready to show you
-            what overpaying could actually save.
+            Add your mortgage details on Mortgage first, and this calculator will be ready to show you what
+            overpaying could actually save.
           </p>
-          <button type="button" className="wmg-add-btn" onClick={() => onNavigate?.("debts", "mortgage")}>
-            Go to Debts &amp; Mortgage
+          {/* Was onNavigate?.("debts", "mortgage") — "debts" hasn't been a
+              real tab since Session 10 split Debts & Mortgage into
+              separate Loans/Mortgage tabs; that stale tab key landed on a
+              blank page (only the shared header/disclaimer render, since
+              nothing matches an unknown tab). Fixed to the tab's actual
+              current key. */}
+          <button type="button" className="wmg-add-btn" onClick={() => onNavigate?.("mortgage")}>
+            Go to Mortgage
           </button>
         </Card>
       </>
@@ -86,24 +91,16 @@ export function MortgageOverpaymentTab({ profile, totals, setField, onNavigate }
         </Card>
       </Reveal>
 
-      {!overpaymentOn && (
-        <Reveal delay={60}>
-          <Card style={{ borderColor: "var(--gold)" }}>
-            <div className="wmg-sub">
-              Overpayment is currently switched off in Debts &amp; Mortgage — the numbers below still show what's
-              possible, but you'll need to turn it on there before it actually affects your Cash Flow Forecast.
-            </div>
-            <button
-              type="button"
-              className="wmg-onboard-skip"
-              style={{ marginTop: 8 }}
-              onClick={() => onNavigate?.("debts", "mortgage")}
-            >
-              Go turn it on
-            </button>
-          </Card>
-        </Reveal>
-      )}
+      {/* Was a warning banner shown whenever profile.mortgage.allowOverpayment
+          was false, pointing at a "turn it on" toggle that no longer
+          exists — that checkbox was removed from Mortgage earlier this
+          session, and surplus-to-mortgage overpayment now always applies
+          automatically. A user whose profile still has the old flag
+          saved as false (from before the checkbox was removed) would
+          otherwise see this permanently, with a "Go turn it on" button
+          that also happened to navigate to a dead tab key. Removed
+          entirely rather than fixed, since there's nothing left to turn
+          on. */}
 
       <div className="wmg-section-title">One-off lump sum</div>
       <Reveal delay={100}>

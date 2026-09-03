@@ -115,6 +115,20 @@
 .wmg-bar-row-fill.tone-slate { background: linear-gradient(90deg, #8B95B6, #5C6BA3); }
 
 /* ---------- celebration burst ---------- */
+/* NAMED wmg-celebration-panel* — deliberately NOT wmg-celebration*.
+   App.jsx already defines its own unrelated .wmg-celebration class (an
+   older fixed-position toast pill, position:fixed/top:20px/
+   border-radius:999px, meant for a brief one-line message) that predates
+   this shared component. The two collided under the same class name:
+   this component's longer, multi-line messages inherited the toast's
+   position:fixed and pill border-radius, stretching a capsule shape
+   around a paragraph of text into the organic "blob" bug seen overlapping
+   page content on the Mortgage Overpayment calculator. App.jsx's own
+   rule is currently dead CSS (nothing renders className="wmg-celebration"
+   there anymore), but renaming this component's own classes — rather
+   than touching/deleting App.jsx's — is the safer fix, since it can't
+   collide with anything by construction regardless of what else may
+   define wmg-celebration* in future. */
 
 @keyframes wmg-confetti-pop {
   0% {
@@ -130,7 +144,7 @@
   }
 }
 
-.wmg-celebration {
+.wmg-celebration-panel {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -138,14 +152,14 @@
   text-align: center;
   padding: 28px 12px 10px;
 }
-.wmg-celebration-burst {
+.wmg-celebration-panel-burst {
   position: absolute;
   top: 34px;
   left: 50%;
   width: 0;
   height: 0;
 }
-.wmg-celebration-dot {
+.wmg-celebration-panel-dot {
   position: absolute;
   top: 0;
   left: 0;
@@ -154,16 +168,16 @@
   border-radius: 50%;
   animation: wmg-confetti-pop 900ms ease-out both;
 }
-.wmg-celebration-body {
+.wmg-celebration-panel-body {
   position: relative;
 }
-.wmg-celebration-title {
+.wmg-celebration-panel-title {
   font-size: 19px;
   font-weight: 800;
   color: var(--paper);
   margin-bottom: 4px;
 }
-.wmg-celebration-message {
+.wmg-celebration-panel-message {
   font-size: 13.5px;
   color: var(--paper-dim);
   max-width: 320px;
@@ -250,7 +264,7 @@
   .wmg-bar-row-fill {
     transition: none !important;
   }
-  .wmg-celebration-dot {
+  .wmg-celebration-panel-dot {
     animation: none !important;
     opacity: 0 !important;
   }

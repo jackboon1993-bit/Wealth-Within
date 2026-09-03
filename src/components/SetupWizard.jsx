@@ -269,12 +269,6 @@ export function SetupWizard({ onFinish }) {
   const [detailPreference, setDetailPreference] = useState(null); // "simple" | "detail-explained" | "all-numbers" | null
 
   const [income, setIncome] = useState(0);
-  const [spendingEstimate, setSpendingEstimate] = useState(0);
-  // Whether the optional spending-estimate field is expanded — see the
-  // "income" step above. Starts open automatically once bank prefill
-  // actually provides a value (handled by the `spendingEstimate > 0`
-  // check there), so this only matters for the fully-manual path.
-  const [spendingFieldOpen, setSpendingFieldOpen] = useState(false);
 
   const [hasMortgage, setHasMortgage] = useState(false);
   const [mortgage, setMortgage] = useState({ balance: 0, rate: 4.5, payment: 0, remainingTermYears: null });
@@ -354,19 +348,13 @@ export function SetupWizard({ onFinish }) {
       const spanMonths = Math.max(spanDays / 30, 1 / 30);
 
       let incomeTotal = 0;
-      let spendingTotal = 0;
       txs.forEach((t, i) => {
         const r = results[i];
         if (!r) return;
-        if (r.isIncome) {
-          if (t.amount > 0) incomeTotal += t.amount;
-          return;
-        }
-        if (r.category) spendingTotal += Math.abs(t.amount);
+        if (r.isIncome && t.amount > 0) incomeTotal += t.amount;
       });
 
       setIncome((prev) => (prev === 0 && incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : prev));
-      setSpendingEstimate((prev) => (prev === 0 && spendingTotal > 0 ? Math.round(spendingTotal / spanMonths) : prev));
       setBankPrefillStatus("done");
     } catch (e) {
       setBankPrefillStatus("error");
@@ -393,24 +381,6 @@ export function SetupWizard({ onFinish }) {
       ...p,
       recommendedMode: comfortLevel && detailPreference ? deriveRecommendedMode(comfortLevel, detailPreference) : p.recommendedMode,
       incomes: [{ id: nextId(), name: "Your income", amount: income }],
-      expenseCategories:
-        spendingEstimate > 0
-          ? [
-              {
-                id: nextId(),
-                name: "Getting started",
-                type: "essential",
-                items: [
-                  {
-                    id: nextId(),
-                    name: "Estimated spending (from setup)",
-                    amount: spendingEstimate,
-                    isOnboardingEstimate: true,
-                  },
-                ],
-              },
-            ]
-          : p.expenseCategories,
       mortgage: hasMortgage
         ? { ...p.mortgage, balance: mortgage.balance, rate: mortgage.rate, payment: mortgage.payment, remainingTermYears: mortgage.remainingTermYears, originalBalance: mortgage.balance, lastConfirmedAt: new Date().toISOString() }
         : { ...p.mortgage, balance: 0, payment: 0, remainingTermYears: null, originalBalance: 0, lastConfirmedAt: new Date().toISOString() },
@@ -589,7 +559,7 @@ export function SetupWizard({ onFinish }) {
           <div className="wmg-wizard-step">
             <h2 className="wmg-wizard-step-title">Income & spending</h2>
             <p className="wmg-wizard-step-sub">The money that actually lands in your bank account each month.</p>
-            {bankPrefillStatus === "done" && (income > 0 || spendingEstimate > 0) && (
+            {bankPrefillStatus === "done" && income > 0 && (
               <div className="wmg-sub" style={{ marginBottom: 10, color: "var(--sage)" }}>
                 Pre-filled from your connected bank — adjust anything that doesn't look right.
               </div>
@@ -600,31 +570,6 @@ export function SetupWizard({ onFinish }) {
             >
               <WizardNumberInput value={income} placeholder="e.g. 3200" onChange={setIncome} />
             </Field>
-            {/* When nothing came from a connected bank, forcing a single
-                blind-guess spending number felt pointless — it just gets
-                replaced by real categories on the Income tab anyway.
-                Collapsed behind an optional toggle instead of a mandatory
-                field, so it's there for anyone who wants a rough starting
-                point, without making everyone type a guess they'll
-                immediately redo properly. When it WAS bank-prefilled, it's
-                real data worth showing prominently, so it stays open. */}
-            {spendingEstimate > 0 || spendingFieldOpen ? (
-              <Field
-                label="Approximate monthly spending"
-                hint="Normal household and lifestyle costs — rent, bills, food, travel, subscriptions and so on. Don't include mortgage or debt repayments, those come next. An estimate is fine — you'll add the full breakdown on the Income tab later."
-              >
-                <WizardNumberInput value={spendingEstimate} placeholder="e.g. 1600" onChange={setSpendingEstimate} />
-              </Field>
-            ) : (
-              <button
-                type="button"
-                className="wmg-onboard-skip"
-                style={{ marginTop: 4 }}
-                onClick={() => setSpendingFieldOpen(true)}
-              >
-                + Add a rough spending estimate (optional — you'll set up real categories on Income later either way)
-              </button>
-            )}
           </div>
         )}
 

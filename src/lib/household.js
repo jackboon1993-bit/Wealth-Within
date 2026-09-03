@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { API_BASE } from "./apiBase";
+import { clearHouseholdCache } from "./storage";
 
 /**
  * Fetches the current household's name, member count, and whether the
@@ -91,6 +92,13 @@ export async function createInvite(householdId) {
 export async function joinHousehold(code) {
   const { data, error } = await supabase.rpc("join_household", { invite_code: code.trim() });
   if (error) throw error;
+  // BUG FIX: without this, getHouseholdId() elsewhere (BankConnectPanel,
+  // the setup wizard's connect step) would keep returning the PREVIOUS
+  // household id for the rest of this page load, since storage.js caches
+  // it for the session and only clears that cache on sign-out — not on
+  // joining/leaving a household mid-session. See leaveHousehold below for
+  // the same fix and the fuller root-cause writeup.
+  clearHouseholdCache();
   return data;
 }
 
@@ -109,4 +117,15 @@ export async function leaveHousehold(householdId) {
   } = await supabase.auth.getUser();
   const { error } = await supabase.from("household_members").delete().eq("household_id", householdId).eq("user_id", user.id);
   if (error) throw error;
+  // THE BUG: leaving a household changes which household this user
+  // belongs to, but storage.js's getHouseholdId() caches the resolved id
+  // for the whole page-load lifetime and previously only cleared that
+  // cache on a full sign-out. Without this call, BankConnectPanel (both
+  // in the setup wizard and the main Connect-a-bank screen) would keep
+  // resolving the OLD household id afterward — so a bank connection made
+  // right after leaving a household would genuinely complete and save
+  // correctly server-side, just against the wrong (stale) household,
+  // making it look like connecting "just didn't work" when it actually
+  // saved somewhere the app then never looked.
+  clearHouseholdCache();
 }

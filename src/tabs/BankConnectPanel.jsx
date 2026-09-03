@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Card, InfoTip } from "../components/ui";
+import React, { useEffect, useRef, useState } from "react";
+import { Card, InfoTip, Celebration } from "../components/ui";
 import { supabase } from "../lib/supabaseClient";
 import { connectBank } from "../lib/trueLayer";
 import { API_BASE } from "../lib/apiBase";
@@ -64,6 +64,16 @@ function CardDebtMatcher({ card, existingCards, onUseAsCardDebt }) {
 export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSavings, savingsBalance, onUseAsCardDebt, existingCards }) {
   const [accounts, setAccounts] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | connecting | loading | error
+  // A real "hit" moment — first bank connection succeeding — but only
+  // the first time it happens in this component's life, not on every
+  // ordinary re-check (mount, focus, reconnecting an already-connected
+  // bank). connectingRef flips true right before the OAuth flow opens;
+  // fetchAccounts only celebrates if that flag is set AND accounts is
+  // going from "nothing connected" to "something connected" — a
+  // reconnect of an already-connected bank never re-triggers this,
+  // since accounts was already non-null going in.
+  const connectingRef = useRef(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const fetchAccounts = async () => {
     setStatus("loading");
@@ -82,10 +92,23 @@ export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSaving
       }
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error);
-      setAccounts(data.accounts);
+      setAccounts((prev) => {
+        if (connectingRef.current && !prev && data.accounts?.length) {
+          setShowCelebration(true);
+          // Unlike the Forecast reveal screen or GoalsTab (which show
+          // Celebration on a screen the person naturally navigates away
+          // from), this panel stays on screen indefinitely once
+          // connected — so without a timer, "Bank connected!" would sit
+          // there forever instead of being a one-off moment.
+          setTimeout(() => setShowCelebration(false), 3500);
+        }
+        return data.accounts;
+      });
+      connectingRef.current = false;
       setStatus("idle");
       onAccountsChanged?.(data.accounts);
     } catch {
+      connectingRef.current = false;
       setStatus("error");
     }
   };
@@ -119,6 +142,7 @@ export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSaving
 
   const handleConnect = async () => {
     setStatus("connecting");
+    connectingRef.current = true;
     try {
       await connectBank(householdId);
       // The browser tab/sheet takes over from here; the focus listener
@@ -126,12 +150,16 @@ export function BankConnectPanel({ householdId, onAccountsChanged, onUseAsSaving
     } catch {
       // connectBank/Browser.open failed to even launch — don't leave the
       // button stuck saying "Opening…" for something that never opened.
+      connectingRef.current = false;
       setStatus("error");
     }
   };
 
   return (
     <Card>
+      {showCelebration && (
+        <Celebration title="Bank connected!" message="Your balances and spending will now pull in automatically." tone="sage" />
+      )}
       <div className="wmg-eyebrow" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
         Connect a bank
         <InfoTip text="Connect banks one at a time — each pull saves permanently. Add a payment date, rate, and monthly payment on Debts & Mortgage so balances keep updating correctly." />

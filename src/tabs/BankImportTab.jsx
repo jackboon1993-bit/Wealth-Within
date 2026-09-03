@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { parseTransactionsCSV, parseDebtsCSV } from "../lib/csv";
 import { gbp, totalIncome } from "../lib/finance";
 import { Card, NumberInput } from "../components/ui";
@@ -398,6 +398,24 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
   // right point on apply, and to show a different summary line.
   const [syncMeta, setSyncMeta] = useState(null);
 
+  // Top 10 most expensive transactions this calendar month — derived
+  // straight from parsedTx (already fetched by importFromBank before
+  // categorization even runs), no new backend endpoint needed. Only
+  // meaningful for a real bank pull (source === "bank") — parsedTx from
+  // a CSV import could span any date range the export happened to cover,
+  // not necessarily "this month", and Jack specifically asked for this
+  // once a bank is connected. Money out only (negative amount) — income
+  // and internal transfers aren't "expensive purchases". Recomputes
+  // automatically whenever parsedTx changes (a fresh pull, or none).
+  const topExpensiveThisMonth = useMemo(() => {
+    if (source !== "bank" || !parsedTx) return [];
+    const now = new Date();
+    const thisMonth = parsedTx.filter(
+      (t) => t.amount < 0 && t.date.getFullYear() === now.getFullYear() && t.date.getMonth() === now.getMonth()
+    );
+    return thisMonth.sort((a, b) => a.amount - b.amount).slice(0, 10);
+  }, [parsedTx, source]);
+
   // Auto-load a pending overnight sync straight into the review screen —
   // this is the whole point of it being "automatic": no fetch button to
   // press, just a review + apply. Only fires from a clean idle state, so
@@ -775,6 +793,25 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
               </div>
             )
           )}
+
+          {topExpensiveThisMonth.length > 0 && (
+            <Card style={{ marginBottom: 12 }}>
+              <div className="wmg-sub" style={{ marginBottom: 8, fontWeight: 700 }}>
+                Top {topExpensiveThisMonth.length} most expensive this month
+              </div>
+              {topExpensiveThisMonth.map((t, i) => (
+                <div key={i} className="wmg-detail-row">
+                  <span className="wmg-detail-row-label" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {t.description}
+                  </span>
+                  <span className="wmg-detail-row-value" style={{ flexShrink: 0, marginLeft: 8 }}>
+                    {gbp(Math.abs(t.amount))}
+                  </span>
+                </div>
+              ))}
+            </Card>
+          )}
+
           <Card className="wmg-income-confirm-card">
             <div className="wmg-sub" style={{ marginBottom: 8, fontWeight: 700 }}>
               Confirm your monthly income

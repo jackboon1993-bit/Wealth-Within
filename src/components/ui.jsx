@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useId } from "react";
-import { gbp, clamp, uid } from "../lib/finance";
+import { gbp, clamp } from "../lib/finance";
 import { MASCOT_MESSAGES } from "../lib/constants";
 
 export function Card({ children, className = "", style = {}, ...rest }) {
@@ -594,8 +594,8 @@ export function Celebration({ title, message, tone = "gold" }) {
   }[tone] || ["#FFCE6B", "#FFA400", "#FF9166"];
   const dots = Array.from({ length: 14 });
   return (
-    <div className="wmg-celebration">
-      <div className="wmg-celebration-burst" aria-hidden="true">
+    <div className="wmg-celebration-panel">
+      <div className="wmg-celebration-panel-burst" aria-hidden="true">
         {dots.map((_, i) => {
           const angle = (360 / dots.length) * i;
           const dist = 46 + (i % 3) * 10;
@@ -603,7 +603,7 @@ export function Celebration({ title, message, tone = "gold" }) {
           return (
             <span
               key={i}
-              className="wmg-celebration-dot"
+              className="wmg-celebration-panel-dot"
               style={{
                 background: color,
                 transform: `rotate(${angle}deg) translateY(-${dist}px)`,
@@ -613,9 +613,9 @@ export function Celebration({ title, message, tone = "gold" }) {
           );
         })}
       </div>
-      <div className="wmg-celebration-body">
-        <div className="wmg-celebration-title">{title}</div>
-        {message && <div className="wmg-celebration-message">{message}</div>}
+      <div className="wmg-celebration-panel-body">
+        <div className="wmg-celebration-panel-title">{title}</div>
+        {message && <div className="wmg-celebration-panel-message">{message}</div>}
       </div>
     </div>
   );

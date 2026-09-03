@@ -91,8 +91,57 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
   const [imageFailed, setImageFailed] = useState(false);
   const showLogo = logoUrl && !imageFailed;
 
+  // A small, quick acknowledgement when a subscription is actively
+  // cancelled — deliberately lighter than Celebration (confetti every
+  // time someone cancels a subscription would get old fast, since it's
+  // a routine action, not a milestone like a bank connecting or a debt
+  // clearing). Only fires on active -> cancelled, never on Restore, and
+  // clears itself — nothing to reset from a parent re-render.
+  const [showPulse, setShowPulse] = useState(false);
+  const [pulseIn, setPulseIn] = useState(false);
+  useEffect(() => {
+    if (!showPulse) return;
+    const t1 = setTimeout(() => setPulseIn(true), 10);
+    const t2 = setTimeout(() => setPulseIn(false), 900);
+    const t3 = setTimeout(() => setShowPulse(false), 1200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [showPulse]);
+  const handleToggleCancel = () => {
+    if (!sub.cancelled) setShowPulse(true);
+    onToggleCancel();
+  };
+
   return (
-    <div className={`wmg-sub-card ${sub.cancelled ? "cancelled" : ""}`}>
+    <div className={`wmg-sub-card ${sub.cancelled ? "cancelled" : ""}`} style={{ position: "relative" }}>
+      {showPulse && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            background: "rgba(99, 153, 34, 0.14)",
+            color: "var(--sage)",
+            fontSize: 11,
+            fontWeight: 500,
+            padding: "3px 8px",
+            borderRadius: 999,
+            opacity: pulseIn ? 1 : 0,
+            transform: pulseIn ? "translateY(0)" : "translateY(-6px)",
+            transition: "opacity 300ms ease, transform 300ms ease",
+            pointerEvents: "none",
+          }}
+        >
+          <i className="ti ti-check" style={{ fontSize: 12 }}></i> Cancelled
+        </span>
+      )}
       <button type="button" className="wmg-sub-summary" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
         {showLogo ? (
           <span className="wmg-sub-avatar" style={{ background: "#FFFFFF", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -150,7 +199,7 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
           <div className="wmg-sub-edit-actions">
             <button
               className={`wmg-toggle-btn ${sub.cancelled ? "is-cancelled" : ""}`}
-              onClick={onToggleCancel}
+              onClick={handleToggleCancel}
               title={sub.cancelled ? "Bring this back into your monthly total" : "Stops counting it in your total — doesn't cancel it with the actual provider, and you can bring it back anytime"}
             >
               {sub.cancelled ? "Restore" : "Mark cancelled"}
@@ -645,14 +694,13 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
         </div>
       </Card>
 
-      <div className="wmg-section-title">Income sources</div>
-      <Card style={{ marginBottom: 10 }}>
-        <div className="wmg-sub">
-          Add every regular source of income here — your salary, a partner's income, freelance work, benefits. We
-          add them together for the total above.
-        </div>
-      </Card>
-      <Card>
+      {/* Was a separate "Income sources" section title + its own
+          explainer card, directly under a section already titled
+          "Income" — read as the same concept said twice on a screen
+          people land on straight from Overview's "Budget" tile.
+          Same functional list (add/edit/remove income sources) as
+          before, just folded into one Income section rather than two. */}
+      <Card style={{ marginTop: 10 }}>
         {profile.incomes.map((inc) => (
           <IncomeSourceCard
             key={inc.id}

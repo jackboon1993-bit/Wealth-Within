@@ -44,6 +44,7 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [autocompleteSession, setAutocompleteSession] = useState(null);
   const [addressSearchStatus, setAddressSearchStatus] = useState("idle"); // idle | searching | error
+  const [addressSearchError, setAddressSearchError] = useState("");
   const [addressResolveStatus, setAddressResolveStatus] = useState("idle"); // idle | resolving | error
   const addressDebounceRef = useRef(null);
   useEffect(() => {
@@ -99,12 +100,31 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
         body: JSON.stringify({ query }),
       });
       const data = await resp.json();
+      if (resp.status === 402) {
+        // hasPremium was true client-side (this whole address-search UI
+        // is already gated behind it — see the render below) but the
+        // server disagreed. That's a real mismatch worth surfacing
+        // honestly rather than folding into the generic error message
+        // below, since "try again in a moment" isn't the right advice
+        // for this — signing out and back in, or checking Premium
+        // status on Account, actually might fix it.
+        setAddressSearchStatus("error");
+        setAddressSearchError("Your Premium status couldn't be confirmed just now — try signing out and back in, or check your subscription on the Account screen.");
+        return;
+      }
       if (!resp.ok) throw new Error(data.error || "Search failed.");
       setAddressSuggestions(data.addresses || []);
       setAutocompleteSession(data.session || null);
       setAddressSearchStatus("idle");
     } catch (e) {
+      // Previously always showed one hardcoded "Couldn't search addresses
+      // right now" message no matter what actually failed (missing
+      // CHIMNIE_API_KEY, a real Chimnie API error, a network issue) —
+      // that made a real misconfiguration indistinguishable from a
+      // one-off blip. Now shows the server's actual error text when
+      // there is one.
       setAddressSearchStatus("error");
+      setAddressSearchError(e.message || "Couldn't search addresses right now — try again in a moment.");
       setAddressSuggestions([]);
     }
   };
@@ -320,19 +340,40 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
                 onChange={setField(["mortgage", "overpaymentCapPct"])}
               />
             </Field>
-            {profile.mortgage.balance > 0 && (
-              <button
-                type="button"
-                className="wmg-onboard-skip"
-                style={{ marginTop: 10 }}
-                onClick={() => onNavigate?.("mortgage-overpayment")}
-              >
-                See what overpaying could actually save →
-              </button>
-            )}
           </div>
         </DisclosureSection>
       </Card>
+
+      {/* Was a single small text link buried inside the collapsed "See
+          more details" section above — easy to never see at all, for
+          something that can genuinely change someone's payoff date by
+          years. Pulled out into its own standalone, always-visible card
+          instead. No new calculation here — MortgageOverpaymentTab.jsx
+          does the real work; this is purely about making the door to it
+          impossible to miss. */}
+      {profile.mortgage.balance > 0 && (
+        <Card
+          style={{ borderColor: "var(--sage)", cursor: "pointer" }}
+          onClick={() => onNavigate?.("mortgage-overpayment")}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="wmg-showcase-icon tone-sage" style={{ width: 40, height: 40, flexShrink: 0 }} aria-hidden="true">
+              <StatIcon name="flag" />
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="wmg-detail-row-label" style={{ fontWeight: 500, fontSize: 15 }}>Could you be mortgage-free sooner?</div>
+              <div className="wmg-sub" style={{ marginTop: 2 }}>
+                See how a lump sum or a bit extra each month could cut years off your mortgage and save on interest.
+              </div>
+            </div>
+            <span aria-hidden="true" style={{ flexShrink: 0, color: "var(--sage)" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
+          </div>
+        </Card>
+      )}
 
       <div className="wmg-section-title">Home value</div>
       <Card>
@@ -431,7 +472,7 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
                   )}
                   {addressSearchStatus === "error" && (
                     <div className="wmg-sub" style={{ marginTop: 6, color: "var(--rust)" }}>
-                      Couldn't search addresses right now — try again in a moment.
+                      {addressSearchError || "Couldn't search addresses right now — try again in a moment."}
                     </div>
                   )}
                   {addressSuggestions.length > 0 && (

@@ -23,11 +23,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   // profile/prop state already tracked elsewhere in the app — nothing new
   // to maintain here if any of those five things' own logic changes.
   const setupChecklistItems = [
-    { id: "bank", label: "Connect a bank", done: hasConnectedBank, action: () => onNavigate?.("import") },
-    { id: "mortgage", label: "Confirm mortgage details", done: !!profile.mortgageDetailsConfirmed, action: () => onNavigate?.("mortgage") },
-    { id: "pension", label: "Confirm retirement assumptions", done: !!profile.pensionAssumptionsConfirmed, action: () => onNavigate?.("pension") },
-    { id: "lifeevent", label: "Add a life event", done: (profile.lifeEvents || []).length > 0, action: () => onNavigate?.("forecast") },
-    { id: "premium", label: "Go Premium", done: hasPremium, action: onUpgrade },
+    { id: "bank", label: "Connect a bank", done: hasConnectedBank, action: () => onNavigate?.("import"), icon: "wallet", tone: "brand" },
+    { id: "mortgage", label: "Confirm mortgage details", done: !!profile.mortgageDetailsConfirmed, action: () => onNavigate?.("mortgage"), icon: "home", tone: "slate" },
+    { id: "pension", label: "Confirm retirement assumptions", done: !!profile.pensionAssumptionsConfirmed, action: () => onNavigate?.("pension"), icon: "pension", tone: "rust" },
+    { id: "lifeevent", label: "Add a life event", done: (profile.lifeEvents || []).length > 0, action: () => onNavigate?.("forecast"), icon: "flag", tone: "gold" },
+    { id: "premium", label: "Go Premium", done: hasPremium, action: onUpgrade, icon: "sparkle", tone: "coral" },
   ];
   const incompleteSetupItems = setupChecklistItems.filter((i) => !i.done);
   const showSetupChecklist = setupChecklistReady && incompleteSetupItems.length > 0 && !profile.dismissedSetupChecklist;
@@ -108,9 +108,18 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       {showSetupChecklist && (
         <Reveal>
           <Card className="wmg-connect-bank-banner" style={{ flexDirection: "column", alignItems: "stretch" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <div className="wmg-connect-bank-banner-title">
-                Complete setup — {setupChecklistItems.length - incompleteSetupItems.length}/{setupChecklistItems.length}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <GrowthRing
+                  progress={(setupChecklistItems.length - incompleteSetupItems.length) / setupChecklistItems.length}
+                  size={32}
+                  tone="sage"
+                >
+                  <div style={{ fontSize: 10, fontWeight: 500 }}>
+                    {setupChecklistItems.length - incompleteSetupItems.length}/{setupChecklistItems.length}
+                  </div>
+                </GrowthRing>
+                <div className="wmg-connect-bank-banner-title">Complete setup</div>
               </div>
               <button
                 type="button"
@@ -122,15 +131,26 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               </button>
             </div>
             <div>
-              {incompleteSetupItems.map((item) => (
-                <button type="button" className="wmg-checklist-item" key={item.id} onClick={item.action}>
-                  <span>{item.label}</span>
-                  <span className="wmg-checklist-item-chevron" aria-hidden="true">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </span>
-                </button>
+              {incompleteSetupItems.map((item, i) => (
+                <Reveal key={item.id} delay={i * 60}>
+                  <button type="button" className="wmg-checklist-item" onClick={item.action}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <span
+                        className={`wmg-showcase-icon tone-${item.tone}`}
+                        style={{ width: 28, height: 28, flexShrink: 0 }}
+                        aria-hidden="true"
+                      >
+                        <StatIcon name={item.icon} />
+                      </span>
+                      <span>{item.label}</span>
+                    </span>
+                    <span className="wmg-checklist-item-chevron" aria-hidden="true">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </span>
+                  </button>
+                </Reveal>
               ))}
             </div>
           </Card>
