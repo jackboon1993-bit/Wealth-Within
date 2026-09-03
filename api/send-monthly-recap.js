@@ -73,27 +73,91 @@ function buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary }) {
     ? (() => {
         const diff = thisMonth.total - lastMonth.total;
         const diffLabel = diff === 0 ? "the same as" : diff > 0 ? `${gbp(Math.abs(diff))} more than` : `${gbp(Math.abs(diff))} less than`;
-        return `<p>You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)} — that's ${diffLabel} ${monthLabel(lastMonth.month)}.</p>`;
+        return `You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)} — that's ${diffLabel} ${monthLabel(lastMonth.month)}.`;
       })()
-    : `<p>You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)}.</p>`;
+    : `You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)}.`;
 
   const topCategories = (thisMonth.categories || [])
     .slice(0, 3)
-    .map((c) => `<li>${c.name}: ${gbp(c.value)}</li>`)
+    .map(
+      (c) => `
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #EDE9E0; font-size: 14px; color: #3D3A34;">${c.name}</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #EDE9E0; font-size: 14px; color: #3D3A34; text-align: right; font-weight: 600;">${gbp(c.value)}</td>
+        </tr>`
+    )
     .join("");
 
+  // Real Wealth Within brand values, not generic placeholders — pulled
+  // directly from App.jsx's own CSS variables (--brand, --brand-2,
+  // --paper, --ink, Plus Jakarta Sans) so this actually looks like it
+  // came from the app, not a generic template. Built as an HTML table
+  // layout deliberately, not flexbox/grid — email clients (Outlook,
+  // Gmail's HTML sanitiser especially) have notoriously poor CSS support,
+  // and table-based layout is still the most reliable way to get
+  // consistent rendering across inboxes.
   return `
-    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a3d;">
-      <h1 style="font-size: 20px;">Your monthly recap</h1>
-      <p>Net worth right now: <strong>${gbp(netWorth)}</strong></p>
-      ${spendingSection}
-      ${topCategories ? `<p>Biggest categories:</p><ul>${topCategories}</ul>` : ""}
-      ${subsSummary}
-      <p style="font-size: 12px; color: #666; margin-top: 24px;">
-        Figures come from what you've entered plus your connected bank if you've linked one via Open Banking.
-        Nothing here is financial advice. <a href="https://wealth-within.vercel.app">Open Wealth Within</a>
-      </p>
-    </div>
+  <!DOCTYPE html>
+  <html>
+  <body style="margin: 0; padding: 0; background: #F5F1E8; font-family: 'Plus Jakarta Sans', -apple-system, Helvetica, Arial, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #F5F1E8; padding: 32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width: 480px; background: #FFFDF9; border-radius: 20px; overflow: hidden;">
+
+            <tr>
+              <td style="background: linear-gradient(135deg, #8A7FC9, #C97099); padding: 32px 28px;">
+                <div style="font-size: 20px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.02em;">Wealth Within</div>
+                <div style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 4px;">Your monthly recap</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 28px;">
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A7FC9; margin-bottom: 6px;">Net worth right now</div>
+                <div style="font-size: 30px; font-weight: 800; color: #3D3A34; margin-bottom: 24px;">${gbp(netWorth)}</div>
+
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A7FC9; margin-bottom: 6px;">Spending</div>
+                <div style="font-size: 14px; color: #3D3A34; line-height: 1.6; margin-bottom: ${topCategories ? "16px" : "24px"};">${spendingSection}</div>
+
+                ${
+                  topCategories
+                    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">${topCategories}</table>`
+                    : ""
+                }
+
+                ${
+                  subsSummary
+                    ? `<div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A7FC9; margin-bottom: 6px;">Subscriptions</div>
+                       <div style="font-size: 14px; color: #3D3A34; line-height: 1.6; margin-bottom: 24px;">${subsSummary}</div>`
+                    : ""
+                }
+
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius: 999px; background: linear-gradient(135deg, #8A7FC9, #C97099);">
+                      <a href="https://wealth-within.vercel.app" style="display: inline-block; padding: 12px 26px; font-size: 13px; font-weight: 700; color: #FFFFFF; text-decoration: none;">Open Wealth Within</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 20px 28px; background: #F5F1E8; border-top: 1px solid #EDE9E0;">
+                <div style="font-size: 11px; color: #8A8377; line-height: 1.6;">
+                  Figures come from what you've entered plus your connected bank if you've linked one via Open
+                  Banking. Nothing here is financial advice.
+                </div>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
   `;
 }
 
@@ -105,7 +169,7 @@ function buildSubsSummaryHtml(subscriptions) {
   const flaggedNote = flagged.length
     ? ` — ${flagged.length} worth reconsidering (check the Subscriptions section for which ones).`
     : "";
-  return `<p>${active.length} active subscription${active.length === 1 ? "" : "s"}, ${gbp(total)}/month${flaggedNote}</p>`;
+  return `${active.length} active subscription${active.length === 1 ? "" : "s"}, ${gbp(total)}/month${flaggedNote}`;
 }
 
 async function sendRecapEmail(resendApiKey, toEmail, html) {
