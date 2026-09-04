@@ -180,12 +180,15 @@ async function sendRecapEmail(resendApiKey, toEmail, html) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      // TODO once a real domain is verified in Resend: replace with
-      // something like 'Wealth Within <recap@wealthwithin.app>'. Using
-      // Resend's own shared test address for now — works immediately,
-      // no DNS setup needed, but real customers see it come from
-      // resend.dev rather than a Wealth Within address.
-      from: "onboarding@resend.dev",
+      // wealth-within.co.uk verified in Resend 3 Sep 2026 — sending from
+      // the domain's real address now instead of the shared test one.
+      from: "Wealth Within <recap@wealth-within.co.uk>",
+      // "Enable Receiving" was deliberately left off during domain setup
+      // (so this couldn't interfere with the existing hello@ inbox) —
+      // that means recap@ itself can't receive replies. Routing any
+      // reply to the real, already-working hello@ address instead of a
+      // dead end.
+      reply_to: "hello@wealth-within.co.uk",
       to: toEmail,
       subject: "Your Wealth Within monthly recap",
       html,
