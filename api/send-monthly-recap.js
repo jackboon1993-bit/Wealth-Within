@@ -68,24 +68,114 @@ function computeNetWorthNow(data) {
   return homeEquity + savings + investments + pension - loansTotal - cardsTotal;
 }
 
-function buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary }) {
-  const spendingSection = lastMonth
-    ? (() => {
-        const diff = thisMonth.total - lastMonth.total;
-        const diffLabel = diff === 0 ? "the same as" : diff > 0 ? `${gbp(Math.abs(diff))} more than` : `${gbp(Math.abs(diff))} less than`;
-        return `You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)} — that's ${diffLabel} ${monthLabel(lastMonth.month)}.`;
-      })()
-    : `You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)}.`;
+// A small, deliberately modest set of everyday-price comparisons — only
+// applied when a category's own name (whatever the person called it,
+// not a fixed list this app defines) contains one of these keywords.
+// Never guesses at a comparison for a category with no obvious match
+// (e.g. "School fees", "Car insurance") — a wrong or tone-deaf comparison
+// would undermine trust far more than a missing one costs in fun. Always
+// phrased as "roughly" — these are illustrative, not the actual price
+// this specific person pays for anything.
+const FUN_COMPARISONS = [
+  { keywords: ["coffee"], unit: 3.5, label: "coffee" },
+  { keywords: ["takeaway", "eating out", "dining", "restaurant"], unit: 14, label: "meal out" },
+  { keywords: ["pint", "drinks", "bar", "pub"], unit: 5.5, label: "pint" },
+  { keywords: ["cinema", "streaming"], unit: 10, label: "cinema trip" },
+];
 
+function findFunComparison(categoryName, value) {
+  const nameLower = (categoryName || "").toLowerCase();
+  const match = FUN_COMPARISONS.find((c) => c.keywords.some((k) => nameLower.includes(k)));
+  if (!match) return null;
+  const count = Math.round(value / match.unit);
+  if (count < 2) return null; // "that's roughly 1 coffee" isn't a fun fact, it's just a fact
+  return `That's roughly ${count} ${match.label}s.`;
+}
+
+// The single most interesting thing that changed this month — biggest
+// percentage swing in either direction, matched by category name against
+// last month. Genuinely computed from real month-over-month data (not
+// invented), same source as the category list itself. Returns null if
+// there's nothing to compare against yet, or every category is brand new
+// this month (nothing to compare a % change against).
+function findBiggestMover(thisMonth, lastMonth) {
+  if (!lastMonth) return null;
+  const lastByName = new Map((lastMonth.categories || []).map((c) => [c.name, c.value]));
+  let biggest = null;
+  (thisMonth.categories || []).forEach((c) => {
+    const prev = lastByName.get(c.name);
+    if (!prev || prev <= 0) return; // no baseline to compare against
+    const pctChange = ((c.value - prev) / prev) * 100;
+    if (!biggest || Math.abs(pctChange) > Math.abs(biggest.pctChange)) {
+      biggest = { name: c.name, value: c.value, prev, pctChange, diff: c.value - prev };
+    }
+  });
+  // A swing under 15% isn't really a "headline" — not worth leading with
+  // something that could just be normal month-to-month noise.
+  if (!biggest || Math.abs(biggest.pctChange) < 15) return null;
+  return biggest;
+}
+
+function buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary, incomeTotal }) {
+  const diff = lastMonth ? thisMonth.total - lastMonth.total : null;
+  const pctOfIncome = incomeTotal > 0 ? Math.round((thisMonth.total / incomeTotal) * 100) : null;
+
+  const spendingSection =
+    lastMonth && diff !== 0
+      ? `You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)} — ${
+          diff > 0 ? `${gbp(Math.abs(diff))} more than` : `${gbp(Math.abs(diff))} less than`
+        } ${monthLabel(lastMonth.month)}${pctOfIncome != null ? `, about ${pctOfIncome}% of what came in` : ""}.`
+      : `You spent <strong>${gbp(thisMonth.total)}</strong> in ${monthLabel(thisMonth.month)}${
+          pctOfIncome != null ? ` — about ${pctOfIncome}% of what came in` : ""
+        }.`;
+
+  // The headline moment — the one thing this month that's actually worth
+  // leading with, rather than opening on a flat numbers table. Renders
+  // nothing if there's no real story yet (e.g. the first month with a
+  // comparison, or nothing moved by more than 15%).
+  const mover = findBiggestMover(thisMonth, lastMonth);
+  let headlineHtml = "";
+  if (mover) {
+    const up = mover.pctChange > 0;
+    // Deliberately not colouring "up" as bad/rust and "down" as good/sage
+    // — a category going up isn't automatically bad news (could be a
+    // one-off like a holiday), so this uses a neutral attention colour
+    // (gold) either way; the words carry the direction, not a colour
+    // judgement.
+    const funLine = findFunComparison(mover.name, up ? mover.diff : mover.value);
+    headlineHtml = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px; background: #FBF3E3; border-radius: 14px;">
+        <tr>
+          <td style="padding: 18px 20px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #97701A; margin-bottom: 6px;">This month's biggest mover</div>
+            <div style="font-size: 15px; color: #3D3A34; line-height: 1.5;">
+              <strong>${mover.name}</strong> was ${up ? "up" : "down"} <strong>${Math.round(Math.abs(mover.pctChange))}%</strong>
+              (${up ? "+" : "−"}${gbp(Math.abs(mover.diff))}) on last month.
+              ${funLine ? `<div style="margin-top: 4px; color: #8A8377; font-size: 13px;">${funLine}</div>` : ""}
+            </div>
+          </td>
+        </tr>
+      </table>`;
+  }
+
+  const totalForPct = thisMonth.total || 1; // guard against divide-by-zero
   const topCategories = (thisMonth.categories || [])
     .slice(0, 3)
-    .map(
-      (c) => `
+    .map((c) => {
+      const pct = Math.round((c.value / totalForPct) * 100);
+      const fun = findFunComparison(c.name, c.value);
+      return `
         <tr>
-          <td style="padding: 10px 0; border-bottom: 1px solid #EDE9E0; font-size: 14px; color: #3D3A34;">${c.name}</td>
-          <td style="padding: 10px 0; border-bottom: 1px solid #EDE9E0; font-size: 14px; color: #3D3A34; text-align: right; font-weight: 600;">${gbp(c.value)}</td>
-        </tr>`
-    )
+          <td style="padding: 10px 0; border-bottom: 1px solid #EDE9E0;">
+            <div style="font-size: 14px; color: #3D3A34;">${c.name}</div>
+            ${fun ? `<div style="font-size: 12px; color: #8A8377; margin-top: 2px;">${fun}</div>` : ""}
+          </td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #EDE9E0; text-align: right; white-space: nowrap;">
+            <div style="font-size: 14px; color: #3D3A34; font-weight: 600;">${gbp(c.value)}</div>
+            <div style="font-size: 11px; color: #8A8377; margin-top: 2px;">${pct}% of spending</div>
+          </td>
+        </tr>`;
+    })
     .join("");
 
   // Real Wealth Within brand values, not generic placeholders — pulled
@@ -108,16 +198,18 @@ function buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary }) {
             <tr>
               <td style="background: linear-gradient(135deg, #8A7FC9, #C97099); padding: 32px 28px;">
                 <div style="font-size: 20px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.02em;">Wealth Within</div>
-                <div style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 4px;">Your monthly recap</div>
+                <div style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 4px;">${monthLabel(thisMonth.month)} recap</div>
               </td>
             </tr>
 
             <tr>
               <td style="padding: 28px;">
+                ${headlineHtml}
+
                 <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A7FC9; margin-bottom: 6px;">Net worth right now</div>
                 <div style="font-size: 30px; font-weight: 800; color: #3D3A34; margin-bottom: 24px;">${gbp(netWorth)}</div>
 
-                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A7FC9; margin-bottom: 6px;">Spending</div>
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8A7FC9; margin-bottom: 6px;">Where it went</div>
                 <div style="font-size: 14px; color: #3D3A34; line-height: 1.6; margin-bottom: ${topCategories ? "16px" : "24px"};">${spendingSection}</div>
 
                 ${
@@ -136,7 +228,7 @@ function buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary }) {
                 <table role="presentation" cellpadding="0" cellspacing="0">
                   <tr>
                     <td style="border-radius: 999px; background: linear-gradient(135deg, #8A7FC9, #C97099);">
-                      <a href="https://wealth-within.vercel.app" style="display: inline-block; padding: 12px 26px; font-size: 13px; font-weight: 700; color: #FFFFFF; text-decoration: none;">Open Wealth Within</a>
+                      <a href="https://wealth-within.vercel.app" style="display: inline-block; padding: 12px 26px; font-size: 13px; font-weight: 700; color: #FFFFFF; text-decoration: none;">See the full breakdown</a>
                     </td>
                   </tr>
                 </table>
@@ -147,7 +239,8 @@ function buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary }) {
               <td style="padding: 20px 28px; background: #F5F1E8; border-top: 1px solid #EDE9E0;">
                 <div style="font-size: 11px; color: #8A8377; line-height: 1.6;">
                   Figures come from what you've entered plus your connected bank if you've linked one via Open
-                  Banking. Nothing here is financial advice.
+                  Banking. "Roughly X coffees"-style comparisons use typical everyday prices, not what you
+                  personally pay for anything. Nothing here is financial advice.
                 </div>
               </td>
             </tr>
@@ -271,8 +364,9 @@ export default async function handler(req, res) {
           const thisMonth = snapshots[snapshots.length - 1];
           const lastMonth = snapshots.length >= MIN_SNAPSHOTS_FOR_COMPARISON ? snapshots[snapshots.length - 2] : null;
           const netWorth = computeNetWorthNow(data);
+          const incomeTotal = (data.incomes || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
           const subsSummary = buildSubsSummaryHtml(data.subscriptions);
-          const html = buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary });
+          const html = buildRecapHtml({ netWorth, thisMonth, lastMonth, subsSummary, incomeTotal });
 
           const memberIds = membersByHousehold.get(householdId) || [];
           if (memberIds.length === 0) {
