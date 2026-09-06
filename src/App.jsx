@@ -23,7 +23,7 @@ import {
   runForecast,
 } from "./lib/finance";
 import { NAV, TAB_TITLES, FREE_BANK_PULL_COOLDOWN_DAYS } from "./lib/constants";
-import { useCountUp, NavIcon, BrandMark, Mascot, TabTip } from "./components/ui";
+import { useCountUp, NavIcon, BrandMark, TabTip } from "./components/ui";
 import { AccountPanel } from "./components/AccountPanel";
 import { SetupWizard } from "./components/SetupWizard";
 import { checkCategoryBudgets, requestNotificationPermission } from "./utils/notifications";
@@ -979,34 +979,52 @@ export default function App() {
   return (
     <div className="wmg-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .wmg-root {
-          --ink: #FBF7F0;
-          --ink-2: #FFFDF9;
-          --ink-3: #F5EEE0;
-          --paper: #3D3A34;
-          --paper-dim: #796D5C;
-          --brand: #8A7FC9;
-          --brand-2: #C97099;
-          --brand-deep: #6C5FB0;
-          --brand-soft: #EDEAFB;
-          --coral: #B5652F;
-          --coral-soft: #F7D9C4;
-          --gold: #97701A;
-          --gold-soft: #F5E6C8;
-          --sage: #4A7A3A;
-          --sage-soft: #D9E4D0;
-          --rust: #B2504F;
-          --rust-soft: #F5DEDE;
-          --slate: #5C6BA3;
-          --slate-soft: #DCE0F0;
-          --hair: #EDE4D3;
-          --gold-fill: #F0C878;
-          --sage-fill: #A8C99A;
-          --rust-fill: #E0A0A0;
-          --slate-fill: #AEB8DD;
-          --coral-text: #6B3D1F;
+          /* Re-themed from the original light cream + purple palette to
+             the dark indigo + gold direction Jack approved after
+             comparing several mockups (reads as "wealth tool" rather
+             than "wellness app", and creates room for a genuine accent
+             hierarchy instead of a flat pastel wash). Every value below
+             is a direct swap for its predecessor; nothing downstream
+             needed to change, since the whole app already referenced
+             these as CSS variables rather than hardcoded hex.
+             Old values, for reference if this ever needs reverting:
+             --ink:#FBF7F0 --ink-2:#FFFDF9 --ink-3:#F5EEE0 --paper:#3D3A34
+             --paper-dim:#796D5C --brand:#8A7FC9 --brand-2:#C97099
+             --brand-deep:#6C5FB0 --brand-soft:#EDEAFB --coral:#B5652F
+             --coral-soft:#F7D9C4 --gold:#97701A --gold-soft:#F5E6C8
+             --sage:#4A7A3A --sage-soft:#D9E4D0 --rust:#B2504F
+             --rust-soft:#F5DEDE --slate:#5C6BA3 --slate-soft:#DCE0F0
+             --hair:#EDE4D3 --gold-fill:#F0C878 --sage-fill:#A8C99A
+             --rust-fill:#E0A0A0 --slate-fill:#AEB8DD
+             --coral-text:#6B3D1F */
+          --ink: #1C1848;
+          --ink-2: #241F5C;
+          --ink-3: #2A2570;
+          --paper: #F7F4EA;
+          --paper-dim: #C7C2EA;
+          --brand: #D4A85A;
+          --brand-2: #9B93E0;
+          --brand-deep: #B0863E;
+          --brand-soft: #3A2E14;
+          --coral: #E88A63;
+          --coral-soft: #3A2418;
+          --gold: #E0B563;
+          --gold-soft: #3A2E10;
+          --sage: #8FC26B;
+          --sage-soft: #1F3216;
+          --rust: #E8837F;
+          --rust-soft: #3A1F1E;
+          --slate: #9AA6D9;
+          --slate-soft: #232849;
+          --hair: #383074;
+          --gold-fill: #E0B563;
+          --sage-fill: #8FC26B;
+          --rust-fill: #E8837F;
+          --slate-fill: #9AA6D9;
+          --coral-text: #F2B79A;
           background: var(--ink);
           color: var(--paper);
           font-family: 'Plus Jakarta Sans', sans-serif;
@@ -1016,7 +1034,7 @@ export default function App() {
         }
         .wmg-root * { box-sizing: border-box; }
         .wmg-mono { font-family: 'Plus Jakarta Sans', sans-serif; font-variant-numeric: tabular-nums; }
-        .wmg-serif { font-family: 'Fraunces', serif; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+        .wmg-serif { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 
         .wmg-app { display: flex; min-height: 100vh; align-items: flex-start; }
         @media (max-width: 880px) { .wmg-app { flex-direction: column; align-items: stretch; } }
@@ -1038,21 +1056,24 @@ export default function App() {
         .wmg-nav-icon-badge { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: var(--ink-3); color: var(--paper-dim); flex-shrink: 0; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
         .wmg-nav-item:hover { color: var(--paper); background: var(--ink-3); }
         .wmg-nav-item.active { color: var(--paper); background: transparent; font-weight: 700; }
-        .wmg-nav-item.active .wmg-nav-icon-badge { background: linear-gradient(135deg, #A78BFA, #7C4DFF); color: #FFFFFF; box-shadow: 0 6px 18px rgba(124,77,255,0.45); }
-        .wmg-nav-item.active:nth-of-type(2) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF9166, #FF6B4A); box-shadow: 0 6px 18px rgba(255,107,74,0.4); }
-        .wmg-nav-item.active:nth-of-type(3) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF7AB0, #FF3D81); box-shadow: 0 6px 18px rgba(255,61,129,0.4); }
-        .wmg-nav-item.active:nth-of-type(4) .wmg-nav-icon-badge { background: linear-gradient(135deg, #4FD1C5, #17A398); box-shadow: 0 6px 18px rgba(23,163,152,0.4); }
-        .wmg-nav-item.active:nth-of-type(5) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FFCE6B, #FFA400); box-shadow: 0 6px 18px rgba(255,164,0,0.4); }
-        .wmg-nav-item.active:nth-of-type(6) .wmg-nav-icon-badge { background: linear-gradient(135deg, #A78BFA, #7C4DFF); box-shadow: 0 6px 18px rgba(124,77,255,0.45); }
-        .wmg-nav-item.active:nth-of-type(7) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF9166, #FF6B4A); box-shadow: 0 6px 18px rgba(255,107,74,0.4); }
-        .wmg-nav-item.active:nth-of-type(8) .wmg-nav-icon-badge { background: linear-gradient(135deg, #FF7AB0, #FF3D81); box-shadow: 0 6px 18px rgba(255,61,129,0.4); }
+        /* Was a different hardcoded rainbow gradient per nav position
+           (purple/orange/pink/teal/gold, cycling by :nth-of-type) —
+           simplified to one consistent gold fill for whichever tab is
+           active. Every tab's icon now reads the same way: muted when
+           inactive, gold when active — the icon's own shape still
+           tells them apart, the colour no longer needs to. */
+        .wmg-nav-item.active .wmg-nav-icon-badge { background: var(--brand); color: var(--ink); box-shadow: 0 6px 18px rgba(212,168,90,0.35); }
         .wmg-nav-more { display: none; }
         @media (max-width: 880px) {
           .wmg-nav-item { flex-direction: column; gap: 3px; padding: 4px 2px; border-radius: 18px; min-width: 56px; flex: 1; white-space: normal; }
           .wmg-nav-item span:last-child { display: block; width: 100%; font-size: 9px; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; white-space: normal; overflow-wrap: break-word; }
           .wmg-nav-item.active { background: transparent; }
           .wmg-nav-icon-badge { width: 34px; height: 34px; }
-          .wmg-nav-item:first-child .wmg-nav-icon-badge { width: 50px; height: 50px; margin-top: -22px; border: 4px solid var(--ink-2); background: linear-gradient(135deg, #A78BFA, #7C4DFF); color: #FFFFFF; box-shadow: 0 8px 20px rgba(124,77,255,0.5); }
+          /* Same simplification — Overview's icon stays raised/bordered
+             (a deliberate "home tab" treatment, kept), but only turns
+             gold when actually active, not always regardless of state. */
+          .wmg-nav-item:first-child .wmg-nav-icon-badge { width: 50px; height: 50px; margin-top: -22px; border: 4px solid var(--ink-2); }
+          .wmg-nav-item:first-child.active .wmg-nav-icon-badge { background: var(--brand); color: var(--ink); box-shadow: 0 8px 20px rgba(212,168,90,0.4); }
           .wmg-nav-item-overflow { display: none; }
           .wmg-nav-more { display: flex; }
         }
@@ -1113,13 +1134,23 @@ export default function App() {
 
         .wmg-card { background: var(--ink-2); border: 1px solid rgba(30,36,48,0.06); border-radius: 23px; padding: 22px; box-shadow: 0 1px 2px rgba(15,15,45,0.02), 0 20px 40px -20px rgba(15,15,45,0.14); }
 
-        .wmg-hero { background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%); border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(60,30,140,0.5); margin-bottom: 16px; position: relative; }
+        .wmg-hero {
+          /* Was linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%)
+             with hardcoded white text — worked when --brand meant a dark
+             purple, but --brand now means gold, and white text on a
+             light-to-medium gold fill doesn't have enough contrast.
+             Switched to the dark ink tones instead, matching the
+             .wmg-mosaic-hero fix above.
+          */
+          background: linear-gradient(135deg, var(--ink-3) 0%, var(--ink-2) 100%);
+          border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,8,35,0.5); margin-bottom: 16px; position: relative;
+        }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
         .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
         .wmg-hero-label strong { font-weight: 800; }
         .wmg-hero-main-row { display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-hero-net-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
-        .wmg-hero-net-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: 27px; font-variant-numeric: tabular-nums; }
+        .wmg-hero-net-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 27px; font-variant-numeric: tabular-nums; }
         .wmg-hero-net-sub { font-size: 10.5px; opacity: 0.75; margin-top: 2px; }
         .wmg-hero-score-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 800; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,0.2); }
 
@@ -1138,16 +1169,48 @@ export default function App() {
         .wmg-hero-ring-score { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; color: var(--paper); line-height: 1; }
         .wmg-hero-ring-score-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); font-weight: 700; margin-top: 2px; }
 
-        .wmg-root { background-image: radial-gradient(circle at 8% 4%, var(--brand-soft) 0%, transparent 34%), radial-gradient(circle at 96% 22%, var(--coral-soft) 0%, transparent 28%), radial-gradient(circle at 50% 100%, var(--gold-soft) 0%, transparent 30%); background-attachment: fixed; background-repeat: no-repeat; }
+        /* Removed the decorative background-image wash that used to sit
+           here — three radial gradients using --brand-soft/--coral-soft/
+           --gold-soft at up to 34% radius. That worked as a gentle warm
+           glow when those "-soft" variables were light pastel tints on
+           a light page; now they're dark tints, so layering three of
+           them on an already-dark base just adds murky dark patches on
+           top of dark, rather than the light bloom effect they gave
+           originally. Jack's own comparison against a flat mockup using
+           the identical base colours confirmed this wash — not the
+           colours themselves — was what made the real page look
+           "too dark" next to a cleaner-looking flat version. Left as a
+           plain flat background (already set by the main .wmg-root
+           rule above), matching what actually looked clean.
+        */
 
-        .wmg-mosaic-hero { background: linear-gradient(150deg, #F7D9C4 0%, #F4D9E0 50%, #DCE0F0 100%); border-radius: 24px; padding: 18px; color: var(--paper); display: flex; flex-direction: column; justify-content: space-between; min-height: 110px; position: relative; overflow: hidden; margin-bottom: 14px; }
+        .wmg-mosaic-hero {
+          /* Was a fully hardcoded light pastel gradient (#F7D9C4 peach ->
+             #F4D9E0 pink -> #DCE0F0 lavender) that never used any theme
+             variable, so the variable swap above never touched it —
+             light text (var(--paper), now cream) was sitting on a light
+             pastel background the whole time. This is the actual
+             Overview hero OverviewTab.jsx renders. Switched to the dark
+             ink gradient, same family as the plain .wmg-hero fix below.
+          */
+          background: linear-gradient(150deg, var(--ink-3) 0%, var(--ink-2) 100%);
+          border-radius: 24px; padding: 18px; color: var(--paper); display: flex; flex-direction: column; justify-content: space-between; min-height: 110px; position: relative; overflow: hidden; margin-bottom: 14px;
+        }
         .wmg-mosaic-hero::after { content: ""; position: absolute; top: -50px; right: -50px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%); pointer-events: none; }
         .wmg-mosaic-hero-top { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-mosaic-hero-label { font-size: 12.5px; opacity: 0.8; }
-        .wmg-mosaic-hero-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: 27px; line-height: 1.1; position: relative; z-index: 1; font-variant-numeric: tabular-nums; }
+        .wmg-mosaic-hero-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 27px; line-height: 1.1; position: relative; z-index: 1; font-variant-numeric: tabular-nums; }
         .wmg-mosaic-hero-sub { font-size: 12.5px; opacity: 0.85; margin-top: 4px; position: relative; z-index: 1; }
-        .wmg-mosaic-hero-score { display: flex; align-items: center; gap: 6px; background: rgba(61,58,52,0.08); border: none; border-radius: 999px; padding: 4px 10px 4px 6px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 13px; color: var(--paper); }
-        .wmg-mosaic-hero-score:hover { background: rgba(61,58,52,0.14); }
+        .wmg-mosaic-hero-score {
+          /* Was rgba(61,58,52,0.08) — a near-black tint meant to darken
+             the old light pastel background above. On the new dark
+             background that same dark-on-dark tint is nearly invisible
+             — switched to a light tint instead, same pattern as
+             .wmg-hero-score-badge elsewhere in this file.
+          */
+          display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.14); border: none; border-radius: 999px; padding: 4px 10px 4px 6px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 13px; color: var(--paper);
+        }
+        .wmg-mosaic-hero-score:hover { background: rgba(255,255,255,0.22); }
         .wmg-score-explainer-card { margin-bottom: 10px; }
         .wmg-score-explainer-head { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 800; color: var(--paper); margin-bottom: 8px; }
         .wmg-score-explainer-close { background: transparent; border: none; color: var(--paper-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
@@ -1272,7 +1335,7 @@ export default function App() {
         .wmg-calc-item-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 800; color: var(--sage); }
 
         .wmg-ef-ring-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-        .wmg-ef-ring-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: 19px; color: var(--paper); line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .wmg-ef-ring-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 19px; color: var(--paper); line-height: 1.1; font-variant-numeric: tabular-nums; }
         .wmg-ef-ring-label { font-size: 11px; color: var(--paper-dim); margin-top: 2px; }
         .wmg-ef-ring-side { display: flex; flex-direction: column; gap: 2px; }
         .wmg-ef-ring-side-label { font-size: 12.5px; color: var(--paper-dim); font-weight: 600; }
@@ -1449,7 +1512,7 @@ export default function App() {
         .wmg-footnote { font-size: 11px; color: var(--paper-dim); margin-top: 40px; text-align: center; line-height: 1.6; }
         @media (max-width: 880px) { .wmg-footnote { margin-bottom: 80px; } }
 
-        .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 55%, #4FD1C5 100%); }
+        .wmg-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 100%); }
         .wmg-onboard-card { width: 100%; max-width: 360px; background: var(--ink-2); border-radius: 24px; padding: 34px 28px 28px; text-align: center; box-shadow: 0 24px 48px -20px rgba(60,30,140,0.5); }
         .wmg-onboard-icon { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(150deg, var(--brand), var(--brand-2)); color: #FFFFFF; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; box-shadow: 0 8px 20px -6px rgba(60,30,140,0.5); }
         .wmg-onboard-icon svg { width: 26px; height: 26px; }
@@ -1503,25 +1566,6 @@ export default function App() {
         input.wmg-pill-fill { text-align: left; }
         .wmg-item-line > .wmg-pill-fill:first-child, .wmg-item-line > input.wmg-pill-fill:first-child { flex: 1; min-width: 0; }
         .wmg-item-line > .wmg-pill-fill:nth-child(2), .wmg-item-line > input.wmg-pill-fill:nth-child(2) { width: 100px; flex-shrink: 0; }
-
-        .wmg-mascot-wrap { position: fixed; left: 18px; bottom: 18px; z-index: 30; }
-        @media (max-width: 880px) { .wmg-mascot-wrap { left: auto; right: 14px; bottom: calc(100px + env(safe-area-inset-bottom)); } }
-        .wmg-mascot-face { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, #A78BFA, #7C4DFF); border: none; box-shadow: 0 8px 20px -6px rgba(124,77,255,0.5); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; animation: wmgMascotBob 4.5s ease-in-out infinite; }
-        .wmg-mascot-face:hover { animation-play-state: paused; transform: scale(1.05); }
-        @keyframes wmgMascotBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-        @media (prefers-reduced-motion: reduce) { .wmg-mascot-face { animation: none; } }
-        .wmg-mascot-bubble { position: absolute; bottom: calc(100% + 12px); left: 0; width: 270px; background: var(--paper); color: var(--ink); border-radius: 18px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; box-shadow: 0 12px 28px rgba(10,8,35,0.35); }
-        .wmg-mascot-bubble::after { content: ""; position: absolute; top: 100%; left: 18px; border: 7px solid transparent; border-top-color: var(--paper); }
-        @media (max-width: 880px) {
-          .wmg-mascot-bubble { left: auto; right: 0; }
-          .wmg-mascot-bubble::after { left: auto; right: 18px; }
-        }
-        .wmg-mascot-bubble-close { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: var(--ink); opacity: 0.6; font-size: 16px; line-height: 1; cursor: pointer; padding: 2px; }
-        .wmg-mascot-bubble-close:hover { opacity: 1; }
-        .wmg-mascot-bubble p { margin: 0; padding-right: 10px; }
-        .wmg-mascot-coach-list { display: flex; flex-direction: column; gap: 8px; padding-right: 10px; }
-        .wmg-mascot-coach-tip { text-align: left; background: rgba(124,77,255,0.08); border: none; border-radius: 12px; padding: 9px 10px; font-size: 12px; line-height: 1.45; color: var(--ink); cursor: pointer; }
-        .wmg-mascot-coach-tip:hover { background: rgba(124,77,255,0.14); }
 
         .wmg-life-event-card { padding: 12px; background: var(--ink-3); border: 1px solid var(--hair); border-radius: 14px; margin-bottom: 10px; }
         .wmg-life-event-row-top { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
@@ -2147,7 +2191,13 @@ export default function App() {
             </div>
           </div>
         </div>
-        <Mascot tab={tab} coachTips={coachTips} inFinancialHardship={inFinancialHardship} onNavigate={setTab} />
+        {/* Mascot dropped per Jack's decision — a permanently-visible
+            floating character read as "friendly helper app" rather than
+            "serious wealth tool", and it was also the root cause of an
+            earlier CSS class collision bug that broke the overpayment
+            calculator. coachTips/inFinancialHardship above are still
+            used elsewhere (the guided-mode summary, the hardship
+            banner) so neither was removed, just this one render call. */}
       </div>
       )}
     </div>

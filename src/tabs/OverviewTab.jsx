@@ -57,18 +57,49 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     // here — they clustered with Debt/Home equity into four tiles all
     // orbiting the same two underlying facts, which read as cluttered.
     // Both dates are still fully visible on their own tabs, just not
-    // repeated here. Relabelled "Debt" -> "Loans & cards" and "Home
-    // equity" -> "Mortgage equity" so it's clear at a glance which tile
-    // is mortgage-related and which explicitly isn't. Loans & credit
-    // cards and Mortgage equity now each land on their own fully
-    // separate, single-purpose tab ("loans" / "mortgage") — see
-    // LoansAndCardsTab.jsx and MortgageTab.jsx. There's no combined
-    // "show everything" view any more; each tile is genuinely only
-    // about its own thing.
-    { label: "Mortgage equity", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "mortgage", icon: "home", gradient: true },
+    // repeated here. "Home equity" was briefly relabelled "Mortgage
+    // equity" for clarity while these two tiles' icons/tones were still
+    // being finalised, but with the home icon (this one) and debt icon
+    // (Loans & credit cards) now clearly distinct, and each tile going
+    // to a tab literally titled "Mortgage" / "Loans & Credit Cards", the
+    // extra word wasn't earning its place — reverted to just "Mortgage"
+    // so the tile name matches its destination tab exactly, same as
+    // every other tile here. Loans & credit cards and Mortgage now each
+    // land on their own fully separate, single-purpose tab ("loans" /
+    // "mortgage") — see LoansAndCardsTab.jsx and MortgageTab.jsx.
+    // There's no combined "show everything" view any more; each tile is
+    // genuinely only about its own thing.
+    { label: "Mortgage", value: gbp(Math.round(animatedHomeEquity)), tone: "slate", tab: "mortgage", icon: "home", gradient: true },
     { label: "Pension", value: gbp(Math.round(animatedPension)), tone: "rust", tab: "pension", icon: "pension", gradient: true },
     { label: "Investments", value: gbp(Math.round(animatedInvestments)), tone: "slate", tab: "investments", icon: "invest", gradient: true },
   ];
+
+  // The one thing genuinely worth leading with, instead of six equally-
+  // weighted tiles that never say what actually changed. Same logic as
+  // findBiggestMover() in api/send-monthly-recap.js — biggest % swing
+  // vs last month, matched by category name, using the same
+  // profile.spendingSnapshots data the monthly recap email already
+  // reads. Requires two real months of snapshot history and at least a
+  // 15% swing to bother surfacing — a smaller move is just normal
+  // month-to-month noise, not a headline.
+  const spendingSnapshots = profile.spendingSnapshots || [];
+  const thisMonthSnap = spendingSnapshots[spendingSnapshots.length - 1];
+  const lastMonthSnap = spendingSnapshots.length >= 2 ? spendingSnapshots[spendingSnapshots.length - 2] : null;
+  const biggestMover = (() => {
+    if (!thisMonthSnap || !lastMonthSnap) return null;
+    const lastByName = new Map((lastMonthSnap.categories || []).map((c) => [c.name, c.value]));
+    let biggest = null;
+    (thisMonthSnap.categories || []).forEach((c) => {
+      const prev = lastByName.get(c.name);
+      if (!prev || prev <= 0) return;
+      const pctChange = ((c.value - prev) / prev) * 100;
+      if (!biggest || Math.abs(pctChange) > Math.abs(biggest.pctChange)) {
+        biggest = { name: c.name, value: c.value, prev, pctChange, diff: c.value - prev };
+      }
+    });
+    if (!biggest || Math.abs(biggest.pctChange) < 15) return null;
+    return biggest;
+  })();
 
   return (
     <>
@@ -318,33 +349,94 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </>
       )}
 
-      <div className="wmg-stat-grid">
-        {heroStats.map((s, i) => (
-          <Reveal key={s.label} delay={i * 45}>
+      {/* Was a flat 2-column grid of six equally-weighted tiles — see
+          the conversation for the reasoning: it never told you
+          anything beyond "here are six numbers", and it's a very
+          common pattern (Monzo pots, Emma, etc.) rather than a
+          distinctive one. Restructured into three tiers instead: what
+          changed (biggestMover above, if there's a real one), the one
+          figure that actually matters most day-to-day (Budget, in its
+          own featured card), then everything else as a compact list —
+          still one tap away, just not shouting at the same volume as
+          the first two. */}
+      {biggestMover && (
+        <Reveal>
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 12,
+              background: "var(--brand-soft)", border: "0.5px solid var(--brand)",
+              borderRadius: 14, padding: "12px 14px", marginBottom: 14,
+            }}
+          >
+            <span className="wmg-showcase-icon tone-brand" style={{ width: 30, height: 30, flexShrink: 0 }} aria-hidden="true">
+              <StatIcon name="flag" />
+            </span>
+            <div style={{ fontSize: 12.5, color: "var(--paper)", lineHeight: 1.4 }}>
+              <strong>{biggestMover.name}</strong> is {biggestMover.pctChange > 0 ? "up" : "down"}{" "}
+              {Math.round(Math.abs(biggestMover.pctChange))}% since last month (
+              {biggestMover.pctChange > 0 ? "+" : "−"}
+              {gbp(Math.abs(biggestMover.diff))}).
+            </div>
+          </div>
+        </Reveal>
+      )}
+
+      <Reveal delay={20}>
+        <button
+          type="button"
+          className="wmg-stat-tile-clickable"
+          style={{
+            width: "100%", textAlign: "left", display: "block", cursor: "pointer",
+            // Was var(--ink-2) with a plain neutral border — identical
+            // to the compact list below it, so there was no actual step
+            // between "featured" and "everything else" beyond position
+            // on the page. Now sits on --ink-3 (a genuine step lighter
+            // than both the page and the list), with a real gold border
+            // and a stronger shadow tuned for a dark background — the
+            // original .wmg-card shadow uses near-black at ~2-14%
+            // opacity, calibrated for a light page where a dark shadow
+            // shows up; on a dark page that same shadow is nearly
+            // invisible, so this one needs its own, deliberately darker
+            // and more opaque.
+            background: "var(--ink-3)", border: "1px solid var(--brand)",
+            borderRadius: 16, padding: 16, marginBottom: 10,
+            boxShadow: "0 10px 26px -10px rgba(0,0,0,0.55)",
+          }}
+          onClick={() => onNavigate?.("income")}
+          aria-label={`Budget: ${heroStats[0].value}`}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontSize: 13, color: "var(--paper-dim)", fontWeight: 600 }}>Budget</span>
+            <span style={{ fontSize: 24, fontWeight: 700, color: "var(--paper)" }}>{heroStats[0].value}</span>
+          </div>
+        </button>
+      </Reveal>
+
+      <Reveal delay={40}>
+        <Card style={{ padding: "2px 16px", marginBottom: 16 }}>
+          {heroStats.slice(1).map((s, i) => (
             <button
+              key={s.label}
               type="button"
-              className={`wmg-stat-tile wmg-stat-tile-clickable ${s.gradient ? `wmg-stat-tile-gradient tone-${s.tone}` : ""}`}
-              style={{ width: "100%" }}
               onClick={() => onNavigate?.(s.tab)}
-              aria-label={
-                s.tab === "income"
-                  ? `${s.label}: ${s.value}`
-                  : `${s.label}: ${s.value}. Go to ${s.label}`
-              }
+              aria-label={`${s.label}: ${s.value}. Go to ${s.label}`}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                padding: "11px 0",
+                borderBottom: i === heroStats.length - 2 ? "none" : "0.5px solid var(--hair)",
+                background: "none", border: "none", borderTop: "none", borderLeft: "none", borderRight: "none",
+                textAlign: "left", cursor: "pointer",
+              }}
             >
-              {s.gradient ? (
-                <span className="wmg-stat-tile-icon-badge" aria-hidden="true">
-                  <StatIcon name={s.icon} />
-                </span>
-              ) : (
-                <span className={`wmg-stat-dot tone-${s.tone}`} aria-hidden="true" />
-              )}
-              <div className="wmg-stat-tile-label">{s.label}</div>
-              <div className="wmg-stat-tile-val">{s.value}</div>
+              <span className={`wmg-showcase-icon tone-${s.tone}`} style={{ width: 26, height: 26, flexShrink: 0 }} aria-hidden="true">
+                <StatIcon name={s.icon} />
+              </span>
+              <span style={{ flex: 1, fontSize: 13, color: "var(--paper)" }}>{s.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{s.value}</span>
             </button>
-          </Reveal>
-        ))}
-      </div>
+          ))}
+        </Card>
+      </Reveal>
 
       <div className="wmg-section-title">This month</div>
       <Card>

@@ -1,9 +1,17 @@
 export const NAV = [
   { key: "overview", label: "Overview", icon: "overview" },
-  { key: "pension", label: "Pension & Retirement", icon: "pension" },
+  // Was "pension" here, right after Overview — removed per Jack's
+  // request: Overview's own Pension stat tile already links straight to
+  // the same tab (tab: "pension"), making a dedicated bottom-nav icon
+  // for it redundant. Same pattern every other Overview-linked tab
+  // already follows (Loans, Mortgage, Savings, Investments never had
+  // their own nav icon either) — Pension is just catching up to that,
+  // not becoming a special case. mortgage-overpayment moved up into
+  // this now-vacant primary slot (previously buried in the "More"
+  // overflow, position 5 of 6) — see the comment on it below.
+  { key: "mortgage-overpayment", label: "Overpayment Calculator", icon: "mortgage" },
   { key: "pension-reader", label: "AI Document Reader", icon: "reader" },
   { key: "forecast", label: "Cash Flow Forecast", icon: "forecast" },
-  { key: "mortgage-overpayment", label: "Overpayment Calculator", icon: "mortgage" },
   { key: "education", label: "Education", icon: "education" },
 ];
 
@@ -25,6 +33,14 @@ export const TAB_TITLES = {
   savings: "Savings",
   investments: "Investments",
   import: "Connect a Bank",
+  // Added when "pension" left NAV above — it's still a real, fully
+  // reachable tab (via Overview's Pension stat tile), just no longer a
+  // bottom-nav icon. Without this, TAB_TITLES[tab] would have no match
+  // for "pension" and the title bar would render blank the moment
+  // someone got there — the same "blank tab" bug class from Session 10's
+  // OverviewTab.jsx deployment mistake, this time caught before shipping
+  // rather than after.
+  pension: "Pension",
 };
 
 
