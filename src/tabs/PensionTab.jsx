@@ -275,11 +275,11 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
       </Card>
 
       <div className="wmg-section-title">State Pension</div>
-      <div className="wmg-section-desc">
+      <WhyItMatters>
         The full new State Pension is a standard, published rate — the same for everyone with a full National
         Insurance record. It's not something you enter, but gaps in your NI record can reduce it, so check your own
         forecast at gov.uk/check-state-pension if you're not sure.
-      </div>
+      </WhyItMatters>
       <Card>
         <div className="wmg-three-col">
           <div>
@@ -306,12 +306,14 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
       </Card>
 
       <div className="wmg-section-title">Rough annuity estimate</div>
-      <div className="wmg-section-desc">
+      <WhyItMatters>
         A very rough illustration of what your projected pot could buy as an annuity — a guaranteed income for life
         in exchange for the pot. Real annuity rates depend on your exact age, health, and the type of annuity, and
         change with market conditions, so treat this as a ballpark, not a quote. Worth getting real quotes from a
-        broker as you get closer to retirement — this can't replace that.
-      </div>
+        broker as you get closer to retirement — this can't replace that. Annuity rates are generally higher the
+        older you are when you buy one, since payments are expected to run for fewer years — this figure moves with
+        the retirement age set above.
+      </WhyItMatters>
       <Card>
         {(() => {
           const annuityRate = annuityRateForAge(profile.pensionSettings.retirementAge);
@@ -334,9 +336,7 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
                 </div>
               </div>
               <div className="wmg-sub" style={{ marginTop: 10 }}>
-                Based on your projected pot of {gbpApprox(potAtRetirement)} at a medium growth assumption. Annuity
-                rates are generally higher the older you are when you buy one, since payments are expected to run for
-                fewer years — this figure moves with the retirement age set above.
+                Based on your projected pot of {gbpApprox(potAtRetirement)} at a medium growth assumption.
               </div>
             </>
           );
@@ -347,7 +347,7 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
         Projected pot at retirement
         <span className="wmg-tag assumed">Assumed</span>
       </div>
-      <div className="wmg-section-desc">
+      <WhyItMatters>
         Same contributions, three growth assumptions — because nobody can promise you a return.
         {pots.length > 1 ? " Each pot grows under its own low/medium/high rates from the cards above; the figures below are all your pots combined." : ""}{" "}
         Figures are rounded, since a number built on a growth-rate guess shouldn't be shown down to the exact pound.
@@ -355,7 +355,7 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
         (set on the Cash Flow Forecast tab). Monthly income assumes a 25% tax-free lump sum on drawdown and estimates
         UK income tax on the rest, using today's tax bands — it's a floor, not a forecast, and ignores any other
         income you might have.
-      </div>
+      </WhyItMatters>
       <div className="wmg-pension-cards">
         {[
           { key: "low", label: "Low growth", rate: pots.length === 1 ? pots[0].growthLow : null, tone: "rust" },

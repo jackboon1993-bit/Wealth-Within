@@ -200,10 +200,12 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
               <span className="wmg-detail-row-value tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</span>
             </div>
             {profile.mortgage.remainingTermYears != null && (
-              <div className="wmg-sub" style={{ marginTop: 2 }}>
-                {profile.mortgage.remainingTermYears} year{profile.mortgage.remainingTermYears === 1 ? "" : "s"} left on your actual mortgage term
-                {isFinite(mortgageMonths) ? ` — the figure above is our calculation of when you'll actually finish paying at your current rate and payment, which can land earlier or later than your contracted term.` : ""}
-              </div>
+              <WhyItMatters>
+                <div className="wmg-sub">
+                  {profile.mortgage.remainingTermYears} year{profile.mortgage.remainingTermYears === 1 ? "" : "s"} left on your actual mortgage term
+                  {isFinite(mortgageMonths) ? ` — the figure above is our calculation of when you'll actually finish paying at your current rate and payment, which can land earlier or later than your contracted term.` : ""}
+                </div>
+              </WhyItMatters>
             )}
             <div className="wmg-sub" style={{ marginTop: 8 }}>
               {mortgageChanged ? `Estimated today: ${gbp(totals?.mortgageBalanceToday ?? profile.mortgage.balance)} — ` : ""}

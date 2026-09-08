@@ -387,20 +387,17 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           className="wmg-stat-tile-clickable"
           style={{
             width: "100%", textAlign: "left", display: "block", cursor: "pointer",
-            // Was var(--ink-2) with a plain neutral border — identical
-            // to the compact list below it, so there was no actual step
-            // between "featured" and "everything else" beyond position
-            // on the page. Now sits on --ink-3 (a genuine step lighter
-            // than both the page and the list), with a real gold border
-            // and a stronger shadow tuned for a dark background — the
-            // original .wmg-card shadow uses near-black at ~2-14%
-            // opacity, calibrated for a light page where a dark shadow
-            // shows up; on a dark page that same shadow is nearly
-            // invisible, so this one needs its own, deliberately darker
-            // and more opaque.
+            // --ink-3 is a light violet tint again now the theme's back
+            // to bright/light, and --brand a vibrant violet border — so
+            // this reads as a genuinely colourful "featured" card rather
+            // than a differently-dark one. Shadow softened right back
+            // down for a light background — the 0.55-opacity near-black
+            // version was tuned specifically for standing out on a dark
+            // page and would look far too heavy here; a light page needs
+            // a much softer lift, closer to .wmg-card's own shadow.
             background: "var(--ink-3)", border: "1px solid var(--brand)",
             borderRadius: 16, padding: 16, marginBottom: 10,
-            boxShadow: "0 10px 26px -10px rgba(0,0,0,0.55)",
+            boxShadow: "0 10px 24px -14px rgba(139,92,246,0.35)",
           }}
           onClick={() => onNavigate?.("income")}
           aria-label={`Budget: ${heroStats[0].value}`}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Card, AccordionItem } from "../components/ui";
+import { Card, AccordionItem, WhyItMatters } from "../components/ui";
 import { API_BASE } from "../lib/apiBase";
 import { supabase } from "../lib/supabaseClient";
 import { gbp } from "../lib/finance";
@@ -200,11 +200,11 @@ export function EducationTab({ profile, totals, pensionYearsToRetire, inFinancia
   return (
     <>
       <div className="wmg-section-title">Education</div>
-      <div className="wmg-section-desc">
+      <WhyItMatters>
         General information to help you understand your options — not personalised financial advice, and it doesn't
         know your circumstances the way a regulated adviser or MoneyHelper would. Rules, rates, and allowances change
         most years; treat specific figures below as a guide and check gov.uk or MoneyHelper for current numbers.
-      </div>
+      </WhyItMatters>
 
       {relevantTopics.length > 0 && (
         <>

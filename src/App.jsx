@@ -982,49 +982,60 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .wmg-root {
-          /* Re-themed from the original light cream + purple palette to
-             the dark indigo + gold direction Jack approved after
-             comparing several mockups (reads as "wealth tool" rather
-             than "wellness app", and creates room for a genuine accent
-             hierarchy instead of a flat pastel wash). Every value below
-             is a direct swap for its predecessor; nothing downstream
-             needed to change, since the whole app already referenced
-             these as CSS variables rather than hardcoded hex.
-             Old values, for reference if this ever needs reverting:
-             --ink:#FBF7F0 --ink-2:#FFFDF9 --ink-3:#F5EEE0 --paper:#3D3A34
-             --paper-dim:#796D5C --brand:#8A7FC9 --brand-2:#C97099
-             --brand-deep:#6C5FB0 --brand-soft:#EDEAFB --coral:#B5652F
-             --coral-soft:#F7D9C4 --gold:#97701A --gold-soft:#F5E6C8
-             --sage:#4A7A3A --sage-soft:#D9E4D0 --rust:#B2504F
-             --rust-soft:#F5DEDE --slate:#5C6BA3 --slate-soft:#DCE0F0
-             --hair:#EDE4D3 --gold-fill:#F0C878 --sage-fill:#A8C99A
-             --rust-fill:#E0A0A0 --slate-fill:#AEB8DD
+          /* Second re-theme of the night — Jack tried the dark indigo +
+             gold direction on the real device and decided he actually
+             wants bright and colourful instead. Keeping the same hue
+             families as the very original palette (violet/pink brand,
+             coral, gold, sage, rust, slate) so it's recognisable, not a
+             third unrelated direction — but pushed to genuinely vibrant/
+             saturated rather than the original's softer, dustier
+             pastels, since "bright and colourful" was the explicit ask,
+             not just "the old one back." Light page again: --ink/--ink-2/
+             --ink-3 are white/near-white, --paper is dark text.
+             Previous (dark indigo + gold) values, for reference:
+             --ink:#1C1848 --ink-2:#241F5C --ink-3:#2A2570 --paper:#F7F4EA
+             --paper-dim:#C7C2EA --brand:#D4A85A --brand-2:#9B93E0
+             --brand-deep:#B0863E --brand-soft:#3A2E14 --coral:#E88A63
+             --coral-soft:#3A2418 --gold:#E0B563 --gold-soft:#3A2E10
+             --sage:#8FC26B --sage-soft:#1F3216 --rust:#E8837F
+             --rust-soft:#3A1F1E --slate:#9AA6D9 --slate-soft:#232849
+             --hair:#383074 --gold-fill:#E0B563 --sage-fill:#8FC26B
+             --rust-fill:#E8837F --slate-fill:#9AA6D9 --coral-text:#F2B79A
+             Original (light pastel, before any re-theme) values, also
+             for reference: --ink:#FBF7F0 --ink-2:#FFFDF9 --ink-3:#F5EEE0
+             --paper:#3D3A34 --paper-dim:#796D5C --brand:#8A7FC9
+             --brand-2:#C97099 --brand-deep:#6C5FB0 --brand-soft:#EDEAFB
+             --coral:#B5652F --coral-soft:#F7D9C4 --gold:#97701A
+             --gold-soft:#F5E6C8 --sage:#4A7A3A --sage-soft:#D9E4D0
+             --rust:#B2504F --rust-soft:#F5DEDE --slate:#5C6BA3
+             --slate-soft:#DCE0F0 --hair:#EDE4D3 --gold-fill:#F0C878
+             --sage-fill:#A8C99A --rust-fill:#E0A0A0 --slate-fill:#AEB8DD
              --coral-text:#6B3D1F */
-          --ink: #1C1848;
-          --ink-2: #241F5C;
-          --ink-3: #2A2570;
-          --paper: #F7F4EA;
-          --paper-dim: #C7C2EA;
-          --brand: #D4A85A;
-          --brand-2: #9B93E0;
-          --brand-deep: #B0863E;
-          --brand-soft: #3A2E14;
-          --coral: #E88A63;
-          --coral-soft: #3A2418;
-          --gold: #E0B563;
-          --gold-soft: #3A2E10;
-          --sage: #8FC26B;
-          --sage-soft: #1F3216;
-          --rust: #E8837F;
-          --rust-soft: #3A1F1E;
-          --slate: #9AA6D9;
-          --slate-soft: #232849;
-          --hair: #383074;
-          --gold-fill: #E0B563;
-          --sage-fill: #8FC26B;
-          --rust-fill: #E8837F;
-          --slate-fill: #9AA6D9;
-          --coral-text: #F2B79A;
+          --ink: #FFFBF5;
+          --ink-2: #FFFFFF;
+          --ink-3: #F7F2FF;
+          --paper: #211A38;
+          --paper-dim: #6E6489;
+          --brand: #8B5CF6;
+          --brand-2: #EC4899;
+          --brand-deep: #6D28D9;
+          --brand-soft: #F3E8FF;
+          --coral: #FB6F5C;
+          --coral-soft: #FFE4DC;
+          --gold: #F5A623;
+          --gold-soft: #FFF3D6;
+          --sage: #22C55E;
+          --sage-soft: #D9F7E4;
+          --rust: #F4436C;
+          --rust-soft: #FFE1E8;
+          --slate: #4E7FF0;
+          --slate-soft: #E1EAFF;
+          --hair: #ECE6F7;
+          --gold-fill: #F5A623;
+          --sage-fill: #22C55E;
+          --rust-fill: #F4436C;
+          --slate-fill: #4E7FF0;
+          --coral-text: #B23A28;
           background: var(--ink);
           color: var(--paper);
           font-family: 'Plus Jakarta Sans', sans-serif;
@@ -1135,15 +1146,14 @@ export default function App() {
         .wmg-card { background: var(--ink-2); border: 1px solid rgba(30,36,48,0.06); border-radius: 23px; padding: 22px; box-shadow: 0 1px 2px rgba(15,15,45,0.02), 0 20px 40px -20px rgba(15,15,45,0.14); }
 
         .wmg-hero {
-          /* Was linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%)
-             with hardcoded white text — worked when --brand meant a dark
-             purple, but --brand now means gold, and white text on a
-             light-to-medium gold fill doesn't have enough contrast.
-             Switched to the dark ink tones instead, matching the
-             .wmg-mosaic-hero fix above.
+          /* Back to a genuinely colourful gradient fill now that --brand
+             means vibrant violet again, not pale gold — violet is dark/
+             saturated enough for white text to read easily, so this can
+             go back to the original brand-deep -> brand pattern rather
+             than the flat ink tones used during the dark-theme detour.
           */
-          background: linear-gradient(135deg, var(--ink-3) 0%, var(--ink-2) 100%);
-          border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(10,8,35,0.5); margin-bottom: 16px; position: relative;
+          background: linear-gradient(135deg, var(--brand-deep) 0%, var(--brand) 100%);
+          border-radius: 26px; padding: 22px 24px; color: #FFFFFF; box-shadow: 0 16px 36px -16px rgba(109,40,217,0.4); margin-bottom: 16px; position: relative;
         }
         .wmg-hero::after { content: ""; position: absolute; top: -60px; right: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%); pointer-events: none; }
         .wmg-hero-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; line-height: 1.5; position: relative; z-index: 1; margin-bottom: 16px; }
@@ -1169,48 +1179,40 @@ export default function App() {
         .wmg-hero-ring-score { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; color: var(--paper); line-height: 1; }
         .wmg-hero-ring-score-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); font-weight: 700; margin-top: 2px; }
 
-        /* Removed the decorative background-image wash that used to sit
-           here — three radial gradients using --brand-soft/--coral-soft/
-           --gold-soft at up to 34% radius. That worked as a gentle warm
-           glow when those "-soft" variables were light pastel tints on
-           a light page; now they're dark tints, so layering three of
-           them on an already-dark base just adds murky dark patches on
-           top of dark, rather than the light bloom effect they gave
-           originally. Jack's own comparison against a flat mockup using
-           the identical base colours confirmed this wash — not the
-           colours themselves — was what made the real page look
-           "too dark" next to a cleaner-looking flat version. Left as a
-           plain flat background (already set by the main .wmg-root
-           rule above), matching what actually looked clean.
-        */
+        /* Brought back — this wash was removed during the dark-theme
+           detour because dark "-soft" tints stacked on an already-dark
+           page just added murky patches. Now that the page and the
+           "-soft" tints are both light again, this genuinely does what
+           it was designed for: soft, colourful blooms behind the
+           content, reinforcing "bright and colourful" rather than
+           fighting it. */
+        .wmg-root { background-image: radial-gradient(circle at 8% 4%, var(--brand-soft) 0%, transparent 34%), radial-gradient(circle at 96% 22%, var(--coral-soft) 0%, transparent 28%), radial-gradient(circle at 50% 100%, var(--gold-soft) 0%, transparent 30%); background-attachment: fixed; background-repeat: no-repeat; }
 
         .wmg-mosaic-hero {
-          /* Was a fully hardcoded light pastel gradient (#F7D9C4 peach ->
-             #F4D9E0 pink -> #DCE0F0 lavender) that never used any theme
-             variable, so the variable swap above never touched it —
-             light text (var(--paper), now cream) was sitting on a light
-             pastel background the whole time. This is the actual
-             Overview hero OverviewTab.jsx renders. Switched to the dark
-             ink gradient, same family as the plain .wmg-hero fix below.
+          /* Back to the vibrant brand gradient, same reasoning as the
+             plain .wmg-hero fix above — violet is dark/saturated enough
+             for white text. Also switched color from var(--paper) to a
+             hardcoded white: --paper is dark navy text again now that
+             the page itself is light, and dark text on this vibrant
+             gradient would be unreadable the same way pale gold text
+             was unreadable on the previous light pastel version.
           */
-          background: linear-gradient(150deg, var(--ink-3) 0%, var(--ink-2) 100%);
-          border-radius: 24px; padding: 18px; color: var(--paper); display: flex; flex-direction: column; justify-content: space-between; min-height: 110px; position: relative; overflow: hidden; margin-bottom: 14px;
+          background: linear-gradient(150deg, var(--brand-deep) 0%, var(--brand) 100%);
+          border-radius: 24px; padding: 18px; color: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; min-height: 110px; position: relative; overflow: hidden; margin-bottom: 14px;
         }
-        .wmg-mosaic-hero::after { content: ""; position: absolute; top: -50px; right: -50px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%); pointer-events: none; }
+        .wmg-mosaic-hero::after { content: ""; position: absolute; top: -50px; right: -50px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.16), transparent 70%); pointer-events: none; }
         .wmg-mosaic-hero-top { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1; }
         .wmg-mosaic-hero-label { font-size: 12.5px; opacity: 0.8; }
         .wmg-mosaic-hero-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 27px; line-height: 1.1; position: relative; z-index: 1; font-variant-numeric: tabular-nums; }
         .wmg-mosaic-hero-sub { font-size: 12.5px; opacity: 0.85; margin-top: 4px; position: relative; z-index: 1; }
         .wmg-mosaic-hero-score {
-          /* Was rgba(61,58,52,0.08) — a near-black tint meant to darken
-             the old light pastel background above. On the new dark
-             background that same dark-on-dark tint is nearly invisible
-             — switched to a light tint instead, same pattern as
-             .wmg-hero-score-badge elsewhere in this file.
+          /* Same fix as the card above — color switched from
+             var(--paper) (now dark navy) to a hardcoded white, since
+             this pill sits on the vibrant gradient card, not the page.
           */
-          display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.14); border: none; border-radius: 999px; padding: 4px 10px 4px 6px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 13px; color: var(--paper);
+          display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.22); border: none; border-radius: 999px; padding: 4px 10px 4px 6px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 13px; color: #FFFFFF;
         }
-        .wmg-mosaic-hero-score:hover { background: rgba(255,255,255,0.22); }
+        .wmg-mosaic-hero-score:hover { background: rgba(255,255,255,0.3); }
         .wmg-score-explainer-card { margin-bottom: 10px; }
         .wmg-score-explainer-head { display: flex; align-items: center; justify-content: space-between; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 800; color: var(--paper); margin-bottom: 8px; }
         .wmg-score-explainer-close { background: transparent; border: none; color: var(--paper-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
