@@ -220,7 +220,15 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
 }
 
 
-export const CATEGORY_COLORS = ["#8A7FC9", "#B5652F", "#97701A", "#5C6BA3", "#C97099", "#4A7A3A", "#B2504F", "#6C5FB0", "#C9708F", "#7972B5"];
+// Was hardcoded to the *original* pre-re-theme hex values — the same
+// stale-colour-array bug found and fixed in FLOW_TONE_COLORS
+// (constants.js), SCENARIO_COLORS (ForecastTab.jsx), and PensionTab's
+// growth chart. Switched to var() strings, using all 8 named theme
+// tones plus the two -fill variants for extra cycling variety on
+// households with more than 8 spending categories — SVG fill/stroke
+// accepts CSS custom properties directly, so this now stays correct
+// through any future re-theme automatically.
+export const CATEGORY_COLORS = ["var(--brand)", "var(--coral)", "var(--gold)", "var(--slate)", "var(--brand-2)", "var(--sage)", "var(--rust)", "var(--brand-deep)", "var(--slate-fill)", "var(--rust-fill)"];
 
 // Tone names (matching BarRow/motion.css's .tone-* classes) cycled through
 // for the bills bar breakdown — a smaller, named-tone palette rather than
@@ -356,6 +364,73 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
     return { ahead: gap > 0, dayOfMonth, daysInMonth, timeElapsedPct, spendPct };
   })();
 
+  // Merchant breakdown + recurring-vs-one-off, built on top of the real
+  // transaction history now landing in household_transactions (see the
+  // transactions migration and persistTransactions in
+  // api/_lib/categorizeTransactions.js) — this genuinely didn't exist
+  // before tonight, since the backend only ever kept an aggregated
+  // monthly average per category and threw the individual transactions
+  // away. Queried directly through the normal (RLS-scoped) Supabase
+  // client rather than a new API route — the existing RLS policy on
+  // household_transactions already restricts reads to the household's
+  // own members, so there's nothing a server-side endpoint would add
+  // here that a direct client read doesn't already handle correctly.
+  //
+  // "Recurring" means the same cleaned-up merchant name appearing in at
+  // least 2 of the last 3 distinct calendar months — deliberately a
+  // simple, explainable rule rather than anything fuzzier (matching
+  // amounts within a tolerance, etc.) given how new and unproven this
+  // data source still is. Fetched once, on first expand, not on every
+  // toggle — a category someone opens and closes a few times while
+  // editing shouldn't re-query each time.
+  const [merchantStatus, setMerchantStatus] = useState("idle"); // idle | loading | done | empty | error
+  const [merchantBreakdown, setMerchantBreakdown] = useState(null);
+
+  useEffect(() => {
+    if (!expanded || merchantStatus !== "idle") return;
+    setMerchantStatus("loading");
+    (async () => {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const sinceDate = threeMonthsAgo.toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("household_transactions")
+        .select("merchant, amount, date")
+        .eq("category", cat.name)
+        .lt("amount", 0) // spending only — income never lands in a named category
+        .gte("date", sinceDate)
+        .order("date", { ascending: false });
+
+      if (error) {
+        setMerchantStatus("error");
+        return;
+      }
+      if (!data || data.length === 0) {
+        setMerchantStatus("empty");
+        return;
+      }
+
+      const byMerchant = new Map();
+      data.forEach((t) => {
+        const name = t.merchant || "Other";
+        const monthKey = String(t.date).slice(0, 7); // YYYY-MM
+        if (!byMerchant.has(name)) byMerchant.set(name, { name, total: 0, count: 0, months: new Set() });
+        const entry = byMerchant.get(name);
+        entry.total += Math.abs(Number(t.amount) || 0);
+        entry.count += 1;
+        entry.months.add(monthKey);
+      });
+
+      const rows = Array.from(byMerchant.values())
+        .map((e) => ({ name: e.name, total: e.total, count: e.count, recurring: e.months.size >= 2 }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 8); // a long tail of one-off £1.20 merchants isn't worth scrolling through
+
+      setMerchantBreakdown(rows);
+      setMerchantStatus("done");
+    })();
+  }, [expanded, merchantStatus, cat.name]);
+
   // Collapses every item in this category into a single "Total" item holding
   // the combined amount — for anyone who'd rather type one number than
   // itemize each line. Fully reversible: "+ Add item" still works normally
@@ -429,6 +504,42 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
             <button type="button" className="wmg-onboard-skip" style={{ marginLeft: 10 }} onClick={combineIntoTotal}>
               Combine into one total
             </button>
+          )}
+          {merchantStatus === "loading" && (
+            <div className="wmg-sub" style={{ marginTop: 12 }}>Looking at where this actually went…</div>
+          )}
+          {merchantStatus === "done" && merchantBreakdown && (
+            <div style={{ marginTop: 14 }}>
+              <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Where this actually went (last 3 months)</div>
+              {merchantBreakdown.map((m) => (
+                <div
+                  key={m.name}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "7px 0",
+                    borderBottom: "0.5px solid var(--hair)",
+                  }}
+                >
+                  <span style={{ flex: 1, fontSize: 12.5, color: "var(--paper)" }}>{m.name}</span>
+                  {m.recurring && (
+                    <span
+                      style={{
+                        fontSize: 10, fontWeight: 700, color: "var(--brand)", background: "var(--brand-soft)",
+                        padding: "2px 7px", borderRadius: 999,
+                      }}
+                    >
+                      Recurring
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11.5, color: "var(--paper-dim)" }}>
+                    {m.count}× — {gbp(m.total)}
+                  </span>
+                </div>
+              ))}
+              <div className="wmg-sub" style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+                "Recurring" means this merchant showed up in at least 2 of the last 3 months — not necessarily the
+                same amount each time, just a repeating pattern worth knowing about.
+              </div>
+            </div>
           )}
         </div>
       )}
