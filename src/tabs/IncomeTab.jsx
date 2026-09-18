@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, getActiveMode, nextId } from "../lib/finance";
-import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput, BarRow, Reveal } from "../components/ui";
+import { Card, ProgressBar, InlinePill, CategoryTooltip, NumberInput, BarRow, Reveal, StatIcon } from "../components/ui";
 import { API_BASE } from "../lib/apiBase";
 import { supabase } from "../lib/supabaseClient";
 
@@ -333,6 +333,29 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
   const itemCount = cat.items.length;
   const initial = (cat.name || "?").trim().charAt(0).toUpperCase() || "?";
 
+  // Spend pacing — compares how far through the *month* we are against
+  // how far through this category's *budget* the current spend is.
+  // subtotal is a live, growing-through-the-month figure (confirmed by
+  // monthly-spending-snapshot.js existing specifically to freeze it at
+  // month-end for history — before that point it fluctuates as bank
+  // syncs land), so comparing it against elapsed calendar days is a
+  // genuinely meaningful signal, not just a guess. Only shown once
+  // there's a real gap (12+ points) either way — flagging "you're
+  // basically on schedule" for every single category would be noise,
+  // not insight, and only when a real budget is set, since pacing
+  // against a £0 budget is meaningless.
+  const pacing = (() => {
+    if (!(cat.budget > 0) || subtotal <= 0) return null;
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const timeElapsedPct = (dayOfMonth / daysInMonth) * 100;
+    const spendPct = (subtotal / cat.budget) * 100;
+    const gap = spendPct - timeElapsedPct;
+    if (Math.abs(gap) < 12) return null;
+    return { ahead: gap > 0, dayOfMonth, daysInMonth, timeElapsedPct, spendPct };
+  })();
+
   // Collapses every item in this category into a single "Total" item holding
   // the combined amount — for anyone who'd rather type one number than
   // itemize each line. Fully reversible: "+ Add item" still works normally
@@ -375,6 +398,13 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
           <ProgressBar value={subtotal} max={cat.budget} tone={subtotal > cat.budget ? "rust" : "sage"} />
           {cat.budget === 0 && subtotal > 0 && (
             <BudgetSuggestion subtotal={subtotal} onApply={(v) => onUpdateCategoryField(cat.id, "budget", v)} />
+          )}
+          {pacing && (
+            <div className="wmg-sub" style={{ marginTop: 6, color: pacing.ahead ? "var(--rust)" : "var(--sage)" }}>
+              {pacing.ahead
+                ? `Pacing ahead of schedule — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, but already ${Math.round(pacing.spendPct)}% through this budget.`
+                : `Pacing comfortably — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, and only ${Math.round(pacing.spendPct)}% through this budget.`}
+            </div>
           )}
         </div>
       </div>
@@ -581,6 +611,75 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     return rows.sort((a, b) => b.value - a.value);
   }, [profile.expenseCategories, totals.subsTotal]);
   const categoryChartTotal = categoryChartData.reduce((s, r) => s + r.value, 0) || 1;
+
+  // The "what changed" headline — same logic as OverviewTab's
+  // biggestMover and findBiggestMover() in api/send-monthly-recap.js,
+  // just scoped to this tab specifically rather than Overview. Compares
+  // the current live category totals against the most recent *frozen*
+  // month (profile.spendingSnapshots), not last month's live figures —
+  // live figures are still changing as the month goes, so comparing
+  // against them would be comparing a part-month to a full one.
+  // Requires a real snapshot to exist and at least a 15% swing to
+  // bother surfacing, same threshold as Overview, for the same reason:
+  // a smaller move is just normal noise, not a headline.
+  const biggestSpendMover = useMemo(() => {
+    const snapshots = profile.spendingSnapshots || [];
+    if (!snapshots.length) return null;
+    const lastMonth = snapshots[snapshots.length - 1];
+    const lastByName = new Map((lastMonth.categories || []).map((c) => [c.name, c.value]));
+    let biggest = null;
+    categoryChartData.forEach((c) => {
+      const prev = lastByName.get(c.name);
+      if (!prev || prev <= 0) return;
+      const pctChange = ((c.value - prev) / prev) * 100;
+      if (!biggest || Math.abs(pctChange) > Math.abs(biggest.pctChange)) {
+        biggest = { name: c.name, value: c.value, prev, pctChange, diff: c.value - prev };
+      }
+    });
+    if (!biggest || Math.abs(biggest.pctChange) < 15) return null;
+    return biggest;
+  }, [categoryChartData, profile.spendingSnapshots]);
+
+  // "Ask your budget" — a free-form question answered from this
+  // household's own stored data (see api/ask-budget.js), not general
+  // advice. Same idle/loading/error/done/locked state shape as the
+  // existing getSpendingInsight/checkBills below, for consistency.
+  const [askBudgetQuestion, setAskBudgetQuestion] = useState("");
+  const [askBudgetStatus, setAskBudgetStatus] = useState("idle"); // idle | loading | done | error | locked
+  const [askBudgetAnswer, setAskBudgetAnswer] = useState("");
+  const [askBudgetError, setAskBudgetError] = useState("");
+
+  const askBudget = async () => {
+    if (!askBudgetQuestion.trim()) return;
+    setAskBudgetStatus("loading");
+    setAskBudgetError("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const resp = await fetch(`${API_BASE}/api/ask-budget`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          question: askBudgetQuestion,
+          categories: categoryChartData.map((r) => ({ name: r.name, value: r.value, budget: profile.expenseCategories.find((c) => c.name === r.name)?.budget ?? null })),
+          income: totals.income,
+          subscriptions: profile.subscriptions.filter((s) => !s.cancelled).map((s) => ({ name: s.name, amount: s.amount })),
+        }),
+      });
+      const data = await resp.json();
+      if (resp.status === 402) {
+        setAskBudgetStatus("locked");
+        return;
+      }
+      if (!resp.ok) throw new Error(data.error || "Something went wrong.");
+      setAskBudgetAnswer(data.answer);
+      setAskBudgetStatus("done");
+    } catch (e) {
+      setAskBudgetStatus("error");
+      setAskBudgetError(e.message || "Couldn't answer that right now.");
+    }
+  };
 
   // Bills: the "Housing & utilities" and "Insurance & protection" categories
   // (or any category the person has explicitly flagged as isBills) treated
@@ -875,6 +974,25 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
 
       {categoryChartData.length > 0 ? (
         <>
+          {biggestSpendMover && (
+            <div
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                background: "var(--brand-soft)", border: "0.5px solid var(--brand)",
+                borderRadius: 14, padding: "12px 14px", marginBottom: 14,
+              }}
+            >
+              <span className="wmg-showcase-icon tone-brand" style={{ width: 30, height: 30, flexShrink: 0 }} aria-hidden="true">
+                <StatIcon name="flag" />
+              </span>
+              <div style={{ fontSize: 12.5, color: "var(--paper)", lineHeight: 1.4 }}>
+                <strong>{biggestSpendMover.name}</strong> is {biggestSpendMover.pctChange > 0 ? "up" : "down"}{" "}
+                {Math.round(Math.abs(biggestSpendMover.pctChange))}% since last month (
+                {biggestSpendMover.pctChange > 0 ? "+" : "−"}
+                {gbp(Math.abs(biggestSpendMover.diff))}).
+              </div>
+            </div>
+          )}
           <div className="wmg-section-title">Where it actually goes</div>
           <div className="wmg-section-desc">
             Your day-to-day category spending — mortgage/rent, debt repayments and subscriptions are tracked
@@ -943,6 +1061,65 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                   Based on this month's category breakdown.
                 </div>
               </div>
+            )}
+          </Card>
+
+          <Card style={{ marginBottom: 20 }}>
+            <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Ask your budget</div>
+            <div className="wmg-sub" style={{ marginBottom: 10 }}>
+              Ask anything about your own numbers — "how much did I spend on takeaways", "what's my biggest
+              subscription" — answered from what's actually here, not general advice.
+            </div>
+            {!hasPremium && (askBudgetStatus === "idle" || askBudgetStatus === "locked") && (
+              <PremiumGate
+                subscriptionStatus={subscriptionStatus}
+                onUpgrade={onUpgrade}
+                text="Asking your budget a question is a Premium feature."
+              />
+            )}
+            {hasPremium && (
+              <>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="text"
+                    className="wmg-input"
+                    style={{ flex: 1 }}
+                    placeholder="e.g. What's my biggest subscription?"
+                    value={askBudgetQuestion}
+                    onChange={(e) => setAskBudgetQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        askBudget();
+                      }
+                    }}
+                    disabled={askBudgetStatus === "loading"}
+                  />
+                  <button
+                    className="wmg-add-btn"
+                    style={{ flexShrink: 0 }}
+                    onClick={askBudget}
+                    disabled={askBudgetStatus === "loading" || !askBudgetQuestion.trim()}
+                  >
+                    {askBudgetStatus === "loading" ? "Asking…" : "Ask"}
+                  </button>
+                </div>
+                {askBudgetStatus === "locked" && (
+                  <div style={{ marginTop: 10 }}>
+                    <PremiumGate
+                      subscriptionStatus={subscriptionStatus}
+                      onUpgrade={onUpgrade}
+                      text="Asking your budget a question is a Premium feature."
+                    />
+                  </div>
+                )}
+                {askBudgetStatus === "error" && (
+                  <div className="wmg-sub" style={{ marginTop: 10, color: "var(--rust)" }}>{askBudgetError}</div>
+                )}
+                {askBudgetStatus === "done" && askBudgetAnswer && (
+                  <div className="wmg-sub" style={{ marginTop: 10, color: "var(--paper)" }}>{askBudgetAnswer}</div>
+                )}
+              </>
             )}
           </Card>
 

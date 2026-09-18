@@ -82,6 +82,27 @@ export function MortgageOverpaymentTab({ profile, totals, setField, onNavigate }
 
       <Reveal>
         <Card>
+          <div className="wmg-three-col">
+            <div>
+              <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Balance outstanding</div>
+              <div className="wmg-figure tone-paper">{gbp(balance)}</div>
+            </div>
+            <div>
+              <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Interest rate</div>
+              <div className="wmg-figure tone-paper">{rate}%</div>
+            </div>
+            {profile.homeValue > 0 && (
+              <div>
+                <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Home value</div>
+                <div className="wmg-figure tone-paper">{gbp(profile.homeValue)}</div>
+              </div>
+            )}
+          </div>
+        </Card>
+      </Reveal>
+
+      <Reveal delay={20}>
+        <Card>
           <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Without any overpayment</div>
           <div className="wmg-sub">
             At {gbp(payment)}/month on {rate}%, you'd be mortgage-free by{" "}

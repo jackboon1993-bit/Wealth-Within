@@ -9,7 +9,8 @@
 // (categorizeBatch), shared with api/sync-bank-transactions.js's overnight
 // sync — this file is just the HTTP wrapper around it for the browser.
 
-import { categorizeBatch } from "./_lib/categorizeTransactions.js";
+import { categorizeBatch, persistTransactions } from "./_lib/categorizeTransactions.js";
+import { requireUser } from "./_lib/requireUser.js";
 
 export const config = {
   api: {
@@ -25,9 +26,13 @@ export default async function handler(req, res) {
   // explicit CORS permission or the browser blocks it before the request
   // reaches this handler. Must come before the method check below, since
   // browsers send a preflight OPTIONS request first for a POST like this.
+  // Authorization added to the allowed headers now that this route
+  // actually checks it (see requireUser below) — previously anyone could
+  // POST here with no session at all, which also meant no household to
+  // persist transaction history against even if this route wanted to.
   res.setHeader("Access-Control-Allow-Origin", "https://localhost");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
@@ -37,13 +42,16 @@ export default async function handler(req, res) {
     return;
   }
 
+  const session = await requireUser(req, res);
+  if (!session.ok) return; // response already sent — 401/404
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     res.status(500).json({ error: "Server is not configured with an ANTHROPIC_API_KEY." });
     return;
   }
 
-  const { transactions, categories } = req.body || {};
+  const { transactions, categories, source } = req.body || {};
   if (!Array.isArray(transactions) || transactions.length === 0) {
     res.status(400).json({ error: "Missing transactions." });
     return;
@@ -59,6 +67,13 @@ export default async function handler(req, res) {
 
   try {
     const results = await categorizeBatch(transactions, categories, apiKey);
+    // Fire-and-forget-ish, but awaited: persisting transaction history
+    // shouldn't block the response any longer than it has to, but a
+    // genuine failure here is still worth knowing about server-side (see
+    // persistTransactions' own error handling) rather than silently
+    // losing history. Doesn't affect what's returned to the browser
+    // either way — categoryTotals/results are already correct by now.
+    await persistTransactions(session.admin, session.householdId, transactions, results, source || "csv");
     res.status(200).json({ results });
   } catch (err) {
     console.error("categorize-transactions error:", err);

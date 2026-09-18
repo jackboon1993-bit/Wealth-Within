@@ -109,7 +109,19 @@ export async function categorizeBatch(transactions, categories, apiKey) {
 // flow, which don't have a single fixed request window in the same way
 // (a CSV's date range *is* its own data) — those keep deriving the span
 // from the transactions' own dates, same as before.
-export async function categorizeAndSummarize(transactions, categories, apiKey, window = null) {
+//
+// `persist`, when given as { admin, householdId, source }, saves each
+// batch's individual transactions to household_transactions right where
+// this function already has direct access to that batch's own results —
+// this is the shared function sync-bank-transactions.js calls, and
+// unlike categorize-transactions.js (which calls categorizeBatch directly
+// and persists separately, since it never goes through this function),
+// categorizeAndSummarize never returned per-transaction results to its
+// caller at all. Threading persistence through here, rather than adding
+// a second return value sync-bank-transactions.js would have to handle,
+// keeps that plumbing in one place. Optional and additive — omitting
+// `persist` behaves exactly as before.
+export async function categorizeAndSummarize(transactions, categories, apiKey, window = null, persist = null) {
   const results = new Array(transactions.length).fill(null);
   for (let start = 0; start < transactions.length; start += MAX_BATCH) {
     const batch = transactions.slice(start, start + MAX_BATCH);
@@ -117,6 +129,9 @@ export async function categorizeAndSummarize(transactions, categories, apiKey, w
     batchResults.forEach((r, i) => {
       results[start + i] = r;
     });
+    if (persist) {
+      await persistTransactions(persist.admin, persist.householdId, batch, batchResults, persist.source);
+    }
   }
 
   let spanDays;
@@ -161,4 +176,85 @@ export async function categorizeAndSummarize(transactions, categories, apiKey, w
     categoryTotals,
     incomeEstimate: incomeTotal > 0 ? Math.round(incomeTotal / spanMonths) : null,
   };
+}
+
+// Persists the individual transactions this batch just categorised, so
+// recurring-vs-one-off detection and merchant-level breakdowns have real
+// history to work from — previously these were only ever used to compute
+// categoryTotals above, then discarded. Called from both
+// api/categorize-transactions.js (CSV import, manual pull) and
+// api/sync-bank-transactions.js (the nightly cron), same "one shared
+// place" reasoning as categorizeBatch/categorizeAndSummarize above.
+//
+// `admin` must be a Supabase client created with the service-role key.
+// `results` must line up index-for-index with `transactions` (the same
+// shape categorizeBatch returns). Rows with no category and not income
+// (nothing Claude could confidently match) still get stored — that's
+// useful information too (something regularly landing as "uncategorised"
+// is itself worth knowing about) — only a genuinely missing result (this
+// transaction wasn't part of this categorisation run at all) is skipped.
+//
+// Uses the upsert_household_transactions RPC (see the transactions
+// migration) rather than calling .upsert() directly — that function does
+// the ON CONFLICT dance against a *partial* unique index natively in
+// SQL, which isn't reliably expressible through supabase-js's own
+// .upsert() helper.
+export async function persistTransactions(admin, householdId, transactions, results, source) {
+  const rows = transactions
+    .map((t, i) => {
+      const r = results[i];
+      if (!r) return null;
+      return {
+        household_id: householdId,
+        date: t.date ? new Date(t.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        description: String(t.description || "").slice(0, 500),
+        merchant: cleanMerchantName(t.description),
+        amount: t.amount,
+        category: r.isIncome ? null : r.category,
+        source,
+        external_id: t.id || t.transactionId || null,
+      };
+    })
+    .filter(Boolean);
+
+  // TEMPORARY diagnostic logging — added while tracking down why zero
+  // rows were landing in household_transactions with no visible error.
+  // Worth removing once that's actually confirmed fixed, rather than
+  // leaving debug noise in permanently.
+  console.log(
+    `persistTransactions: ${transactions.length} transactions in, ${results.filter(Boolean).length} had a result, ${rows.length} rows to insert (household ${householdId}, source ${source})`
+  );
+
+  if (rows.length === 0) {
+    console.log("persistTransactions: nothing to insert — returning before any database call.");
+    return;
+  }
+
+  const { error } = await admin.rpc("upsert_household_transactions", { rows });
+  if (error) {
+    // Not fatal to the categorisation/sync flow itself — the
+    // categoryTotals this run produced are still valid and already
+    // applied by the time this runs. Logged so a persistent failure here
+    // is visible without taking down the feature people are actually
+    // waiting on day to day.
+    console.error("Failed to persist transaction history:", error.message);
+  } else {
+    console.log(`persistTransactions: successfully upserted ${rows.length} rows.`);
+  }
+}
+
+// Very deliberately simple — strips long digit runs (store/card
+// reference numbers) and keeps the first few words, title-cased. Not a
+// full merchant-matching system, just enough to turn "TESCO STORES 3421
+// LONDON GB" into "Tesco Stores" for grouping purposes.
+function cleanMerchantName(description) {
+  const raw = String(description || "").trim();
+  if (!raw) return null;
+  const stripped = raw
+    .replace(/\b\d{3,}\b/g, "") // long digit runs — store/card refs
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  const words = stripped.split(" ").filter(Boolean).slice(0, 3);
+  if (words.length === 0) return null;
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 }

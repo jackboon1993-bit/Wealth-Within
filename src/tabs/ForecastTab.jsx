@@ -87,7 +87,13 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
     ? allNonMortgageDebts.reduce((s, d) => s + (d.balance || 0) * (d.rate || 0), 0) / nonMortgageCurrent
     : 0;
 
-  const SCENARIO_COLORS = ["#8A7FC9", "#B5652F", "#97701A", "#4A7A3A", "#B2504F", "#5C6BA3"];
+  // Was hardcoded to the *original* pre-re-theme hex values — the same
+  // "stale colour array" bug found and fixed in FLOW_TONE_COLORS
+  // (constants.js) and CATEGORY_COLORS (IncomeTab.jsx). Switched to the
+  // literal var() strings, which SVG stroke attributes accept directly
+  // (Recharts passes this straight through), so these scenario lines
+  // now stay correct through any future re-theme automatically.
+  const SCENARIO_COLORS = ["var(--brand)", "var(--coral)", "var(--gold)", "var(--sage)", "var(--rust)", "var(--slate)"];
   const scenarioForecasts = useMemo(
     () => profile.scenarios.map((s) => ({ ...s, result: runForecast(profile, totals, horizonYears, s.allocationPct, 0) })),
     [profile, totals, horizonYears]
@@ -185,7 +191,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           <div className="wmg-section-title">Build my personalized forecast</div>
           <div className="wmg-section-desc">Step 3 of 4</div>
           <Card>
-            <div className="wmg-field-label">How much can you put toward debt each month?</div>
+            <div className="wmg-field-label">How much can you put towards debt each month?</div>
             <div className="wmg-sub" style={{ marginBottom: 10 }}>
               Across your {allNonMortgageDebts.length === 1 ? "loan or card" : "loans and cards"} — not your mortgage,
               that's tracked separately.
@@ -412,13 +418,13 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                 <ResponsiveContainer>
                   <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
                     <CartesianGrid stroke="var(--hair)" vertical={false} />
-                    <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
-                    <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
+                    <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+                    <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
                     <Tooltip content={<ChartTooltip />} />
                     <Area type="monotone" dataKey={key("netWorthLow")} name="" stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-                    <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range" stackId="band" stroke="none" fill="#8A7FC9" fillOpacity={0.15} isAnimationActive={false} />
-                    <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8A7FC9" strokeWidth={2.5} dot={false} />
-                    <Line type="monotone" dataKey={key("debt")} name="Debt" stroke="#B2504F" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range" stackId="band" stroke="none" fill="var(--brand)" fillOpacity={0.15} isAnimationActive={false} />
+                    <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey={key("debt")} name="Debt" stroke="var(--rust)" strokeWidth={2} dot={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -531,7 +537,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                   your original loan and card balances so far.
                 </p>
                 <p className="wmg-sub">
-                  At this pace — with spare income going toward your highest-interest debt first — you'd be fully
+                  At this pace — with spare income going towards your highest-interest debt first — you'd be fully
                   debt-free by <strong style={{ color: "var(--paper)" }}>{forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} years`}</strong>.
                   This assumes your mortgage isn't included in "debt-free" — that's tracked separately.
                 </p>
@@ -582,7 +588,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
       </div>
       <WhyItMatters>
         Every month you have some money left over after essentials and debt payments — your "surplus." This
-        forecast asks: what happens to your net worth over time if that surplus goes toward debt, toward savings,
+        forecast asks: what happens to your net worth over time if that surplus goes towards debt, towards savings,
         or some mix of both? Move the sliders below to see the difference. Nothing here changes your real numbers —
         it's a "what if," not a plan you're locked into.
       </WhyItMatters>
@@ -602,7 +608,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
         <div className="wmg-three-col">
           <div>
             <label className="wmg-field-label">
-              Forecast horizon <InfoTip text="How many years ahead to project. Try a shorter horizon (2-5 years) for something that feels concrete, or a longer one to see the full picture toward retirement." />
+              Forecast horizon <InfoTip text="How many years ahead to project. Try a shorter horizon (2-5 years) for something that feels concrete, or a longer one to see the full picture towards retirement." />
             </label>
             <div className="wmg-slider-row">
               <input type="range" min="1" max="30" step="1" value={horizonYears} className="wmg-slider" onChange={(e) => setHorizonYears(Number(e.target.value))} />
@@ -611,7 +617,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           </div>
           <div>
             <label className="wmg-field-label">
-              Spare money: debt vs. saving <InfoTip text="Your leftover money each month, after bills and debt payments. 100% sends all of it toward your highest-interest debt first; 0% puts all of it into savings and investments instead. Try both ends to see the trade-off." />
+              Spare money: debt vs. saving <InfoTip text="Your leftover money each month, after bills and debt payments. 100% sends all of it towards your highest-interest debt first; 0% puts all of it into savings and investments instead. Try both ends to see the trade-off." />
             </label>
             <div className="wmg-slider-row">
               <input type="range" min="0" max="100" step="5" value={allocationPct} className="wmg-slider" onChange={(e) => setAllocationPct(Number(e.target.value))} />
@@ -649,10 +655,10 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           <ResponsiveContainer>
             <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid stroke="var(--hair)" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
-              <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
+              <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+              <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
               <Legend
-                wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
+                wrapperStyle={{ fontSize: 12, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 itemSorter={(item) => [key("netWorthBand"), key("netWorth"), key("debt"), key("savingsInvest"), key("pension")].indexOf(item.dataKey)}
               />
               <Tooltip content={<ChartTooltip />} />
@@ -660,16 +666,16 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                 <ReferenceLine
                   key={e.id}
                   x={Math.round((e.month / 12) * 10) / 10}
-                  stroke={e.type === "expense" ? "#B2504F" : "#4A7A3A"}
+                  stroke={e.type === "expense" ? "var(--rust)" : "var(--sage)"}
                   strokeDasharray="3 3"
-                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "#B2504F" : "#4A7A3A" }}
+                  label={{ value: e.name, position: "top", fontSize: 10, fill: e.type === "expense" ? "var(--rust)" : "var(--sage)" }}
                 />
               ))}
               <Area type="monotone" dataKey={key("netWorthLow")} name="" stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="#8A7FC9" fillOpacity={0.15} isAnimationActive={false} />
-              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="#8A7FC9" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="#B2504F" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="#4A7A3A" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey={key("netWorthBand")} name="Net worth range (low–high)" stackId="band" stroke="none" fill="var(--brand)" fillOpacity={0.15} isAnimationActive={false} />
+              <Line type="monotone" dataKey={key("netWorth")} name="Net worth" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey={key("debt")} name="Total debt (incl. mortgage)" stroke="var(--rust)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={key("savingsInvest")} name="Savings & investments" stroke="var(--sage)" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey={key("pension")} name="Pension" stroke="var(--paper-dim)" strokeWidth={2} dot={false} strokeDasharray="4 3" />
             </ComposedChart>
           </ResponsiveContainer>
@@ -695,7 +701,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
           <div>
             <div className="wmg-calc-item-label">Debt-free date</div>
             <div className="wmg-calc-item-val" style={{ color: "var(--paper)" }}>{forecast.debtFreeMonth !== null ? addMonths(forecast.debtFreeMonth) : `beyond ${horizonYears} yrs`}</div>
-            <div className="wmg-sub" style={{ marginTop: 2 }}>Assumes spare income each month goes toward your highest-interest debt first — earlier than the fixed-payment date on the Debts & Mortgage tab.</div>
+            <div className="wmg-sub" style={{ marginTop: 2 }}>Assumes spare income each month goes towards your highest-interest debt first — earlier than the fixed-payment date on the Debts & Mortgage tab.</div>
           </div>
           <div>
             <div className="wmg-calc-item-label">Mortgage-free date</div>
@@ -758,10 +764,10 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
             <ResponsiveContainer>
               <LineChart data={scenarioChartData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke="var(--hair)" vertical={false} />
-                <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
-                <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
+                <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+                <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
                 <Legend
-                  wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
+                  wrapperStyle={{ fontSize: 12, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                   itemSorter={(item) => scenarioForecasts.findIndex((s) => `s_${s.id}` === item.dataKey)}
                 />
                 <Tooltip content={<ChartTooltip />} />
@@ -812,7 +818,7 @@ export function ForecastTab({ horizonYears, setHorizonYears, allocationPct, setA
                 </div>
                 <div>
                   <div className="wmg-field-label">Net worth then</div>
-                  <div className="wmg-input" style={{ display: "flex", alignItems: "center", fontFamily: "Inter", fontWeight: 700 }}>
+                  <div className="wmg-input" style={{ display: "flex", alignItems: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700 }}>
                     {finalRow ? gbp(finalRow[key("netWorth")]) : "—"}
                   </div>
                 </div>

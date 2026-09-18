@@ -303,7 +303,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             each month.{" "}
             {totals.totalDebt > 0
               ? "You could use some of this to pay off debt faster, or build up your savings — the boxes below break down where you stand on each."
-              : "You could use some of this to build up your savings or work toward a goal — the boxes below break down where you stand overall."}
+              : "You could use some of this to build up your savings or work towards a goal — the boxes below break down where you stand overall."}
           </p>
         </Card>
       )}
@@ -447,7 +447,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               <PieChart>
                 <Pie data={flowSegments} dataKey="value" nameKey="label" innerRadius={42} outerRadius={68} paddingAngle={2} strokeWidth={0}>
                   {flowSegments.map((seg) => (
-                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "#8A7FC9"} />
+                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "var(--brand)"} />
                   ))}
                 </Pie>
                 <Tooltip content={<CategoryTooltip />} />

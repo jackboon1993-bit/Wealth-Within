@@ -500,6 +500,12 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         description: t.description,
         amount: t.amount,
         date: new Date(t.date),
+        // Preserved so categorize() below can pass it through as
+        // external_id for de-duplicating transaction history — falls
+        // back through a couple of likely field names since this file
+        // doesn't have truelayer-transactions.js's exact raw response
+        // shape to hand; worth confirming against that file directly.
+        transaction_id: t.transaction_id || t.id || null,
       }));
       if (transactions.length === 0) {
         setStatus("error");
@@ -549,35 +555,63 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
           })
           .catch((e) => console.error("Subscription detection from manual pull failed:", e));
       }
-      await categorize(transactions);
+      await categorize(transactions, "bank");
     } catch (e) {
       setStatus("error");
       setErrorMsg(e.message || "Something went wrong fetching transactions from your bank.");
     }
   };
 
-  // Accepts an explicit transaction list so importFromBank can call this
-  // directly with freshly-fetched rows, without waiting on a state update
-  // to land first (React state from setParsedTx isn't readable until the
-  // next render, so passing the rows straight through avoids a stale read).
-  const categorize = async (txsOverride) => {
+  // Accepts an explicit transaction list (and, for the bank path, an
+  // explicit source) so importFromBank can call this directly with
+  // freshly-fetched rows/state, without waiting on a state update to
+  // land first — React state from setParsedTx/setSource isn't readable
+  // until the next render, so passing both straight through avoids a
+  // stale read. This already mattered for txsOverride; it matters
+  // exactly the same way for source now that it's sent to the server.
+  const categorize = async (txsOverride, sourceOverride) => {
     const txs = txsOverride || parsedTx;
     if (!txs) return;
+    const effectiveSource = sourceOverride || source;
     setStatus("categorizing");
     setErrorMsg("");
     const categories = profile.expenseCategories.map((c) => c.name);
     const batchSize = 150;
     const results = new Array(txs.length).fill(null);
     try {
+      // Needed now for two reasons: the endpoint requires a real session
+      // (it persists transaction history against a household, so it
+      // needs to know which one — see requireUser.js), and this used to
+      // send no auth header at all.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       for (let start = 0; start < txs.length; start += batchSize) {
         const batch = txs.slice(start, start + batchSize);
         setProgress(`Categorising ${start + 1}–${Math.min(start + batchSize, txs.length)} of ${txs.length}…`);
         const resp = await fetch(`${API_BASE}/api/categorize-transactions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
           body: JSON.stringify({
-            transactions: batch.map((t) => ({ description: t.description, amount: t.amount })),
+            // date is new — previously only description/amount were
+            // sent, which was enough for categorisation itself but left
+            // the server with nothing to persist real transaction
+            // history from. `id` is bank-only and deliberately omitted
+            // for CSV: a CSV row has no genuine bank-provided identity,
+            // so sending one risks a spurious dedup collision against
+            // an unrelated row rather than a real repeat of the same
+            // transaction. Falls back through a couple of likely
+            // TrueLayer field names since this file doesn't have
+            // truelayer-transactions.js's exact raw shape to hand —
+            // worth double-checking against that file directly.
+            transactions: batch.map((t) => ({
+              description: t.description,
+              amount: t.amount,
+              date: t.date instanceof Date ? t.date.toISOString() : t.date,
+              id: effectiveSource === "bank" ? t.transaction_id || t.id || null : null,
+            })),
             categories,
+            source: effectiveSource,
           }),
         });
         const data = await resp.json();

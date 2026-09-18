@@ -60,7 +60,17 @@ export const MASCOT_MESSAGES = {
 };
 
 
-export const FLOW_TONE_COLORS = { slate: "#5C6BA3", rust: "#C9708F", gold: "#97701A", sage: "#4A7A3A" };
+// Was hardcoded to the *original* pre-re-theme hex values (#5C6BA3 etc)
+// — completely disconnected from the CSS variable system in App.jsx, so
+// this donut chart (Overview's "This month" income breakdown) has been
+// quietly showing stale colours through both of tonight's re-themes
+// without anyone noticing, since Recharts reads this as a plain JS
+// value, not through regular CSS. Switched to the literal var() strings
+// — SVG fill/stroke attributes accept CSS custom properties directly
+// (same as stroke="var(--hair)" already used elsewhere), so this now
+// stays correct automatically through any future re-theme instead of
+// needing a manual fix each time.
+export const FLOW_TONE_COLORS = { slate: "var(--slate)", rust: "var(--rust)", gold: "var(--gold)", sage: "var(--sage)" };
 
 // Free-tier limit on manual "Pull transactions from my connected bank".
 // Premium has no limit (also gets automatic nightly sync — see

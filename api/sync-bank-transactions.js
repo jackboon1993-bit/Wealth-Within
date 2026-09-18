@@ -215,7 +215,16 @@ async function syncOne(admin, apiKey, conn, results) {
   if (bankSyncTx.transactions.length === 0) {
     results.noNewTransactions++;
   } else {
-    const { categoryTotals, incomeEstimate } = await categorizeAndSummarize(bankSyncTx.transactions, categories, apiKey);
+    // window is still not being passed here — see the note left in this
+    // diff's summary; a pre-existing discrepancy unrelated to today's
+    // change, flagged rather than silently fixed alongside it.
+    const { categoryTotals, incomeEstimate } = await categorizeAndSummarize(
+      bankSyncTx.transactions,
+      categories,
+      apiKey,
+      null,
+      { admin, householdId, source: "bank_sync" }
+    );
     dataToWrite.pendingBankSync = {
       categoryTotals,
       incomeEstimate,
@@ -280,6 +289,13 @@ async function fetchTransactions(accountIds, accessToken, since) {
       description: t.merchant_name || t.description || "Unknown",
       amount: t.amount,
       date: t.timestamp,
+      // Named `id`, not `external_id` — matching the field name
+      // persistTransactions() actually reads (t.id || t.transactionId),
+      // same as the manual-pull path in BankImportTab.jsx sends it as.
+      // TrueLayer's documented field for a transaction's own stable id
+      // is transaction_id; falling back to a plain `id` too in case
+      // that ever differs.
+      id: t.transaction_id || t.id || null,
     }))
     .filter((t) => typeof t.amount === "number" && t.date)
     .slice(0, MAX_TRANSACTIONS);

@@ -395,16 +395,25 @@ export function PensionTab({ profile, setField, pensionScenarios, pensionYearsTo
           <ResponsiveContainer>
             <LineChart data={pensionScenarios.series} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
               <CartesianGrid stroke="var(--hair)" vertical={false} />
-              <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
-              <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "Inter" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
+              <XAxis dataKey="year" tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(y) => `Yr ${y}`} stroke="var(--hair)" />
+              <YAxis tick={{ fill: "var(--paper-dim)", fontSize: 11, fontFamily: "'Plus Jakarta Sans', sans-serif" }} tickFormatter={(v) => `£${Math.round(v / 1000)}k`} stroke="var(--hair)" width={54} />
               <Legend
-                wrapperStyle={{ fontSize: 12, fontFamily: "Inter" }}
+                wrapperStyle={{ fontSize: 12, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 itemSorter={(item) => ["high", "medium", "low"].indexOf(item.dataKey)}
               />
               <Tooltip content={<ChartTooltip />} />
-              <Line type="monotone" dataKey="high" name="High" stroke="#4A7A3A" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="medium" name="Medium" stroke="#97701A" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="low" name="Low" stroke="#B2504F" strokeWidth={2} dot={false} />
+              {/* These three were hardcoded to #4A7A3A/#97701A/#B2504F —
+                  the *original* pre-re-theme sage/gold/rust values,
+                  completely disconnected from the CSS variable system.
+                  Recharts passes stroke straight through as an SVG
+                  attribute, and var(--hair) already works fine that way
+                  a few lines up in this same chart, so these can use the
+                  real theme variables too — meaning this chart now
+                  stays correct through any future re-theme instead of
+                  quietly going stale again. */}
+              <Line type="monotone" dataKey="high" name="High" stroke="var(--sage)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="medium" name="Medium" stroke="var(--gold)" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="low" name="Low" stroke="var(--rust)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
