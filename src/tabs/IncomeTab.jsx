@@ -200,7 +200,6 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
             <button
               className={`wmg-toggle-btn ${sub.cancelled ? "is-cancelled" : ""}`}
               onClick={handleToggleCancel}
-              title={sub.cancelled ? "Bring this back into your monthly total" : "Stops counting it in your total — doesn't cancel it with the actual provider, and you can bring it back anytime"}
             >
               {sub.cancelled ? "Restore" : "Mark cancelled"}
             </button>
@@ -208,10 +207,24 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
               className="wmg-icon-btn"
               onClick={onRemove}
               aria-label="Remove"
-              title="Delete this row completely — use this if you added it by mistake, not for cancelling a subscription you actually have"
             >
               ✕
             </button>
+          </div>
+          {/* Was two native title="..." tooltips — title attributes are
+              built for mouse hover, which doesn't exist on a touchscreen;
+              some Android WebViews trigger them on long-press instead,
+              with no way to dismiss them, which is exactly the "stuck
+              open" bubble this replaces. The explanation itself is worth
+              keeping — cancel vs. delete sit right next to each other
+              and are easy to mix up — just as a plain caption that's
+              simply always there, rather than an interaction that has to
+              be triggered and then somehow escaped. */}
+          <div className="wmg-sub" style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+            {sub.cancelled
+              ? "Restore brings this back into your monthly total."
+              : "Mark cancelled stops counting it here — it doesn't cancel it with the actual provider, and you can restore it anytime."}
+            {" "}✕ deletes this row completely — use that only if you added it by mistake.
           </div>
         </div>
       )}
@@ -341,96 +354,6 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
   const itemCount = cat.items.length;
   const initial = (cat.name || "?").trim().charAt(0).toUpperCase() || "?";
 
-  // Spend pacing — compares how far through the *month* we are against
-  // how far through this category's *budget* the current spend is.
-  // subtotal is a live, growing-through-the-month figure (confirmed by
-  // monthly-spending-snapshot.js existing specifically to freeze it at
-  // month-end for history — before that point it fluctuates as bank
-  // syncs land), so comparing it against elapsed calendar days is a
-  // genuinely meaningful signal, not just a guess. Only shown once
-  // there's a real gap (12+ points) either way — flagging "you're
-  // basically on schedule" for every single category would be noise,
-  // not insight, and only when a real budget is set, since pacing
-  // against a £0 budget is meaningless.
-  const pacing = (() => {
-    if (!(cat.budget > 0) || subtotal <= 0) return null;
-    const now = new Date();
-    const dayOfMonth = now.getDate();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const timeElapsedPct = (dayOfMonth / daysInMonth) * 100;
-    const spendPct = (subtotal / cat.budget) * 100;
-    const gap = spendPct - timeElapsedPct;
-    if (Math.abs(gap) < 12) return null;
-    return { ahead: gap > 0, dayOfMonth, daysInMonth, timeElapsedPct, spendPct };
-  })();
-
-  // Merchant breakdown + recurring-vs-one-off, built on top of the real
-  // transaction history now landing in household_transactions (see the
-  // transactions migration and persistTransactions in
-  // api/_lib/categorizeTransactions.js) — this genuinely didn't exist
-  // before tonight, since the backend only ever kept an aggregated
-  // monthly average per category and threw the individual transactions
-  // away. Queried directly through the normal (RLS-scoped) Supabase
-  // client rather than a new API route — the existing RLS policy on
-  // household_transactions already restricts reads to the household's
-  // own members, so there's nothing a server-side endpoint would add
-  // here that a direct client read doesn't already handle correctly.
-  //
-  // "Recurring" means the same cleaned-up merchant name appearing in at
-  // least 2 of the last 3 distinct calendar months — deliberately a
-  // simple, explainable rule rather than anything fuzzier (matching
-  // amounts within a tolerance, etc.) given how new and unproven this
-  // data source still is. Fetched once, on first expand, not on every
-  // toggle — a category someone opens and closes a few times while
-  // editing shouldn't re-query each time.
-  const [merchantStatus, setMerchantStatus] = useState("idle"); // idle | loading | done | empty | error
-  const [merchantBreakdown, setMerchantBreakdown] = useState(null);
-
-  useEffect(() => {
-    if (!expanded || merchantStatus !== "idle") return;
-    setMerchantStatus("loading");
-    (async () => {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const sinceDate = threeMonthsAgo.toISOString().slice(0, 10);
-      const { data, error } = await supabase
-        .from("household_transactions")
-        .select("merchant, amount, date")
-        .eq("category", cat.name)
-        .lt("amount", 0) // spending only — income never lands in a named category
-        .gte("date", sinceDate)
-        .order("date", { ascending: false });
-
-      if (error) {
-        setMerchantStatus("error");
-        return;
-      }
-      if (!data || data.length === 0) {
-        setMerchantStatus("empty");
-        return;
-      }
-
-      const byMerchant = new Map();
-      data.forEach((t) => {
-        const name = t.merchant || "Other";
-        const monthKey = String(t.date).slice(0, 7); // YYYY-MM
-        if (!byMerchant.has(name)) byMerchant.set(name, { name, total: 0, count: 0, months: new Set() });
-        const entry = byMerchant.get(name);
-        entry.total += Math.abs(Number(t.amount) || 0);
-        entry.count += 1;
-        entry.months.add(monthKey);
-      });
-
-      const rows = Array.from(byMerchant.values())
-        .map((e) => ({ name: e.name, total: e.total, count: e.count, recurring: e.months.size >= 2 }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 8); // a long tail of one-off £1.20 merchants isn't worth scrolling through
-
-      setMerchantBreakdown(rows);
-      setMerchantStatus("done");
-    })();
-  }, [expanded, merchantStatus, cat.name]);
-
   // Collapses every item in this category into a single "Total" item holding
   // the combined amount — for anyone who'd rather type one number than
   // itemize each line. Fully reversible: "+ Add item" still works normally
@@ -474,13 +397,6 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
           {cat.budget === 0 && subtotal > 0 && (
             <BudgetSuggestion subtotal={subtotal} onApply={(v) => onUpdateCategoryField(cat.id, "budget", v)} />
           )}
-          {pacing && (
-            <div className="wmg-sub" style={{ marginTop: 6, color: pacing.ahead ? "var(--rust)" : "var(--sage)" }}>
-              {pacing.ahead
-                ? `Pacing ahead of schedule — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, but already ${Math.round(pacing.spendPct)}% through this budget.`
-                : `Pacing comfortably — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, and only ${Math.round(pacing.spendPct)}% through this budget.`}
-            </div>
-          )}
         </div>
       </div>
 
@@ -505,34 +421,138 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
               Combine into one total
             </button>
           )}
-          {merchantStatus === "loading" && (
-            <div className="wmg-sub" style={{ marginTop: 12 }}>Looking at where this actually went…</div>
-          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Pure — no component state, so it's safe to call from anywhere.
+// Compares how far through the *month* we are against how far through
+// this category's *budget* the current spend is. subtotal is a live,
+// growing-through-the-month figure (confirmed by
+// monthly-spending-snapshot.js existing specifically to freeze it at
+// month-end for history — before that point it fluctuates as bank syncs
+// land), so comparing it against elapsed calendar days is a genuinely
+// meaningful signal, not just a guess. Returns null once there's a real
+// budget to compare against but the gap is under 12 points — flagging
+// "you're basically on schedule" for every category would be noise, not
+// insight — or when there's no budget set at all, since pacing against
+// a £0 budget is meaningless.
+function getCategoryPacing(budget, subtotal) {
+  if (!(budget > 0) || subtotal <= 0) return null;
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const timeElapsedPct = (dayOfMonth / daysInMonth) * 100;
+  const spendPct = (subtotal / budget) * 100;
+  const gap = spendPct - timeElapsedPct;
+  if (Math.abs(gap) < 12) return null;
+  return { ahead: gap > 0, dayOfMonth, daysInMonth, timeElapsedPct, spendPct };
+}
+
+// Tap-to-expand row for "Where it actually goes" in the main scroll —
+// this is where pacing and the merchant/recurring breakdown actually
+// live now. They used to only render inside CategoryCard, which itself
+// only ever appears inside EditSpendingSheet — meaning a real insight
+// (you're overspending against your own pace, this merchant keeps
+// recurring) was invisible unless someone specifically went looking to
+// edit their spending, rather than surfacing while just browsing, the
+// same way the biggest-mover banner and the AI read already do. Same
+// underlying data and logic as before, just relocated to where people
+// actually see it. `cat` is the matching real category from
+// profile.expenseCategories, or null for a synthetic row (the
+// "Subscriptions" line categoryChartData adds, which isn't a real
+// category with its own budget field) — pacing and the merchant lookup
+// are both skipped for those, since neither one applies.
+function CategoryInsightRow({ label, value, max, tone, formatter, cat, subtotal }) {
+  const [expanded, setExpanded] = useState(false);
+  const [merchantStatus, setMerchantStatus] = useState("idle"); // idle | loading | done | empty | error
+  const [merchantBreakdown, setMerchantBreakdown] = useState(null);
+  const pacing = cat ? getCategoryPacing(cat.budget, subtotal) : null;
+
+  useEffect(() => {
+    if (!expanded || !cat || merchantStatus !== "idle") return;
+    setMerchantStatus("loading");
+    (async () => {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const sinceDate = threeMonthsAgo.toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("household_transactions")
+        .select("merchant, amount, date")
+        .eq("category", cat.name)
+        .lt("amount", 0)
+        .gte("date", sinceDate)
+        .order("date", { ascending: false });
+
+      if (error) {
+        setMerchantStatus("error");
+        return;
+      }
+      if (!data || data.length === 0) {
+        setMerchantStatus("empty");
+        return;
+      }
+
+      const byMerchant = new Map();
+      data.forEach((t) => {
+        const name = t.merchant || "Other";
+        const monthKey = String(t.date).slice(0, 7);
+        if (!byMerchant.has(name)) byMerchant.set(name, { name, total: 0, count: 0, months: new Set() });
+        const entry = byMerchant.get(name);
+        entry.total += Math.abs(Number(t.amount) || 0);
+        entry.count += 1;
+        entry.months.add(monthKey);
+      });
+
+      const rows = Array.from(byMerchant.values())
+        .map((e) => ({ name: e.name, total: e.total, count: e.count, recurring: e.months.size >= 2 }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 8);
+
+      setMerchantBreakdown(rows);
+      setMerchantStatus("done");
+    })();
+  }, [expanded, cat, merchantStatus]);
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+        aria-expanded={expanded}
+      >
+        <BarRow label={label} value={value} max={max} tone={tone} formatter={formatter} />
+      </button>
+      {pacing && (
+        <div className="wmg-sub" style={{ marginTop: 2, marginBottom: 4, color: pacing.ahead ? "var(--rust)" : "var(--sage)" }}>
+          {pacing.ahead
+            ? `Pacing ahead of schedule — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, but already ${Math.round(pacing.spendPct)}% through this budget.`
+            : `Pacing comfortably — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, and only ${Math.round(pacing.spendPct)}% through this budget.`}
+        </div>
+      )}
+      {expanded && cat && (
+        <div style={{ padding: "4px 0 10px" }}>
+          {merchantStatus === "loading" && <div className="wmg-sub">Looking at where this actually went…</div>}
           {merchantStatus === "done" && merchantBreakdown && (
-            <div style={{ marginTop: 14 }}>
+            <div>
               <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Where this actually went (last 3 months)</div>
               {merchantBreakdown.map((m) => (
                 <div
                   key={m.name}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8, padding: "7px 0",
-                    borderBottom: "0.5px solid var(--hair)",
-                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "0.5px solid var(--hair)" }}
                 >
                   <span style={{ flex: 1, fontSize: 12.5, color: "var(--paper)" }}>{m.name}</span>
                   {m.recurring && (
                     <span
-                      style={{
-                        fontSize: 10, fontWeight: 700, color: "var(--brand)", background: "var(--brand-soft)",
-                        padding: "2px 7px", borderRadius: 999,
-                      }}
+                      style={{ fontSize: 10, fontWeight: 700, color: "var(--brand)", background: "var(--brand-soft)", padding: "2px 7px", borderRadius: 999 }}
                     >
                       Recurring
                     </span>
                   )}
-                  <span style={{ fontSize: 11.5, color: "var(--paper-dim)" }}>
-                    {m.count}× — {gbp(m.total)}
-                  </span>
+                  <span style={{ fontSize: 11.5, color: "var(--paper-dim)" }}>{m.count}× — {gbp(m.total)}</span>
                 </div>
               ))}
               <div className="wmg-sub" style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
@@ -541,9 +561,14 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
               </div>
             </div>
           )}
+          {merchantStatus === "empty" && (
+            <div className="wmg-sub" style={{ fontSize: 11, opacity: 0.7 }}>
+              No transaction history for this category yet — this fills in as bank data syncs in over time.
+            </div>
+          )}
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -1150,20 +1175,30 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                 than matching pie slice colours to a legend list. Shows
                 percentage alongside the amount specifically because a raw
                 £ figure alone doesn't convey "is this a lot" the way
-                "38% of your spending" does. */}
+                "38% of your spending" does. Each row is now tap-to-expand
+                (CategoryInsightRow) rather than a plain static bar —
+                pacing and the merchant/recurring breakdown moved here
+                from inside CategoryCard, which only ever lived inside
+                the Edit Spending sheet, so this insight was invisible
+                while just browsing. */}
             {(() => {
               const maxCat = Math.max(1, ...categoryChartData.map((r) => r.value));
-              return categoryChartData.map((row, i) => (
-                <Reveal key={row.name} delay={i * 45}>
-                  <BarRow
-                    label={row.name}
-                    value={row.value}
-                    max={maxCat}
-                    tone={CATEGORY_TONES[i % CATEGORY_TONES.length]}
-                    formatter={(v) => `${gbp(v)} · ${Math.round((v / categoryChartTotal) * 100)}%`}
-                  />
-                </Reveal>
-              ));
+              return categoryChartData.map((row, i) => {
+                const matchedCat = profile.expenseCategories.find((c) => c.name === row.name) || null;
+                return (
+                  <Reveal key={row.name} delay={i * 45}>
+                    <CategoryInsightRow
+                      label={row.name}
+                      value={row.value}
+                      max={maxCat}
+                      tone={CATEGORY_TONES[i % CATEGORY_TONES.length]}
+                      formatter={(v) => `${gbp(v)} · ${Math.round((v / categoryChartTotal) * 100)}%`}
+                      cat={matchedCat}
+                      subtotal={row.value}
+                    />
+                  </Reveal>
+                );
+              });
             })()}
           </Card>
 
