@@ -749,18 +749,99 @@ export default function App() {
   // (or not picked up by this pull) still has to be added/amended manually.
   // categoryTotals: { [categoryName]: monthlyAmount }
   // categoryTotals: { [categoryName]: monthlyAmount } — always present.
-  // categoryItems: { [categoryName]: [{ id, name, amount }] } — only
-  // present for a manual bank pull, which has the individual transactions
-  // to name; CSV imports and nightly-sync reviews only ever have the flat
-  // total, so those categories still fall back to one combined line.
-  const applyImportedSpending = (categoryTotals, estimatedIncome, categoryItems) => {
+  // categoryItems: { [categoryName]: [{ id, name, amount }] } — only ever
+  // supplied by a manual bank pull, which builds named items itself
+  // before calling this. CSV imports and nightly-sync reviews only ever
+  // pass the flat total, and used to fall back to one opaque "From bank
+  // import" line for those categories — not wrong, just not very
+  // useful, and the same generic label for every category made it hard
+  // to tell them apart when editing.
+  //
+  // Now genuinely fixed rather than just relabelled: since tonight's
+  // transaction-history work, every ingestion path (CSV, manual pull,
+  // nightly sync) already persists the real, merchant-named rows into
+  // household_transactions — so instead of a placeholder, this looks
+  // those up directly (last 3 months, same window CategoryInsightRow
+  // already uses in IncomeTab.jsx) and builds real named items from
+  // them, for both expense categories and income. "From bank import"
+  // only survives as a genuine last resort — no transaction history
+  // exists yet for that category/income (e.g. the very first sync,
+  // before any data has landed) or the lookup itself fails.
+  //
+  // Made async for this reason (a Supabase read before the state
+  // update) — safe to do, since the caller (BankImportTab.jsx) already
+  // fires this without awaiting a return value.
+  const applyImportedSpending = async (categoryTotals, estimatedIncome, categoryItems) => {
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const sinceDate = threeMonthsAgo.toISOString().slice(0, 10);
+
+    // Groups a set of transactions into named items by merchant — same
+    // shape CategoryInsightRow's own merchant breakdown already builds,
+    // just feeding cat.items here instead of a display list.
+    const buildItemsFromTransactions = (rows) => {
+      const byMerchant = new Map();
+      rows.forEach((t) => {
+        const name = t.merchant || "Other";
+        if (!byMerchant.has(name)) byMerchant.set(name, 0);
+        byMerchant.set(name, byMerchant.get(name) + Math.abs(Number(t.amount) || 0));
+      });
+      return Array.from(byMerchant.entries()).map(([name, amount]) => ({ id: nextId(), name, amount }));
+    };
+
+    let incomeItems = estimatedIncome != null ? [{ id: nextId(), name: "From bank import", amount: estimatedIncome }] : null;
+    if (estimatedIncome != null && supabase) {
+      try {
+        const { data } = await supabase
+          .from("household_transactions")
+          .select("merchant, amount")
+          .gt("amount", 0)
+          .is("category", null) // genuine income rows are tagged with a null category (see persistTransactions) — a positive-amount refund under a real expense category shouldn't be picked up here as if it were a separate income source
+          .gte("date", sinceDate);
+        if (data && data.length > 0) {
+          const items = buildItemsFromTransactions(data);
+          if (items.length > 0) incomeItems = items;
+        }
+      } catch {
+        // Falls back to the "From bank import" line already set above —
+        // this is a nice-to-have lookup, not something worth failing
+        // the whole import over.
+      }
+    }
+
+    // One query per category needing a lookup, rather than one query
+    // for everything — categories are typically few (under a dozen),
+    // and this keeps each category's items cleanly scoped to its own
+    // matching rows rather than one large result to split up client-side.
+    const categoryItemsResolved = {};
+    for (const [catName, imported] of Object.entries(categoryTotals)) {
+      const namedItems = categoryItems?.[catName];
+      if (namedItems && namedItems.length > 0) continue; // manual pull already named these
+      if (!supabase) continue;
+      try {
+        const { data } = await supabase
+          .from("household_transactions")
+          .select("merchant, amount")
+          .eq("category", catName)
+          .lt("amount", 0)
+          .gte("date", sinceDate);
+        if (data && data.length > 0) {
+          const items = buildItemsFromTransactions(data);
+          if (items.length > 0) categoryItemsResolved[catName] = items;
+        }
+      } catch {
+        // Same reasoning as above — falls back to "From bank import"
+        // for this one category rather than failing the whole import.
+      }
+    }
+
     setProfile((p) => ({
       ...p,
-      incomes: estimatedIncome != null ? [{ id: nextId(), name: "From bank import", amount: estimatedIncome }] : p.incomes,
+      incomes: incomeItems || p.incomes,
       expenseCategories: p.expenseCategories.map((c) => {
         const imported = categoryTotals[c.name];
         if (imported == null) return c;
-        const namedItems = categoryItems?.[c.name];
+        const namedItems = categoryItems?.[c.name] || categoryItemsResolved[c.name];
         const items =
           namedItems && namedItems.length > 0
             ? namedItems.map((it) => ({ id: nextId(), name: it.name, amount: it.amount }))

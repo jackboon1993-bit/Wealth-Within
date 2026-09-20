@@ -80,6 +80,23 @@ export async function categorizeBatch(transactions, categories, apiKey) {
   }
 
   if (!Array.isArray(parsed.results)) throw new Error("Unexpected response shape from the categoriser.");
+
+  // Deterministic safety net, not another judgement call — the app's
+  // own established convention (negative = money out, positive = money
+  // in) is a plain fact about the bank data itself, not something that
+  // needs the model's judgement, so it shouldn't be possible for a
+  // negative-amount transaction to come back marked as income no matter
+  // how an ambiguous description reads. This is exactly the failure
+  // reported: "sometimes it sees payments out as income." A genuinely
+  // positive-amount transaction is left to the model's own judgement
+  // either way, since a refund under a real spending category is a
+  // legitimate, different case that sign alone can't decide.
+  parsed.results.forEach((r, i) => {
+    if (r && r.isIncome && transactions[i] && transactions[i].amount < 0) {
+      r.isIncome = false;
+    }
+  });
+
   return parsed.results;
 }
 
@@ -217,18 +234,7 @@ export async function persistTransactions(admin, householdId, transactions, resu
     })
     .filter(Boolean);
 
-  // TEMPORARY diagnostic logging — added while tracking down why zero
-  // rows were landing in household_transactions with no visible error.
-  // Worth removing once that's actually confirmed fixed, rather than
-  // leaving debug noise in permanently.
-  console.log(
-    `persistTransactions: ${transactions.length} transactions in, ${results.filter(Boolean).length} had a result, ${rows.length} rows to insert (household ${householdId}, source ${source})`
-  );
-
-  if (rows.length === 0) {
-    console.log("persistTransactions: nothing to insert — returning before any database call.");
-    return;
-  }
+  if (rows.length === 0) return;
 
   const { error } = await admin.rpc("upsert_household_transactions", { rows });
   if (error) {
@@ -238,8 +244,6 @@ export async function persistTransactions(admin, householdId, transactions, resu
     // is visible without taking down the feature people are actually
     // waiting on day to day.
     console.error("Failed to persist transaction history:", error.message);
-  } else {
-    console.log(`persistTransactions: successfully upserted ${rows.length} rows.`);
   }
 }
 

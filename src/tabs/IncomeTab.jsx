@@ -211,15 +211,10 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
               ✕
             </button>
           </div>
-          {/* Was two native title="..." tooltips — title attributes are
-              built for mouse hover, which doesn't exist on a touchscreen;
-              some Android WebViews trigger them on long-press instead,
-              with no way to dismiss them, which is exactly the "stuck
-              open" bubble this replaces. The explanation itself is worth
-              keeping — cancel vs. delete sit right next to each other
-              and are easy to mix up — just as a plain caption that's
-              simply always there, rather than an interaction that has to
-              be triggered and then somehow escaped. */}
+          {/* Native title="..." tooltips don't work on a touchscreen —
+              they're built for mouse hover, and some Android WebViews
+              trigger them on long-press instead with no way to dismiss
+              them. Plain, always-there caption instead. */}
           <div className="wmg-sub" style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
             {sub.cancelled
               ? "Restore brings this back into your monthly total."
@@ -711,10 +706,21 @@ export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayI
 
 export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, onAcceptDetectedSubscription, onDismissDetectedSubscription, onConfirmSubscriptionStopped, onKeepFlaggedSubscription, hasPremium, subscriptionStatus, onUpgrade }) {
   const [justAddedIncomeId, setJustAddedIncomeId] = useState(null);
+  // Collapsed by default with exactly one income source — the sources
+  // list otherwise just repeats the same figure the summary sentence
+  // above it already gives ("You take home £X a month"), read as the
+  // same number twice on a screen people land on straight from
+  // Overview's "Budget" tile. With genuinely more than one source it
+  // stays open by default, since then it's showing something the
+  // summary sentence doesn't (the actual breakdown). Adding a source
+  // (handleAddIncome below) also opens it, so someone adding a second
+  // income immediately sees the list they just added to.
+  const [showIncomeSources, setShowIncomeSources] = useState(profile.incomes.length > 1);
   const handleAddIncome = () => {
     const id = nextId();
     addArrayItemWithId("incomes", { id, name: "New income", amount: 0 })();
     setJustAddedIncomeId(id);
+    setShowIncomeSources(true);
   };
   const [justAddedSubId, setJustAddedSubId] = useState(null);
   const handleAddSubscription = () => {
@@ -968,25 +974,36 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           "Income" — read as the same concept said twice on a screen
           people land on straight from Overview's "Budget" tile.
           Same functional list (add/edit/remove income sources) as
-          before, just folded into one Income section rather than two. */}
-      <Card style={{ marginTop: 10 }}>
-        {profile.incomes.map((inc) => (
-          <IncomeSourceCard
-            key={inc.id}
-            inc={inc}
-            canRemove={profile.incomes.length > 1}
-            updateArrayItem={updateArrayItem}
-            removeArrayItem={removeArrayItem}
-            startEditing={inc.id === justAddedIncomeId}
-          />
-        ))}
-        <button
-          className="wmg-add-btn"
-          onClick={handleAddIncome}
-        >
-          + Add income source
+          before, just folded into one Income section rather than two.
+          Collapsed by default with one source (see showIncomeSources
+          above) — this is still the actual place to add/edit/remove an
+          income source, just not permanently shown as a second box
+          restating the one figure already given above when there's
+          nothing else in it to see yet. */}
+      {!showIncomeSources ? (
+        <button type="button" className="wmg-onboard-skip" onClick={() => setShowIncomeSources(true)}>
+          Edit income source
         </button>
-      </Card>
+      ) : (
+        <Card style={{ marginTop: 10 }}>
+          {profile.incomes.map((inc) => (
+            <IncomeSourceCard
+              key={inc.id}
+              inc={inc}
+              canRemove={profile.incomes.length > 1}
+              updateArrayItem={updateArrayItem}
+              removeArrayItem={removeArrayItem}
+              startEditing={inc.id === justAddedIncomeId}
+            />
+          ))}
+          <button
+            className="wmg-add-btn"
+            onClick={handleAddIncome}
+          >
+            + Add income source
+          </button>
+        </Card>
+      )}
 
       {activeMode === "guided" && (
         <Card className="wmg-guided-summary-card">
@@ -1397,25 +1414,33 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
       )}
 
       <div className="wmg-section-title">Subscriptions</div>
-      <Card style={{ marginBottom: 10 }}>
-        <div className="wmg-sub">
-          List anything that charges you regularly — streaming, apps, gym, subscription boxes. We'll flag ones
-          worth reconsidering. Marking one cancelled just stops it counting in your total here — it doesn't cancel
-          it with the provider, so you'll still need to do that yourself.
-        </div>
-        {/* Required by Logo.dev's free tier for commercial use — see the
-            SUBSCRIPTION_BRANDS comment above. Small and out of the way
-            deliberately; remove only if/when this moves to a paid
-            Logo.dev plan, which drops the attribution requirement. */}
-        {LOGO_DEV_TOKEN && (
-          <div className="wmg-sub" style={{ marginTop: 8, fontSize: 11 }}>
-            Logos provided by{" "}
-            <a href="https://logo.dev" target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>
-              Logo.dev
-            </a>
-          </div>
-        )}
-      </Card>
+      {/* The explainer paragraph only shows before there's anything real
+          to look at — once real subscriptions exist, "list anything
+          that charges you regularly" is just onboarding text nobody
+          needs to keep re-reading every time they open this section.
+          The Logo.dev attribution line stays regardless of that — it's
+          a standing requirement of Logo.dev's free tier for commercial
+          use, not onboarding copy, so it can't be tied to the same
+          condition. */}
+      {(profile.subscriptions.length === 0 || LOGO_DEV_TOKEN) && (
+        <Card style={{ marginBottom: 10 }}>
+          {profile.subscriptions.length === 0 && (
+            <div className="wmg-sub">
+              List anything that charges you regularly — streaming, apps, gym, subscription boxes. We'll flag ones
+              worth reconsidering. Marking one cancelled just stops it counting in your total here — it doesn't cancel
+              it with the provider, so you'll still need to do that yourself.
+            </div>
+          )}
+          {LOGO_DEV_TOKEN && (
+            <div className="wmg-sub" style={{ marginTop: profile.subscriptions.length === 0 ? 8 : 0, fontSize: 11 }}>
+              Logos provided by{" "}
+              <a href="https://logo.dev" target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>
+                Logo.dev
+              </a>
+            </div>
+          )}
+        </Card>
+      )}
 
       {!hasPremium && (!profile.pendingSubscriptions || profile.pendingSubscriptions.length === 0) && (
         <Card style={{ marginBottom: 10 }}>
