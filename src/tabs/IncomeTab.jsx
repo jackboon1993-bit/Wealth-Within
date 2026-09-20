@@ -768,6 +768,39 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
+      // Merchant-level detail, so this can actually answer what its own
+      // placeholder promises ("how much did I spend on takeaways") —
+      // before tonight's transaction-history work this genuinely
+      // couldn't, since it only ever saw the same 6-7 broad category
+      // totals already visible on this exact screen. Same RLS-scoped
+      // direct query as the per-category merchant breakdown in
+      // CategoryCard above, just grouped across every category rather
+      // than one at a time, since a question here could be about
+      // anything.
+      let merchants = [];
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const { data: txRows } = await supabase
+        .from("household_transactions")
+        .select("merchant, category, amount, date")
+        .lt("amount", 0)
+        .gte("date", threeMonthsAgo.toISOString().slice(0, 10));
+      if (txRows && txRows.length > 0) {
+        const byMerchant = new Map();
+        txRows.forEach((t) => {
+          const name = t.merchant || "Other";
+          const key = `${name}__${t.category || ""}`;
+          if (!byMerchant.has(key)) byMerchant.set(key, { name, category: t.category, total: 0, count: 0 });
+          const entry = byMerchant.get(key);
+          entry.total += Math.abs(Number(t.amount) || 0);
+          entry.count += 1;
+        });
+        merchants = Array.from(byMerchant.values())
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 40); // a generous cap, not every £1.50 one-off
+      }
+
       const resp = await fetch(`${API_BASE}/api/ask-budget`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
@@ -776,6 +809,7 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           categories: categoryChartData.map((r) => ({ name: r.name, value: r.value, budget: profile.expenseCategories.find((c) => c.name === r.name)?.budget ?? null })),
           income: totals.income,
           subscriptions: profile.subscriptions.filter((s) => !s.cancelled).map((s) => ({ name: s.name, amount: s.amount })),
+          merchants,
         }),
       });
       const data = await resp.json();
@@ -1206,7 +1240,9 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                   <input
                     type="text"
                     className="wmg-input"
-                    style={{ display: "inline-block", width: "calc(100% - 90px)", verticalAlign: "middle" }}
+                    // Widened the button below, so the width subtracted
+                    // here needs to match: 112px button + 8px margin.
+                    style={{ display: "inline-block", width: "calc(100% - 120px)", verticalAlign: "middle", minHeight: 44 }}
                     placeholder="e.g. What's my biggest subscription?"
                     value={askBudgetQuestion}
                     onChange={(e) => setAskBudgetQuestion(e.target.value)}
@@ -1219,13 +1255,17 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                     disabled={askBudgetStatus === "loading"}
                   />
                   <button
-                    className="wmg-add-btn"
-                    // Fixed width matching the 90px subtracted from the
-                    // input's calc() above, plus a small left margin
-                    // standing in for the old flex gap (which only
-                    // applies inside a flex/grid container — this row
-                    // is plain block/inline-block now).
-                    style={{ display: "inline-block", width: 82, marginLeft: 8, verticalAlign: "middle", padding: "0 4px" }}
+                    // Was wmg-add-btn — the plain dashed/secondary style,
+                    // which undersold this: "Ask" is the actual primary
+                    // action of this whole card, not a minor secondary
+                    // one, so it gets the same solid gradient-fill
+                    // treatment as other real submit buttons elsewhere
+                    // (e.g. "Read a statement" on Investments).
+                    className="wmg-btn-primary"
+                    style={{
+                      display: "inline-block", width: 112, marginLeft: 8, verticalAlign: "middle",
+                      minHeight: 44, padding: "0 8px", fontSize: 14, fontWeight: 700,
+                    }}
                     onClick={askBudget}
                     disabled={askBudgetStatus === "loading" || !askBudgetQuestion.trim()}
                   >

@@ -15,9 +15,11 @@
 
 import { requirePremiumUser } from "./_lib/requirePremiumUser.js";
 
-const SYSTEM_PROMPT = `You answer questions about a UK household's own budget, using ONLY the data given to you in this message — never general financial advice, and never numbers you're not given. You will receive: their income categories, their spending categories (each with a name, this month's spend, and their set budget if any), and their active subscriptions.
+const SYSTEM_PROMPT = `You answer questions about a UK household's own budget, using ONLY the data given to you in this message — never general financial advice, and never numbers you're not given. You will receive: their income categories, their spending categories (each with a name, this month's spend, and their set budget if any), their active subscriptions, and their real merchant-level spending from the last 3 months (each with a merchant name, which category it fell under, the total spent there, and how many times).
 
-Answer the person's question directly and conversationally, in plain English, in 1-3 short sentences — this is a quick answer, not a report. If the data given genuinely doesn't let you answer (e.g. they ask about something not covered, like a specific transaction merchant, which this data doesn't include), say so plainly rather than guessing or inventing a number. Never invent a category, a subscription, or a figure that isn't in the data you were given.
+Use the merchant list for anything specific — "how much did I spend on takeaways", "what's my biggest subscription", "how often do I go to X" — by matching merchant names sensibly (e.g. "Deliveroo", "Just Eat", or a fast-food chain name are all takeaway-related; use your own judgement about what a merchant name represents, the same way a person reading their own bank statement would). Use the category totals for broader questions ("how much do I spend on Lifestyle overall"). The merchant list only covers the last 3 months — say so if a question asks about a longer period the data doesn't cover.
+
+Answer the person's question directly and conversationally, in plain English, in 1-3 short sentences — this is a quick answer, not a report. If the data given genuinely doesn't let you answer (e.g. they ask about something not covered, like a specific transaction merchant, which this data doesn't include), say so plainly rather than guessing or inventing a number. Never invent a category, a subscription, a merchant, or a figure that isn't in the data you were given.
 
 If they ask something outside the scope of their own budget data entirely (e.g. general financial advice, something about the stock market, an unrelated topic), politely say this box is only for questions about their own budget, and suggest the Education tab for general explainers instead.
 
@@ -50,7 +52,7 @@ export default async function handler(req, res) {
   const session = await requirePremiumUser(req, res);
   if (!session.ok) return; // response already sent — 401/402/404
 
-  const { question, categories, income, subscriptions } = req.body || {};
+  const { question, categories, income, subscriptions, merchants } = req.body || {};
   if (!question || typeof question !== "string" || !question.trim()) {
     res.status(400).json({ error: "No question given." });
     return;
@@ -74,6 +76,7 @@ export default async function handler(req, res) {
       income: income ?? null,
       categories: Array.isArray(categories) ? categories.slice(0, 40) : [],
       subscriptions: Array.isArray(subscriptions) ? subscriptions.slice(0, 40) : [],
+      merchants: Array.isArray(merchants) ? merchants.slice(0, 40) : [],
     };
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
