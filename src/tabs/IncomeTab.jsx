@@ -1190,11 +1190,23 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
             )}
             {hasPremium && (
               <>
-                <div style={{ display: "flex", gap: 8 }}>
+                {/* Switched away from flex entirely, rather than kept
+                    fighting it — the diagnostic proved inline styles
+                    reach this element fine (the magenta test box
+                    rendered exactly as sized), but every flex-based
+                    attempt at making the input grow to fill the row
+                    still failed, which points at the `flex` shorthand
+                    itself misbehaving in this WebView (a real, known
+                    class of bug in some Android WebView versions) rather
+                    than a specificity fight with .wmg-input. A plain
+                    block layout with calc() sizing sidesteps flex
+                    entirely instead of trying to out-guess it further.
+                */}
+                <div style={{ display: "block", width: "100%" }}>
                   <input
                     type="text"
                     className="wmg-input"
-                    style={{ flex: 1 }}
+                    style={{ display: "inline-block", width: "calc(100% - 90px)", verticalAlign: "middle" }}
                     placeholder="e.g. What's my biggest subscription?"
                     value={askBudgetQuestion}
                     onChange={(e) => setAskBudgetQuestion(e.target.value)}
@@ -1208,7 +1220,12 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
                   />
                   <button
                     className="wmg-add-btn"
-                    style={{ flexShrink: 0 }}
+                    // Fixed width matching the 90px subtracted from the
+                    // input's calc() above, plus a small left margin
+                    // standing in for the old flex gap (which only
+                    // applies inside a flex/grid container — this row
+                    // is plain block/inline-block now).
+                    style={{ display: "inline-block", width: 82, marginLeft: 8, verticalAlign: "middle", padding: "0 4px" }}
                     onClick={askBudget}
                     disabled={askBudgetStatus === "loading" || !askBudgetQuestion.trim()}
                   >
