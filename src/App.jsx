@@ -776,38 +776,46 @@ export default function App() {
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const sinceDate = threeMonthsAgo.toISOString().slice(0, 10);
 
-    // Groups a set of transactions into named items by merchant — same
-    // shape CategoryInsightRow's own merchant breakdown already builds,
-    // just feeding cat.items here instead of a display list.
-    const buildItemsFromTransactions = (rows) => {
+    // Turns a set of raw transactions into named items whose amounts sum
+    // to exactly `monthlyTotal` — the already-correct monthly figure
+    // categorizeAndSummarize computed — rather than to whatever the raw
+    // rows themselves add up to. This is the actual fix for the real bug
+    // reported tonight: the previous version used the rows' own summed
+    // amounts directly as each item's amount, but those rows span the
+    // last 3 months while monthlyTotal is a genuine one-month average —
+    // silently swapping a correct monthly figure for something close to
+    // 2-3 months' worth combined (consistent with reports of a monthly
+    // income or category coming through roughly double what it should
+    // be). Household transaction history is only ever used here to
+    // determine each merchant's *share* of the total, then that share is
+    // applied to the real monthly total — the amounts always add up to
+    // exactly what was already correct, only their split by name changes.
+    const buildItemsFromTransactions = (rows, monthlyTotal) => {
       const byMerchant = new Map();
+      let rawTotal = 0;
       rows.forEach((t) => {
         const name = t.merchant || "Other";
-        if (!byMerchant.has(name)) byMerchant.set(name, 0);
-        byMerchant.set(name, byMerchant.get(name) + Math.abs(Number(t.amount) || 0));
+        const amt = Math.abs(Number(t.amount) || 0);
+        byMerchant.set(name, (byMerchant.get(name) || 0) + amt);
+        rawTotal += amt;
       });
-      return Array.from(byMerchant.entries()).map(([name, amount]) => ({ id: nextId(), name, amount }));
+      if (rawTotal <= 0) return [];
+      return Array.from(byMerchant.entries()).map(([name, amount]) => ({
+        id: nextId(),
+        name,
+        amount: Math.round((amount / rawTotal) * monthlyTotal),
+      }));
     };
 
-    let incomeItems = estimatedIncome != null ? [{ id: nextId(), name: "From bank import", amount: estimatedIncome }] : null;
-    if (estimatedIncome != null && supabase) {
-      try {
-        const { data } = await supabase
-          .from("household_transactions")
-          .select("merchant, amount")
-          .gt("amount", 0)
-          .is("category", null) // genuine income rows are tagged with a null category (see persistTransactions) — a positive-amount refund under a real expense category shouldn't be picked up here as if it were a separate income source
-          .gte("date", sinceDate);
-        if (data && data.length > 0) {
-          const items = buildItemsFromTransactions(data);
-          if (items.length > 0) incomeItems = items;
-        }
-      } catch {
-        // Falls back to the "From bank import" line already set above —
-        // this is a nice-to-have lookup, not something worth failing
-        // the whole import over.
-      }
-    }
+    // Income deliberately does NOT get split into multiple named items
+    // the way expense categories do below. Unlike spending — where
+    // seeing "Tesco, Sainsbury's" broken out under Groceries is genuinely
+    // useful — auto-splitting income by whatever raw merchant names
+    // happen to appear (an odd-looking internal transfer, a one-off
+    // payment) just produces confusing extra rows that then need
+    // reviewing/discarding one by one, which is exactly what got
+    // reported. Income stays a single, correctly-valued line.
+    const incomeItems = estimatedIncome != null ? [{ id: nextId(), name: "From bank import", amount: estimatedIncome }] : null;
 
     // One query per category needing a lookup, rather than one query
     // for everything — categories are typically few (under a dozen),
@@ -817,7 +825,7 @@ export default function App() {
     for (const [catName, imported] of Object.entries(categoryTotals)) {
       const namedItems = categoryItems?.[catName];
       if (namedItems && namedItems.length > 0) continue; // manual pull already named these
-      if (!supabase) continue;
+      if (!supabase || imported == null) continue;
       try {
         const { data } = await supabase
           .from("household_transactions")
@@ -826,12 +834,12 @@ export default function App() {
           .lt("amount", 0)
           .gte("date", sinceDate);
         if (data && data.length > 0) {
-          const items = buildItemsFromTransactions(data);
+          const items = buildItemsFromTransactions(data, imported);
           if (items.length > 0) categoryItemsResolved[catName] = items;
         }
       } catch {
-        // Same reasoning as above — falls back to "From bank import"
-        // for this one category rather than failing the whole import.
+        // Falls back to the "From bank import" line below for this one
+        // category rather than failing the whole import.
       }
     }
 

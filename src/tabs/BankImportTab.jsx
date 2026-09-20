@@ -811,7 +811,31 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         </Card>
       )}
 
-      {status === "categorizing" && <Card>{progress || "Categorising…"}</Card>}
+      {status === "categorizing" && (
+        <Card style={{ textAlign: "center", padding: "32px 20px" }}>
+          {/* Simple self-contained CSS spinner — no shared spinner
+              component exists anywhere else in the app yet, so this is
+              defined inline rather than reaching for one that isn't
+              there. Was previously just a single line of plain text,
+              easy to miss and not obviously "something is happening". */}
+          <style>{`
+            @keyframes wmg-spin { to { transform: rotate(360deg); } }
+          `}</style>
+          <div
+            style={{
+              width: 40, height: 40, margin: "0 auto 16px",
+              border: "3px solid var(--hair)", borderTopColor: "var(--brand)",
+              borderRadius: "50%", animation: "wmg-spin 0.8s linear infinite",
+            }}
+          />
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--paper)", marginBottom: 6 }}>
+            {progress || "Categorising…"}
+          </div>
+          <div className="wmg-sub" style={{ fontSize: 12, opacity: 0.7 }}>
+            This can take a little while for a lot of transactions — hang tight.
+          </div>
+        </Card>
+      )}
 
       {status === "reviewing" && categoryTotals && (
         <>

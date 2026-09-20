@@ -59,6 +59,75 @@ export function getSubscriptionBrand(name) {
   return SUBSCRIPTION_BRANDS.find((b) => b.match.some((m) => nameLower.includes(m))) || null;
 }
 
+// Best-effort merchant name → domain guess, for logos on the merchant
+// breakdown (CategoryInsightRow below) — genuinely different from
+// SUBSCRIPTION_BRANDS above, which is a small curated list matched
+// against known subscription providers. A raw bank transaction can be
+// almost anything, so this can't be a complete list; it's deliberately
+// two tiers: a short list of the UK merchants most likely to actually
+// show up in real transaction data (supermarkets, fast food, a few
+// major retailers), then a generic fallback guess (strip the name down
+// to something plausible and try "<name>.com") for everything else.
+// Neither tier is guaranteed correct — logoDevUrl's own onError fallback
+// (see SubscriptionRow above, reused identically in CategoryInsightRow)
+// is what actually keeps a wrong or missing guess from ever showing a
+// broken image; this is just trying to get a real logo more often than
+// not, not trying to be exhaustive.
+const COMMON_MERCHANT_DOMAINS = [
+  { match: ["tesco"], domain: "tesco.com" },
+  { match: ["sainsbury"], domain: "sainsburys.co.uk" },
+  { match: ["asda"], domain: "asda.com" },
+  { match: ["morrison"], domain: "morrisons.com" },
+  { match: ["aldi"], domain: "aldi.co.uk" },
+  { match: ["lidl"], domain: "lidl.co.uk" },
+  { match: ["waitrose"], domain: "waitrose.com" },
+  { match: ["co-op", "coop food"], domain: "coop.co.uk" },
+  { match: ["mcdonald"], domain: "mcdonalds.com" },
+  { match: ["kfc"], domain: "kfc.co.uk" },
+  { match: ["burger king"], domain: "burgerking.co.uk" },
+  { match: ["greggs"], domain: "greggs.co.uk" },
+  { match: ["subway"], domain: "subway.com" },
+  { match: ["starbucks"], domain: "starbucks.co.uk" },
+  { match: ["costa"], domain: "costa.co.uk" },
+  { match: ["pret"], domain: "pret.co.uk" },
+  { match: ["deliveroo"], domain: "deliveroo.co.uk" },
+  { match: ["just eat", "justeat"], domain: "just-eat.co.uk" },
+  { match: ["uber eats", "ubereats"], domain: "ubereats.com" },
+  { match: ["uber"], domain: "uber.com" },
+  { match: ["amazon"], domain: "amazon.co.uk" },
+  { match: ["boots"], domain: "boots.com" },
+  { match: ["superdrug"], domain: "superdrug.com" },
+  { match: ["argos"], domain: "argos.co.uk" },
+  { match: ["currys"], domain: "currys.co.uk" },
+  { match: ["ikea"], domain: "ikea.com" },
+  { match: ["b&q", "b & q"], domain: "diy.com" },
+  { match: ["screwfix"], domain: "screwfix.com" },
+  { match: ["shell"], domain: "shell.co.uk" },
+  { match: ["bp "], domain: "bp.com" },
+  { match: ["esso"], domain: "esso.co.uk" },
+  { match: ["primark"], domain: "primark.com" },
+  { match: ["next retail", "next plc"], domain: "next.co.uk" },
+  { match: ["h&m", "h & m"], domain: "hm.com" },
+  { match: ["zara"], domain: "zara.com" },
+  { match: ["marks & spencer", "m&s", "marks and spencer"], domain: "marksandspencer.com" },
+  { match: ["john lewis"], domain: "johnlewis.com" },
+  { match: ["tfl", "transport for london"], domain: "tfl.gov.uk" },
+  { match: ["national rail", "trainline"], domain: "thetrainline.com" },
+];
+
+export function guessMerchantDomain(name) {
+  const nameLower = (name || "").trim().toLowerCase();
+  if (!nameLower) return null;
+  const known = COMMON_MERCHANT_DOMAINS.find((b) => b.match.some((m) => nameLower.includes(m)));
+  if (known) return known.domain;
+  // Generic fallback — only for a clean-looking single/double word name
+  // (already passed through cleanMerchantName server-side before this),
+  // never for something that still looks like a raw, messy bank string.
+  const cleaned = nameLower.replace(/[^a-z0-9]/g, "");
+  if (!cleaned || cleaned.length < 3 || nameLower === "other") return null;
+  return `${cleaned}.com`;
+}
+
 // Small reusable "this needs Premium" prompt — used everywhere an
 // AI-powered feature is gated (bill checker, spending insight, Pension
 // Reader). Wording matches the pattern used on Overview's own upgrade
@@ -460,6 +529,46 @@ function getCategoryPacing(budget, subtotal) {
 // "Subscriptions" line categoryChartData adds, which isn't a real
 // category with its own budget field) — pacing and the merchant lookup
 // are both skipped for those, since neither one applies.
+// Small logo-or-initial badge for a merchant name — same show-logo,
+// fall-back-to-initial-on-error pattern as SubscriptionRow's brand
+// avatar above, just driven by guessMerchantDomain's best-effort guess
+// instead of the curated SUBSCRIPTION_BRANDS list. A separate small
+// component (rather than inline in the .map() below) because the
+// image-load-failed state needs to be tracked per row, and hooks can't
+// be called conditionally inside a loop.
+function MerchantLogo({ name }) {
+  const domain = guessMerchantDomain(name);
+  const logoUrl = domain ? logoDevUrl(domain) : null;
+  const [imageFailed, setImageFailed] = useState(false);
+  const showLogo = logoUrl && !imageFailed;
+  const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
+
+  if (showLogo) {
+    return (
+      <span
+        style={{
+          width: 22, height: 22, borderRadius: 6, background: "#FFFFFF", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+          border: "0.5px solid var(--hair)",
+        }}
+      >
+        <img src={logoUrl} alt="" width={16} height={16} loading="lazy" style={{ objectFit: "contain" }} onError={() => setImageFailed(true)} />
+      </span>
+    );
+  }
+  return (
+    <span
+      style={{
+        width: 22, height: 22, borderRadius: 6, background: "var(--brand-soft)", flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 10, fontWeight: 700, color: "var(--brand)",
+      }}
+    >
+      {initial}
+    </span>
+  );
+}
+
 function CategoryInsightRow({ label, value, max, tone, formatter, cat, subtotal }) {
   const [expanded, setExpanded] = useState(false);
   const [merchantStatus, setMerchantStatus] = useState("idle"); // idle | loading | done | empty | error
@@ -539,6 +648,7 @@ function CategoryInsightRow({ label, value, max, tone, formatter, cat, subtotal 
                   key={m.name}
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "0.5px solid var(--hair)" }}
                 >
+                  <MerchantLogo name={m.name} />
                   <span style={{ flex: 1, fontSize: 12.5, color: "var(--paper)" }}>{m.name}</span>
                   {m.recurring && (
                     <span
@@ -944,27 +1054,44 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     }
   };
 
+  const monthRangeLabel = (() => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const fmt = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+    return `${fmt(first)} – ${fmt(last)}`;
+  })();
+  const totalOutgoings = totals.essential + totals.debtPayments + totals.lifestyle;
+
   return (
     <>
       <div className="wmg-section-title">Income</div>
+      {/* Rebuilt as an explicit in/out/left comparison, with the actual
+          calendar month spelled out — the previous version only ever
+          showed the net "leaves you with" figure (an earlier pass had
+          removed a plain outgoings total for feeling redundant next to
+          it), but a net figure alone doesn't answer "what's coming in"
+          and "what's going out" as two separate, comparable numbers,
+          which is genuinely a different, more decisive way to read the
+          same month. */}
       <Card>
-        <div className="wmg-two-col">
-          <div className="wmg-sentence-card">
-            You take home <strong>{gbp(totals.income)}</strong> a month
-            {profile.incomes.length > 1 ? ` across ${profile.incomes.length} income sources` : ""}.
+        <div className="wmg-sub" style={{ marginBottom: 10, fontSize: 11, opacity: 0.75 }}>{monthRangeLabel}</div>
+        <div className="wmg-three-col">
+          <div>
+            <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Coming in</div>
+            <div className="wmg-figure tone-sage">{gbp(totals.income)}</div>
+            {profile.incomes.length > 1 && (
+              <div className="wmg-sub" style={{ fontSize: 11, marginTop: 2 }}>across {profile.incomes.length} sources</div>
+            )}
           </div>
           <div>
-            {/* Was a bare "total outgoings" figure — removed per feedback
-                that it wasn't adding much next to the income line above
-                it. This shows something genuinely different from
-                Overview's "Budget" tile instead: that tile deliberately
-                excludes lifestyle spending (fixed costs only), so this is
-                the one place that shows what's left after literally
-                everything, essentials + debt + lifestyle included. */}
-            <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Leaves you with</div>
-            <div className="wmg-figure tone-paper">
-              {gbp(totals.income - totals.essential - totals.debtPayments - totals.lifestyle)}/mo
-            </div>
+            <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Going out</div>
+            <div className="wmg-figure tone-rust">{gbp(totalOutgoings)}</div>
+            <div className="wmg-sub" style={{ fontSize: 11, marginTop: 2 }}>essentials, debt & lifestyle</div>
+          </div>
+          <div>
+            <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Leaves you with</div>
+            <div className="wmg-figure tone-paper">{gbp(totals.income - totalOutgoings)}</div>
           </div>
         </div>
       </Card>
