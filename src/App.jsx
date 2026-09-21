@@ -1045,19 +1045,28 @@ export default function App() {
   const topbarAvailable = totals.income - totals.essential - totals.debtPayments - totals.subsTotal;
   const animatedTopbarAvailableFixed = useCountUp(topbarAvailable);
 
+  // Rebuilt to mirror what the tiles above it actually track, rather
+  // than the older essential/debt/lifestyle/available split — mortgage
+  // & bills, loan & credit card repayments, pension and investment
+  // contributions all now get their own real slice. "Savings" was
+  // asked for too, but there's genuinely no monthly savings
+  // contribution tracked anywhere in the app (only a running balance),
+  // so inventing a number for it would be worse than not having the
+  // slice at all. What's left over goes to "Available / unallocated"
+  // instead — an honest label for money not yet assigned anywhere,
+  // rather than quietly relabelling it as savings when it might not
+  // actually end up there. Lifestyle spending keeps its own slice too,
+  // even though it wasn't explicitly re-listed — it's real, active
+  // spending, and dropping it would mean the pie no longer adds up to
+  // the actual income it's meant to represent.
+  const pensionAndInvestmentContributions = totals.pensionContribution + Number(profile.investments.monthlyContribution || 0);
   const flowSegments = [
-    { key: "essential", label: "Essential", value: totals.essential, tone: "slate" },
-    // Was plain "Debt" — genuinely confusing next to the "Loans & credit
-    // cards" tile on the same page, which shows totalDebt (the total
-    // outstanding balance owed). This segment is a completely different
-    // figure: debtPayments, the monthly amount actually being repaid.
-    // Both can be true at once — £7,000 owed overall with £0 in monthly
-    // structured payments, if a payment amount hasn't been entered for
-    // that loan/card — but calling them both bare "Debt" made that look
-    // like a contradiction rather than two different, correct numbers.
+    { key: "essential", label: "Mortgage & bills", value: totals.essential, tone: "slate" },
     { key: "debt", label: "Debt repayments", value: totals.debtPayments, tone: "rust" },
     { key: "lifestyle", label: "Lifestyle", value: totals.lifestyle, tone: "gold" },
-    { key: "available", label: "Available", value: Math.max(0, totals.available), tone: "sage" },
+    { key: "pension", label: "Pension", value: totals.pensionContribution, tone: "coral" },
+    { key: "investments", label: "Investments", value: Number(profile.investments.monthlyContribution || 0), tone: "brand" },
+    { key: "available", label: "Available / unallocated", value: Math.max(0, totals.available - pensionAndInvestmentContributions), tone: "sage" },
   ];
   const flowTotal = flowSegments.reduce((s, f) => s + f.value, 0) || 1;
 
@@ -1163,6 +1172,8 @@ export default function App() {
           --sage-fill: #22C55E;
           --rust-fill: #F4436C;
           --slate-fill: #4E7FF0;
+          --coral-fill: #FB6F5C;
+          --brand-fill: #8B5CF6;
           --coral-text: #B23A28;
           background: var(--ink);
           color: var(--paper);

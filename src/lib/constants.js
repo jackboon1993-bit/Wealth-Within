@@ -70,7 +70,7 @@ export const MASCOT_MESSAGES = {
 // (same as stroke="var(--hair)" already used elsewhere), so this now
 // stays correct automatically through any future re-theme instead of
 // needing a manual fix each time.
-export const FLOW_TONE_COLORS = { slate: "var(--slate)", rust: "var(--rust)", gold: "var(--gold)", sage: "var(--sage)" };
+export const FLOW_TONE_COLORS = { slate: "var(--slate)", rust: "var(--rust)", gold: "var(--gold)", sage: "var(--sage)", coral: "var(--coral)", brand: "var(--brand)" };
 
 // Free-tier limit on manual "Pull transactions from my connected bank".
 // Premium has no limit (also gets automatic nightly sync — see
