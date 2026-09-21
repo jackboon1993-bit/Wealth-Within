@@ -859,6 +859,37 @@ export default function App() {
     }));
   };
 
+  // Wipes both halves of what a bank pull can leave behind: the derived
+  // budget items (category items, income) that applyImportedSpending
+  // above builds, and the raw transaction history in
+  // household_transactions that now also feeds pacing, the merchant
+  // breakdown, and Ask your budget. Clearing only the visible budget
+  // and leaving the history behind would still leave those other
+  // features reading stale, possibly mistagged rows from before
+  // tonight's fixes — this clears both so a fresh pull afterwards has
+  // nothing old left to conflict with. Deliberately leaves the actual
+  // bank_connections row alone — this clears imported *data*, not the
+  // connection itself, so a fresh pull still works right after.
+  const clearImportedBankData = async () => {
+    if (supabase) {
+      try {
+        await supabase.from("household_transactions").delete().not("id", "is", null);
+      } catch (err) {
+        console.error("Failed to clear transaction history:", err);
+        // Still proceeds to clear the budget items below — a failure
+        // here shouldn't block someone from at least getting a clean
+        // budget, even if the underlying history didn't clear.
+      }
+    }
+    setProfile((p) => ({
+      ...p,
+      incomes: [],
+      expenseCategories: p.expenseCategories.map((c) => ({ ...c, items: [] })),
+      pendingBankSync: null,
+      pendingSubscriptions: null,
+    }));
+  };
+
   // Called after a bank-sourced review (manual pull or an overnight
   // sync) is actually applied to the budget — clears the pending flag
   // (if this was a synced one) and advances the household's
@@ -2125,6 +2156,7 @@ export default function App() {
                 canPullBank={canPullBank}
                 nextPullAvailableAt={nextPullAvailableAt}
                 onManualBankPullApplied={recordManualBankPull}
+                onClearImportedBankData={clearImportedBankData}
               />
             )}
 

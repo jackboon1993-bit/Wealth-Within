@@ -291,8 +291,26 @@ export function PensionReaderTab({ onUseInPension, pensions = [], investmentsBal
 
 
 
-export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings, onSubscriptionsPossiblyStopped, onUseAsCardDebt, hasPremium, subscriptionStatus, onUpgrade, canPullBank, nextPullAvailableAt, onManualBankPullApplied }) {
+export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBankSyncApplied, onDiscardPendingSync, hasConnectedBank, onBankAccountsChanged, onSubscriptionsDetected, onUseAsSavings, onSubscriptionsPossiblyStopped, onUseAsCardDebt, hasPremium, subscriptionStatus, onUpgrade, canPullBank, nextPullAvailableAt, onManualBankPullApplied, onClearImportedBankData }) {
   const [mode, setMode] = useState("transactions"); // transactions | debts
+  const [clearingData, setClearingData] = useState(false);
+  const handleClearImportedData = async () => {
+    // A native confirm() rather than a custom modal — this is a rare,
+    // destructive, one-off action (wiping imported budget items and the
+    // underlying transaction history), not a frequent interaction that
+    // would benefit from bespoke UI. Capacitor's WebView renders this
+    // fine, and it needs no new component to get right.
+    const confirmed = window.confirm(
+      "This clears every category and income item that came from a bank pull, plus your saved transaction history. Your bank connection itself stays — you can pull fresh data right after. This can't be undone. Continue?"
+    );
+    if (!confirmed) return;
+    setClearingData(true);
+    try {
+      await onClearImportedBankData();
+    } finally {
+      setClearingData(false);
+    }
+  };
   // Bank connecting needs a signed-in household to attach the connection
   // to — null until resolved (or permanently null if accounts aren't
   // configured at all, per hasAccounts below).
@@ -325,6 +343,15 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
             onUseAsCardDebt={onUseAsCardDebt}
             existingCards={profile.cards}
           />
+          <button
+            type="button"
+            className="wmg-onboard-skip"
+            style={{ marginTop: 10, color: "var(--rust)" }}
+            onClick={handleClearImportedData}
+            disabled={clearingData}
+          >
+            {clearingData ? "Clearing…" : "Clear imported bank data"}
+          </button>
         </div>
       )}
 
