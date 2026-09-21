@@ -539,6 +539,160 @@ function MerchantLogo({ name }) {
 // "Subscriptions" line categoryChartData adds, which isn't a real
 // category with its own budget field) — the merchant lookup is skipped
 // for those, since it doesn't apply.
+// "Every day this month" — a genuinely new capability, not a
+// restyle of anything that already existed. Built directly on the
+// same household_transactions history the merchant breakdown already
+// reads (RLS-scoped, no new backend route needed), grouped by calendar
+// day rather than by category. Shows which days actually had spending,
+// how much, and — for the handful of biggest days — which merchants it
+// actually went to, since a plain "£2,100 on the 20th" tells you far
+// less than "£2,100 on the 20th, to your mortgage lender". Fetched
+// once per mount; this is a light monthly query (a household's
+// transaction count for one month is small), so there's no pagination
+// or caching concern worth adding here.
+function SpendingCalendar() {
+  const [status, setStatus] = useState("loading"); // loading | done | empty | error
+  const [dayTotals, setDayTotals] = useState({});
+  const [topDays, setTopDays] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      const now = new Date();
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const sinceDate = firstOfMonth.toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("household_transactions")
+        .select("date, amount, merchant")
+        .lt("amount", 0)
+        .gte("date", sinceDate)
+        .order("date", { ascending: true });
+
+      if (error) {
+        setStatus("error");
+        return;
+      }
+      if (!data || data.length === 0) {
+        setStatus("empty");
+        return;
+      }
+
+      const byDay = {};
+      data.forEach((t) => {
+        const day = String(t.date).slice(0, 10);
+        if (!byDay[day]) byDay[day] = { total: 0, merchants: new Map() };
+        const amt = Math.abs(Number(t.amount) || 0);
+        byDay[day].total += amt;
+        const m = t.merchant || "Other";
+        byDay[day].merchants.set(m, (byDay[day].merchants.get(m) || 0) + amt);
+      });
+
+      const sortedDays = Object.entries(byDay)
+        .map(([day, info]) => ({
+          day,
+          total: info.total,
+          merchantNames: Array.from(info.merchants.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([name]) => name),
+        }))
+        .sort((a, b) => b.total - a.total);
+
+      setDayTotals(byDay);
+      setTopDays(sortedDays.slice(0, 3));
+      setStatus("done");
+    })();
+  }, []);
+
+  if (status === "loading") {
+    return <div className="wmg-sub">Looking at this month's activity…</div>;
+  }
+  // Empty and error both fail silently here rather than showing a
+  // message — a household with no transaction history yet (nothing
+  // synced, or a CSV-only setup) shouldn't see an empty calendar
+  // section every time they open Budget; it just doesn't appear until
+  // there's something real to show.
+  if (status === "empty" || status === "error") return null;
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
+  const todayKey = now.toISOString().slice(0, 10);
+  const maxDayTotal = Math.max(1, ...Object.values(dayTotals).map((d) => d.total));
+
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    cells.push({ d, dayKey, total: dayTotals[dayKey]?.total || 0 });
+  }
+
+  const intensityColor = (total) => {
+    if (total <= 0) return "var(--hair)";
+    const ratio = total / maxDayTotal;
+    if (ratio > 0.6) return "var(--brand-deep)";
+    if (ratio > 0.3) return "var(--brand)";
+    if (ratio > 0.1) return "var(--brand-soft)";
+    return "var(--ink-3)";
+  };
+
+  return (
+    <Card style={{ marginBottom: 20 }}>
+      <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Every day this month</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, marginBottom: 4 }}>
+        {["M", "T", "W", "T", "F", "S", "S"].map((l, i) => (
+          <div key={i} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "var(--paper-dim)" }}>{l}</div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, marginBottom: 14 }}>
+        {cells.map((c, i) =>
+          c ? (
+            <div
+              key={i}
+              style={{
+                aspectRatio: "1", borderRadius: 7, background: intensityColor(c.total),
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, fontWeight: 700, color: c.total > maxDayTotal * 0.3 ? "#FFFFFF" : "var(--paper-dim)",
+                border: c.dayKey === todayKey ? "2px solid var(--paper)" : "none",
+              }}
+            >
+              {c.d}
+            </div>
+          ) : (
+            <div key={i} />
+          )
+        )}
+      </div>
+      {topDays.length > 0 && topDays[0].total > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {topDays.map((td, i) => (
+            <div
+              key={td.day}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+                borderRadius: 12, background: "var(--ink-2)",
+                border: i === 0 ? "1.5px solid var(--brand)" : "0.5px solid var(--hair)",
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>
+                  {new Date(td.day).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
+                  {i === 0 ? " · biggest day" : ""}
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--paper-dim)", marginTop: 2 }}>
+                  {td.merchantNames.slice(0, 3).join(", ")}
+                  {td.merchantNames.length > 3 ? ` & ${td.merchantNames.length - 3} more` : ""}
+                </div>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--paper)" }}>{gbp(td.total)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function CategoryInsightRow({ label, value, max, tone, formatter, cat, subtotal }) {
   const [expanded, setExpanded] = useState(false);
   const [merchantStatus, setMerchantStatus] = useState("idle"); // idle | loading | done | empty | error
@@ -1307,6 +1461,8 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
               });
             })()}
           </Card>
+
+          <SpendingCalendar />
 
           <Card style={{ marginBottom: 20 }}>
             {!hasPremium && (spendingInsightStatus === "idle" || spendingInsightStatus === "locked") && (
