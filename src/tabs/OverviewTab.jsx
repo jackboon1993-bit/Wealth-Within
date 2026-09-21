@@ -44,11 +44,13 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const heroStats = [
-    // Was a "Budget" tile too — removed on request: unlike net worth,
-    // debt, savings and the rest here, the budget figure changes every
-    // single day as spending lands, which sits oddly on a page meant to
-    // show more stable, at-a-glance numbers. It's still fully explorable
-    // on its own Budget tab; just not repeated here any more.
+    // Was fully removed — turns out this was also the only easy way to
+    // reach the Budget tab from Overview at all, not just a display of
+    // a number that changes daily. Restored as a plain navigation row
+    // instead: no live £ figure any more (that's the part that was
+    // genuinely disliked), just "This month" as a stable label — still
+    // one tap through to everything Budget actually shows.
+    { label: "Budget", value: "This month", tone: "brand", tab: "income", icon: "wallet", gradient: true },
     { label: "Loans & credit cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "loans", icon: "debt", gradient: true },
     { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "savings", icon: "savings", gradient: true },
     // Debt-free and Mortgage-free payoff-date tiles were dropped from

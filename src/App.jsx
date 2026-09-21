@@ -1047,7 +1047,15 @@ export default function App() {
 
   const flowSegments = [
     { key: "essential", label: "Essential", value: totals.essential, tone: "slate" },
-    { key: "debt", label: "Debt", value: totals.debtPayments, tone: "rust" },
+    // Was plain "Debt" — genuinely confusing next to the "Loans & credit
+    // cards" tile on the same page, which shows totalDebt (the total
+    // outstanding balance owed). This segment is a completely different
+    // figure: debtPayments, the monthly amount actually being repaid.
+    // Both can be true at once — £7,000 owed overall with £0 in monthly
+    // structured payments, if a payment amount hasn't been entered for
+    // that loan/card — but calling them both bare "Debt" made that look
+    // like a contradiction rather than two different, correct numbers.
+    { key: "debt", label: "Debt repayments", value: totals.debtPayments, tone: "rust" },
     { key: "lifestyle", label: "Lifestyle", value: totals.lifestyle, tone: "gold" },
     { key: "available", label: "Available", value: Math.max(0, totals.available), tone: "sage" },
   ];
