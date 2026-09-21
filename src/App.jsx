@@ -1045,28 +1045,35 @@ export default function App() {
   const topbarAvailable = totals.income - totals.essential - totals.debtPayments - totals.subsTotal;
   const animatedTopbarAvailableFixed = useCountUp(topbarAvailable);
 
-  // Rebuilt to mirror what the tiles above it actually track, rather
-  // than the older essential/debt/lifestyle/available split — mortgage
-  // & bills, loan & credit card repayments, pension and investment
-  // contributions all now get their own real slice. "Savings" was
-  // asked for too, but there's genuinely no monthly savings
-  // contribution tracked anywhere in the app (only a running balance),
-  // so inventing a number for it would be worse than not having the
-  // slice at all. What's left over goes to "Available / unallocated"
-  // instead — an honest label for money not yet assigned anywhere,
-  // rather than quietly relabelling it as savings when it might not
-  // actually end up there. Lifestyle spending keeps its own slice too,
-  // even though it wasn't explicitly re-listed — it's real, active
-  // spending, and dropping it would mean the pie no longer adds up to
-  // the actual income it's meant to represent.
+  // "Essential" here deliberately does NOT reuse totals.essential
+  // directly — that figure has profile.mortgage.includedInExpenditure
+  // baked in (zeroing the mortgage payment out of it when true, to
+  // avoid double-counting in the *available* calculation elsewhere in
+  // the app, which is the right call for that specific purpose). For
+  // this slice, showing your real mortgage payment plus essential
+  // bills — matching what Mortgage itself shows — is the whole point,
+  // regardless of that internal bookkeeping flag. Lifestyle no longer
+  // gets its own slice — folded into "Available / unallocated" on
+  // request, so that slice now represents everything left after
+  // essential bills, debt, pension and investments: discretionary
+  // spending (eating out, entertainment) and any genuinely unspent
+  // money together, not just the unspent part alone. "Savings" still
+  // isn't its own slice — there's genuinely no monthly savings
+  // contribution tracked anywhere in the app, only a running balance,
+  // so it would have to be an invented number.
+  const essentialWithRealMortgage = totals.essentialCatTotal + Number(profile.mortgage.payment || 0);
   const pensionAndInvestmentContributions = totals.pensionContribution + Number(profile.investments.monthlyContribution || 0);
   const flowSegments = [
-    { key: "essential", label: "Mortgage & bills", value: totals.essential, tone: "slate" },
+    { key: "essential", label: "Essential", value: essentialWithRealMortgage, tone: "slate" },
     { key: "debt", label: "Debt repayments", value: totals.debtPayments, tone: "rust" },
-    { key: "lifestyle", label: "Lifestyle", value: totals.lifestyle, tone: "gold" },
     { key: "pension", label: "Pension", value: totals.pensionContribution, tone: "coral" },
     { key: "investments", label: "Investments", value: Number(profile.investments.monthlyContribution || 0), tone: "brand" },
-    { key: "available", label: "Available / unallocated", value: Math.max(0, totals.available - pensionAndInvestmentContributions), tone: "sage" },
+    {
+      key: "available",
+      label: "Available / unallocated",
+      value: Math.max(0, totals.income - essentialWithRealMortgage - totals.debtPayments - pensionAndInvestmentContributions),
+      tone: "sage",
+    },
   ];
   const flowTotal = flowSegments.reduce((s, f) => s + f.value, 0) || 1;
 
