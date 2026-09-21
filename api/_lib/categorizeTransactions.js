@@ -152,13 +152,29 @@ export async function categorizeAndSummarize(transactions, categories, apiKey, w
   }
 
   let spanDays;
+  let calendarMonthCount = null;
   if (window?.fromDate && window?.toDate) {
     spanDays = Math.max(1, (new Date(window.toDate).getTime() - new Date(window.fromDate).getTime()) / (1000 * 60 * 60 * 24));
   } else {
+    // Was: derived purely from spanDays (max transaction date minus
+    // min), which is fragile with only a handful of income events —
+    // real pay dates rarely land exactly 30/60/90 days apart, so two
+    // salary payments 44 days apart instead of a clean 60 would divide
+    // by ~1.47 "months" instead of 2, inflating the estimate by roughly
+    // a third. Counting distinct *calendar* months instead isn't thrown
+    // off by exact date-spacing the same way — a real pay cycle almost
+    // always lands in a different named month each time, however many
+    // days apart. Only applies here (no real window given, i.e. CSV
+    // import) — the window branch above already has a proper fixed
+    // denominator and doesn't need this.
     const dates = transactions.map((t) => new Date(t.date).getTime());
     const minDate = Math.min(...dates);
     const maxDate = Math.max(...dates);
     spanDays = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24));
+    calendarMonthCount = new Set(transactions.map((t) => {
+      const d = new Date(t.date);
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    })).size;
   }
   // A floor of one week, not one day, when working from a real requested
   // window — an incremental sync can legitimately be just a day or two
@@ -168,7 +184,7 @@ export async function categorizeAndSummarize(transactions, categories, apiKey, w
   // floor was. One week is a more honest lower bound for "enough data to
   // guess a monthly rate from" while still never dividing by zero.
   const floorMonths = window?.fromDate && window?.toDate ? 7 / 30 : 1 / 30;
-  const spanMonths = Math.max(spanDays / 30, floorMonths);
+  const spanMonths = calendarMonthCount != null ? Math.max(calendarMonthCount, 1) : Math.max(spanDays / 30, floorMonths);
 
   const totals = {};
   let incomeTotal = 0;

@@ -621,11 +621,20 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         });
       }
 
-      const dates = txs.map((t) => t.date.getTime());
-      const minDate = Math.min(...dates);
-      const maxDate = Math.max(...dates);
-      const spanDays = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24));
-      const spanMonths = Math.max(spanDays / 30, 1 / 30);
+      // Was: spanDays (max date minus min date) divided by 30 — fragile
+      // with only a handful of income events, since real pay dates
+      // rarely land exactly 30/60/90 days apart (weekends, bank
+      // holidays, and months of different lengths all shift things).
+      // Two salary payments landing 44 days apart instead of a clean 60
+      // would divide by ~1.47 "months" instead of 2, inflating the
+      // monthly estimate by roughly a third — consistent with reports of
+      // income coming through noticeably higher than it should.
+      // Counting distinct *calendar* months instead ("this data touches
+      // August, September, October" = 3) isn't thrown off by exact
+      // date-spacing the same way — a real pay cycle almost always lands
+      // in a different named month each time, however many days apart.
+      const distinctMonths = new Set(txs.map((t) => `${t.date.getFullYear()}-${t.date.getMonth()}`));
+      const spanMonths = Math.max(distinctMonths.size, 1);
 
       const totals = {};
       // Groups by category, then by the transaction's own description
