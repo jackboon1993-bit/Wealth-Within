@@ -491,44 +491,6 @@ export function CategoryCard({ cat, subtotal, onUpdateCategoryField, onRemoveCat
   );
 }
 
-// Pure — no component state, so it's safe to call from anywhere.
-// Compares how far through the *month* we are against how far through
-// this category's *budget* the current spend is. subtotal is a live,
-// growing-through-the-month figure (confirmed by
-// monthly-spending-snapshot.js existing specifically to freeze it at
-// month-end for history — before that point it fluctuates as bank syncs
-// land), so comparing it against elapsed calendar days is a genuinely
-// meaningful signal, not just a guess. Returns null once there's a real
-// budget to compare against but the gap is under 12 points — flagging
-// "you're basically on schedule" for every category would be noise, not
-// insight — or when there's no budget set at all, since pacing against
-// a £0 budget is meaningless.
-function getCategoryPacing(budget, subtotal) {
-  if (!(budget > 0) || subtotal <= 0) return null;
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const timeElapsedPct = (dayOfMonth / daysInMonth) * 100;
-  const spendPct = (subtotal / budget) * 100;
-  const gap = spendPct - timeElapsedPct;
-  if (Math.abs(gap) < 12) return null;
-  return { ahead: gap > 0, dayOfMonth, daysInMonth, timeElapsedPct, spendPct };
-}
-
-// Tap-to-expand row for "Where it actually goes" in the main scroll —
-// this is where pacing and the merchant/recurring breakdown actually
-// live now. They used to only render inside CategoryCard, which itself
-// only ever appears inside EditSpendingSheet — meaning a real insight
-// (you're overspending against your own pace, this merchant keeps
-// recurring) was invisible unless someone specifically went looking to
-// edit their spending, rather than surfacing while just browsing, the
-// same way the biggest-mover banner and the AI read already do. Same
-// underlying data and logic as before, just relocated to where people
-// actually see it. `cat` is the matching real category from
-// profile.expenseCategories, or null for a synthetic row (the
-// "Subscriptions" line categoryChartData adds, which isn't a real
-// category with its own budget field) — pacing and the merchant lookup
-// are both skipped for those, since neither one applies.
 // Small logo-or-initial badge for a merchant name — same show-logo,
 // fall-back-to-initial-on-error pattern as SubscriptionRow's brand
 // avatar above, just driven by guessMerchantDomain's best-effort guess
@@ -569,11 +531,18 @@ function MerchantLogo({ name }) {
   );
 }
 
+// Tap-to-expand row for "Where it actually goes" in the main scroll —
+// this is where the merchant/recurring breakdown lives. Used to also
+// show a pacing message (day-of-month vs. spend-so-far), removed on
+// request — `cat` is the matching real category from
+// profile.expenseCategories, or null for a synthetic row (the
+// "Subscriptions" line categoryChartData adds, which isn't a real
+// category with its own budget field) — the merchant lookup is skipped
+// for those, since it doesn't apply.
 function CategoryInsightRow({ label, value, max, tone, formatter, cat, subtotal }) {
   const [expanded, setExpanded] = useState(false);
   const [merchantStatus, setMerchantStatus] = useState("idle"); // idle | loading | done | empty | error
   const [merchantBreakdown, setMerchantBreakdown] = useState(null);
-  const pacing = cat ? getCategoryPacing(cat.budget, subtotal) : null;
 
   useEffect(() => {
     if (!expanded || !cat || merchantStatus !== "idle") return;
@@ -630,13 +599,6 @@ function CategoryInsightRow({ label, value, max, tone, formatter, cat, subtotal 
       >
         <BarRow label={label} value={value} max={max} tone={tone} formatter={formatter} />
       </button>
-      {pacing && (
-        <div className="wmg-sub" style={{ marginTop: 2, marginBottom: 4, color: pacing.ahead ? "var(--rust)" : "var(--sage)" }}>
-          {pacing.ahead
-            ? `Pacing ahead of schedule — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, but already ${Math.round(pacing.spendPct)}% through this budget.`
-            : `Pacing comfortably — day ${pacing.dayOfMonth} of ${pacing.daysInMonth}, and only ${Math.round(pacing.spendPct)}% through this budget.`}
-        </div>
-      )}
       {expanded && cat && (
         <div style={{ padding: "4px 0 10px" }}>
           {merchantStatus === "loading" && <div className="wmg-sub">Looking at where this actually went…</div>}

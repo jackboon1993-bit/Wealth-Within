@@ -10,6 +10,44 @@ import { Card, NumberInput, Reveal, Celebration, WhyItMatters, InfoTip, useCount
 // a form. Reuses the exact same allowOverpayment/overpaymentCapPct fields
 // Debts & Mortgage already tracks — this tab doesn't introduce any new
 // mortgage state, just a much better way to explore what's already there.
+// A house that fills up like a glass of water as more of it gets paid
+// off — equityFraction (1 - LTV) drives how high the fill sits, clipped
+// to a simple house silhouette so it reads as "the home", not just an
+// abstract gauge. Deliberately a flat fill rather than anything more
+// literal (waves, ripples) — the point is legibility at a glance, not
+// a gimmick that's harder to read than a plain percentage would be.
+function HouseEquityGauge({ equityFraction, equityAmount, balance }) {
+  const pct = Math.max(0, Math.min(1, equityFraction));
+  const houseTop = 8;
+  const houseBottom = 90;
+  const fillY = houseBottom - pct * (houseBottom - houseTop);
+  const housePath = "M 50 8 L 92 42 L 80 42 L 80 90 L 20 90 L 20 42 L 8 42 Z";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+      <svg width="110" height="110" viewBox="0 0 100 100" style={{ flexShrink: 0 }} aria-hidden="true">
+        <defs>
+          <clipPath id="mortgageHouseClip">
+            <path d={housePath} />
+          </clipPath>
+        </defs>
+        <path d={housePath} fill="var(--ink-3)" stroke="var(--brand)" strokeWidth="2.5" />
+        <g clipPath="url(#mortgageHouseClip)">
+          <rect x="0" y={fillY} width="100" height={houseBottom - fillY + 4} fill="var(--brand)" opacity="0.85" />
+          <rect x="0" y={Math.max(houseTop, fillY - 2)} width="100" height="3" fill="var(--brand-2)" opacity="0.7" />
+        </g>
+        <rect x="44" y="72" width="12" height="18" fill="var(--paper)" opacity="0.18" />
+      </svg>
+      <div>
+        <div className="wmg-eyebrow" style={{ marginBottom: 4 }}>You own</div>
+        <div className="wmg-figure tone-brand">{Math.round(pct * 100)}%</div>
+        <div className="wmg-sub" style={{ marginTop: 4 }}>
+          {gbp(equityAmount)} of equity — {gbp(balance)} left, {Math.round((1 - pct) * 100)}% LTV
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MortgageOverpaymentTab({ profile, totals, setField, onNavigate }) {
   const [lumpSum, setLumpSum] = useState(0);
   const [extraMonthly, setExtraMonthly] = useState(0);
@@ -100,6 +138,18 @@ export function MortgageOverpaymentTab({ profile, totals, setField, onNavigate }
           </div>
         </Card>
       </Reveal>
+
+      {profile.homeValue > 0 && (
+        <Reveal delay={10}>
+          <Card>
+            <HouseEquityGauge
+              equityFraction={1 - balance / profile.homeValue}
+              equityAmount={Math.max(0, profile.homeValue - balance)}
+              balance={balance}
+            />
+          </Card>
+        </Reveal>
+      )}
 
       <Reveal delay={20}>
         <Card>

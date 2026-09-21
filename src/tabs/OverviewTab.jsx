@@ -34,12 +34,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   const scoreTone = score >= 70 ? "sage" : score >= 45 ? "gold" : "rust";
   const animatedNetWorth = useCountUp(totals.netWorth);
   const animatedScore = useCountUp(score, 500);
-  // Matches the top bar's "Available / mo" figure — fixed costs only
-  // (essentials, debt, subscriptions), excluding variable lifestyle
-  // spending. Deliberately different from totals.available, which is
-  // still used elsewhere on this page (the "past comfortable" message,
-  // the pie chart) since those need to reflect all spending.
-  const animatedAvailable = useCountUp(totals.income - totals.essential - totals.debtPayments - totals.subsTotal);
   const animatedTotalDebt = useCountUp(totals.totalDebt);
   const animatedSavings = useCountUp(profile.savings.balance);
   const animatedHomeEquity = useCountUp(totals.homeEquity);
@@ -50,7 +44,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const heroStats = [
-    { label: "Budget", value: `${gbp(Math.round(animatedAvailable))} left`, tone: "brand", tab: "income", icon: "wallet", gradient: true },
+    // Was a "Budget" tile too — removed on request: unlike net worth,
+    // debt, savings and the rest here, the budget figure changes every
+    // single day as spending lands, which sits oddly on a page meant to
+    // show more stable, at-a-glance numbers. It's still fully explorable
+    // on its own Budget tab; just not repeated here any more.
     { label: "Loans & credit cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "loans", icon: "debt", gradient: true },
     { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "savings", icon: "savings", gradient: true },
     // Debt-free and Mortgage-free payoff-date tiles were dropped from
@@ -211,10 +209,22 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && !profile.dismissedConnectBankBanner && (
         hasConnectedBank ? (
           <Card className="wmg-connect-bank-banner">
-            <div className="wmg-connect-bank-banner-text">
-              <div className="wmg-connect-bank-banner-title">Bank connected</div>
-              <div className="wmg-connect-bank-banner-sub">
-                Pull in fresh transactions any time, or check what's connected.
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {/* Was a plain "Bank connected / pull in fresh transactions
+                  any time" status line with no icon at all — genuinely
+                  just an announcement, no personality to it. Given a
+                  playful icon + a bit more character, matching the tone
+                  the app already uses elsewhere (the biggest-mover
+                  banner, the recap email's "biggest mover" framing)
+                  rather than a flat system-status notice. */}
+              <span className="wmg-showcase-icon tone-sage" style={{ width: 32, height: 32, flexShrink: 0 }} aria-hidden="true">
+                <StatIcon name="wallet" />
+              </span>
+              <div className="wmg-connect-bank-banner-text">
+                <div className="wmg-connect-bank-banner-title">All wired up</div>
+                <div className="wmg-connect-bank-banner-sub">
+                  Your bank's plugged in and ready — pull in fresh transactions whenever you like.
+                </div>
               </div>
             </div>
             <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
@@ -382,36 +392,8 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       )}
 
       <Reveal delay={20}>
-        <button
-          type="button"
-          className="wmg-stat-tile-clickable"
-          style={{
-            width: "100%", textAlign: "left", display: "block", cursor: "pointer",
-            // --ink-3 is a light violet tint again now the theme's back
-            // to bright/light, and --brand a vibrant violet border — so
-            // this reads as a genuinely colourful "featured" card rather
-            // than a differently-dark one. Shadow softened right back
-            // down for a light background — the 0.55-opacity near-black
-            // version was tuned specifically for standing out on a dark
-            // page and would look far too heavy here; a light page needs
-            // a much softer lift, closer to .wmg-card's own shadow.
-            background: "var(--ink-3)", border: "1px solid var(--brand)",
-            borderRadius: 16, padding: 16, marginBottom: 10,
-            boxShadow: "0 10px 24px -14px rgba(139,92,246,0.35)",
-          }}
-          onClick={() => onNavigate?.("income")}
-          aria-label={`Budget: ${heroStats[0].value}`}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontSize: 13, color: "var(--paper-dim)", fontWeight: 600 }}>Budget</span>
-            <span style={{ fontSize: 24, fontWeight: 700, color: "var(--paper)" }}>{heroStats[0].value}</span>
-          </div>
-        </button>
-      </Reveal>
-
-      <Reveal delay={40}>
         <Card style={{ padding: "2px 16px", marginBottom: 16 }}>
-          {heroStats.slice(1).map((s, i) => (
+          {heroStats.map((s, i) => (
             <button
               key={s.label}
               type="button"
@@ -420,7 +402,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 10,
                 padding: "11px 0",
-                borderBottom: i === heroStats.length - 2 ? "none" : "0.5px solid var(--hair)",
+                borderBottom: i === heroStats.length - 1 ? "none" : "0.5px solid var(--hair)",
                 background: "none", border: "none", borderTop: "none", borderLeft: "none", borderRight: "none",
                 textAlign: "left", cursor: "pointer",
               }}
