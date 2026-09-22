@@ -188,123 +188,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         ))}
       </Popout>
 
-      {/* "Coming up" — a genuinely new, forward-looking section, on
-          request. Combines four sources of real due-dates: subscriptions'
-          renewsOn and household bills' dueOn (both added specifically for
-          this), mortgage's new paymentDay (MortgageTab.jsx), and loans/
-          cards' paymentDayOfMonth (LoansAndCardsTab.jsx — that one
-          already existed, nothing new needed there). Pension and
-          investment contributions are deliberately still excluded —
-          those aren't essential outgoings, and neither tracks a payment
-          day either. */}
-      {(() => {
-        const now = new Date();
-        const today = now.getDate();
-        const thisMonth = now.getMonth();
-        const thisYear = now.getFullYear();
-
-        // Turns a bare day-of-month into a real, sorted-comparable
-        // date — this month if it hasn't happened yet, next month if
-        // it has (or is today, handled as "today" rather than pushed
-        // out a whole month).
-        const nextOccurrence = (day) => {
-          const candidate = new Date(thisYear, thisMonth, day);
-          if (candidate < new Date(thisYear, thisMonth, today)) {
-            return new Date(thisYear, thisMonth + 1, day);
-          }
-          return candidate;
-        };
-
-        const subItems = (profile.subscriptions || [])
-          .filter((s) => !s.cancelled && s.renewsOn > 0)
-          .map((s) => ({ name: s.name, amount: Number(s.amount) || 0, date: nextOccurrence(s.renewsOn), kind: "Subscription" }));
-
-        const billItems = (profile.expenseCategories || [])
-          .filter((c) => c.type === "essential")
-          .flatMap((c) => c.items)
-          .filter((i) => i.dueOn > 0 && Number(i.amount) > 0)
-          .map((i) => ({ name: i.name, amount: Number(i.amount) || 0, date: nextOccurrence(i.dueOn), kind: "Bill" }));
-
-        // Mortgage — uses the new paymentDay field (MortgageTab.jsx).
-        const mortgageItems =
-          profile.mortgage.paymentDay > 0 && Number(profile.mortgage.payment) > 0
-            ? [{ name: "Mortgage", amount: Number(profile.mortgage.payment), date: nextOccurrence(profile.mortgage.paymentDay), kind: "Mortgage" }]
-            : [];
-
-        // Loans and credit cards — paymentDayOfMonth already existed
-        // here (LoansAndCardsTab.jsx), nothing new needed for these.
-        const debtItems = [...(profile.loans || []), ...(profile.cards || [])]
-          .filter((d) => d.paymentDayOfMonth > 0 && Number(d.payment) > 0)
-          .map((d) => ({ name: d.name, amount: Number(d.payment) || 0, date: nextOccurrence(d.paymentDayOfMonth), kind: "Debt repayment" }));
-
-        const upcoming = [...subItems, ...billItems, ...mortgageItems, ...debtItems]
-          .filter((i) => (i.date - now) / 86400000 <= 31)
-          .sort((a, b) => a.date - b.date);
-
-        if (upcoming.length === 0) return null;
-
-        const payday = Number(profile.payday) || 0;
-        const nextPayday = payday > 0 ? nextOccurrence(payday) : null;
-        const beforePayday = nextPayday ? upcoming.filter((i) => i.date <= nextPayday) : [];
-        const beforePaydayTotal = beforePayday.reduce((s, i) => s + i.amount, 0);
-
-        return (
-          <Reveal>
-            <div className="wmg-section-title">📅 Coming up</div>
-            <Card style={{ marginBottom: 16 }}>
-              {!payday && (
-                <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "0.5px solid var(--hair)" }}>
-                  <div className="wmg-sub" style={{ marginBottom: 8 }}>
-                    When do you usually get paid? Add the day of the month and this can tell you what's due before
-                    your next payday specifically.
-                  </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <NumberInput
-                      className="wmg-input"
-                      style={{ width: 70 }}
-                      value={paydayInput}
-                      onChange={setPaydayInput}
-                      placeholder="day"
-                    />
-                    <button
-                      type="button"
-                      className="wmg-btn-primary"
-                      onClick={() => {
-                        const day = Math.max(1, Math.min(31, Math.round(Number(paydayInput)) || 0));
-                        if (day > 0) setField?.(["payday"])(day);
-                      }}
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              )}
-              {payday && beforePayday.length > 0 && (
-                <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "0.5px solid var(--hair)" }}>
-                  <div className="wmg-eyebrow" style={{ marginBottom: 4 }}>Before your next payday</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--brand)" }}>{gbp(beforePaydayTotal)}</div>
-                </div>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {upcoming.map((item, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 34, textAlign: "center", flexShrink: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--paper)" }}>{item.date.getDate()}</div>
-                      <div style={{ fontSize: 9, color: "var(--paper-dim)" }}>{item.date.toLocaleDateString("en-GB", { month: "short" })}</div>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13.5, color: "var(--paper)", fontWeight: 500 }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--paper-dim)" }}>{item.kind}</div>
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--paper)" }}>{gbp(item.amount)}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </Reveal>
-        );
-      })()}
-
       {scoreInfoOpen && (
         <Card className="wmg-score-explainer-card">
           <div className="wmg-score-explainer-head">
@@ -842,6 +725,163 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           );
         })()}
       </Card>
+
+      {/* "Coming up" — moved below the income/outgoings summary, on
+          request (it makes more sense reading as detail that follows
+          the big picture, not detail that comes before it). Also
+          rebuilt to have real visual structure: a compact calendar
+          strip up top (which days actually have something due, at a
+          glance), then the list grouped into "This week" and "Later"
+          rather than one continuous scroll — the flat list was the
+          exact "just a long list" feeling being avoided here.
+          Combines four sources of real due-dates: subscriptions'
+          renewsOn and household bills' dueOn (both added specifically
+          for this), mortgage's paymentDay (MortgageTab.jsx), and
+          loans/cards' paymentDayOfMonth (LoansAndCardsTab.jsx — that
+          one already existed). Pension and investment contributions
+          stay excluded — not essential outgoings, and neither tracks
+          a payment day either. */}
+      {(() => {
+        const now = new Date();
+        const today = now.getDate();
+        const thisMonth = now.getMonth();
+        const thisYear = now.getFullYear();
+
+        const nextOccurrence = (day) => {
+          const candidate = new Date(thisYear, thisMonth, day);
+          if (candidate < new Date(thisYear, thisMonth, today)) {
+            return new Date(thisYear, thisMonth + 1, day);
+          }
+          return candidate;
+        };
+
+        const subItems = (profile.subscriptions || [])
+          .filter((s) => !s.cancelled && s.renewsOn > 0)
+          .map((s) => ({ name: s.name, amount: Number(s.amount) || 0, date: nextOccurrence(s.renewsOn), kind: "Subscription" }));
+
+        const billItems = (profile.expenseCategories || [])
+          .filter((c) => c.type === "essential")
+          .flatMap((c) => c.items)
+          .filter((i) => i.dueOn > 0 && Number(i.amount) > 0)
+          .map((i) => ({ name: i.name, amount: Number(i.amount) || 0, date: nextOccurrence(i.dueOn), kind: "Bill" }));
+
+        const mortgageItems =
+          profile.mortgage.paymentDay > 0 && Number(profile.mortgage.payment) > 0
+            ? [{ name: "Mortgage", amount: Number(profile.mortgage.payment), date: nextOccurrence(profile.mortgage.paymentDay), kind: "Mortgage" }]
+            : [];
+
+        const debtItems = [...(profile.loans || []), ...(profile.cards || [])]
+          .filter((d) => d.paymentDayOfMonth > 0 && Number(d.payment) > 0)
+          .map((d) => ({ name: d.name, amount: Number(d.payment) || 0, date: nextOccurrence(d.paymentDayOfMonth), kind: "Debt repayment" }));
+
+        const upcoming = [...subItems, ...billItems, ...mortgageItems, ...debtItems]
+          .filter((i) => (i.date - now) / 86400000 <= 31)
+          .sort((a, b) => a.date - b.date);
+
+        if (upcoming.length === 0) return null;
+
+        const payday = Number(profile.payday) || 0;
+        const nextPayday = payday > 0 ? nextOccurrence(payday) : null;
+        const beforePayday = nextPayday ? upcoming.filter((i) => i.date <= nextPayday) : [];
+        const beforePaydayTotal = beforePayday.reduce((s, i) => s + i.amount, 0);
+
+        // A calendar strip covering the next 14 days — enough to show
+        // real structure without needing a full month grid, since
+        // most of what's genuinely "coming up" happens soon.
+        const strip = [];
+        for (let d = 0; d < 14; d++) {
+          const day = new Date(thisYear, thisMonth, today + d);
+          const dueThatDay = upcoming.some(
+            (i) => i.date.getDate() === day.getDate() && i.date.getMonth() === day.getMonth() && i.date.getFullYear() === day.getFullYear()
+          );
+          strip.push({ day, dueThatDay });
+        }
+
+        const oneWeekOut = new Date(now);
+        oneWeekOut.setDate(oneWeekOut.getDate() + 7);
+        const thisWeek = upcoming.filter((i) => i.date <= oneWeekOut);
+        const later = upcoming.filter((i) => i.date > oneWeekOut);
+
+        const renderGroup = (label, items) =>
+          items.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>{label}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {items.map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 34, textAlign: "center", flexShrink: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--paper)" }}>{item.date.getDate()}</div>
+                      <div style={{ fontSize: 9, color: "var(--paper-dim)" }}>{item.date.toLocaleDateString("en-GB", { month: "short" })}</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13.5, color: "var(--paper)", fontWeight: 500 }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--paper-dim)" }}>{item.kind}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--paper)" }}>{gbp(item.amount)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+
+        return (
+          <Reveal>
+            <div className="wmg-section-title">📅 Coming up</div>
+            <Card style={{ marginBottom: 16 }}>
+              {!payday && (
+                <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "0.5px solid var(--hair)" }}>
+                  <div className="wmg-sub" style={{ marginBottom: 8 }}>
+                    When do you usually get paid? Add the day of the month and this can tell you what's due before
+                    your next payday specifically.
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <NumberInput
+                      className="wmg-input"
+                      style={{ width: 70 }}
+                      value={paydayInput}
+                      onChange={setPaydayInput}
+                      placeholder="day"
+                    />
+                    <button
+                      type="button"
+                      className="wmg-btn-primary"
+                      onClick={() => {
+                        const day = Math.max(1, Math.min(31, Math.round(Number(paydayInput)) || 0));
+                        if (day > 0) setField?.(["payday"])(day);
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+              {payday && beforePayday.length > 0 && (
+                <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "0.5px solid var(--hair)" }}>
+                  <div className="wmg-eyebrow" style={{ marginBottom: 4 }}>Before your next payday</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--brand)" }}>{gbp(beforePaydayTotal)}</div>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 16 }}>
+                {strip.map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      aspectRatio: "1", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 10, fontWeight: 700,
+                      background: c.dueThatDay ? "var(--brand)" : "var(--hair)",
+                      color: c.dueThatDay ? "#FFFFFF" : "var(--paper-dim)",
+                    }}
+                  >
+                    {c.day.getDate()}
+                  </div>
+                ))}
+              </div>
+              {renderGroup("This week", thisWeek)}
+              {renderGroup("Later", later)}
+            </Card>
+          </Reveal>
+        );
+      })()}
     </>
   );
 }
