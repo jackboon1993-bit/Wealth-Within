@@ -542,6 +542,9 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           biggest outflow sits at the top, "Left over" always last
           since it's what remains, not a competing outflow. */}
       <div className="wmg-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 7, background: "var(--brand-soft)", fontSize: 12 }}>
+          💷
+        </span>
         Income &amp; essential outgoings
         {/* Was a full-width "All wired up" banner sitting right at the
             top of the page, the very first thing anyone saw on opening
@@ -593,6 +596,31 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             .sort((a, b) => b.value - a.value);
           rows.push({ label: "Left over", value: leftOver, tone: "paper", tab: null });
 
+          // A quick, exciting teaser under "Left over" specifically —
+          // reusing the exact same mortgage-overpayment maths as the
+          // full "What your spare money could do" card further down,
+          // rather than a second, separately-tuned calculation. Kept
+          // deliberately to one line here; the full comparison (plus
+          // the savings alternative) still lives in that card below —
+          // this is what makes someone want to scroll down and look,
+          // not a replacement for it.
+          let leftOverTeaser = null;
+          if (leftOver > 0) {
+            const mortBalance = totals?.mortgageBalanceToday ?? profile.mortgage.balance;
+            const mortRate = profile.mortgage.rate;
+            if (mortBalance > 0 && mortgagePayment > 0 && mortRate > 0) {
+              const baselineMonths = monthsToPayoff(mortBalance, mortRate, mortgagePayment);
+              const withExtraMonths = monthsToPayoff(mortBalance, mortRate, mortgagePayment + leftOver);
+              const saved = Math.round(baselineMonths - withExtraMonths);
+              if (saved > 0) {
+                leftOverTeaser = `Put it all toward your mortgage, and you'd be mortgage-free ${saved} month${saved === 1 ? "" : "s"} sooner.`;
+              }
+            }
+            if (!leftOverTeaser) {
+              leftOverTeaser = `Even putting a little of this into savings each month adds up faster than you'd think.`;
+            }
+          }
+
           return (
             <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 2 }}>
               {rows.map((r) =>
@@ -614,10 +642,17 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                     <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{gbp(r.value)}</span>
                   </button>
                 ) : (
-                  <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: "var(--paper-dim)" }} />
-                    <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: 700 }}>{r.label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{gbp(r.value)}</span>
+                  <div key={r.label} style={{ padding: "9px 0 4px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: "var(--brand)" }} />
+                      <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: 700 }}>{r.label}</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: "var(--brand)" }}>{gbp(r.value)}</span>
+                    </div>
+                    {leftOverTeaser && (
+                      <div style={{ marginTop: 6, marginLeft: 18, fontSize: 12, color: "var(--sage)", fontWeight: 600 }}>
+                        ✨ {leftOverTeaser}
+                      </div>
+                    )}
                   </div>
                 )
               )}
