@@ -131,11 +131,15 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             type="button"
             onClick={() => setNetWorthBreakdownOpen(true)}
             style={{
-              marginTop: 10, background: "none", border: "none", padding: 0,
-              color: "var(--brand-2)", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+              marginTop: 12, display: "inline-flex", alignItems: "center", gap: 6,
+              background: "rgba(255,255,255,0.16)", border: "none", borderRadius: 999,
+              padding: "7px 14px", color: "#FFFFFF", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
             }}
           >
-            See breakdown of net worth →
+            See breakdown
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
           </button>
         </div>
       </div>
@@ -249,53 +253,27 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && !profile.dismissedConnectBankBanner && (
-        hasConnectedBank ? (
-          <Card className="wmg-connect-bank-banner">
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {/* Was a plain "Bank connected / pull in fresh transactions
-                  any time" status line with no icon at all — genuinely
-                  just an announcement, no personality to it. Given a
-                  playful icon + a bit more character, matching the tone
-                  the app already uses elsewhere (the biggest-mover
-                  banner, the recap email's "biggest mover" framing)
-                  rather than a flat system-status notice. */}
-              <span className="wmg-showcase-icon tone-sage" style={{ width: 32, height: 32, flexShrink: 0 }} aria-hidden="true">
-                <StatIcon name="wallet" />
-              </span>
-              <div className="wmg-connect-bank-banner-text">
-                <div className="wmg-connect-bank-banner-title">All wired up</div>
-                <div className="wmg-connect-bank-banner-sub">
-                  Your bank's plugged in and ready — pull in fresh transactions whenever you like.
-                </div>
-              </div>
+      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && !profile.dismissedConnectBankBanner && !hasConnectedBank && (
+        <Card className="wmg-connect-bank-banner">
+          <div className="wmg-connect-bank-banner-text">
+            <div className="wmg-connect-bank-banner-title">Connect a bank</div>
+            <div className="wmg-connect-bank-banner-sub">
+              Link an account via Open Banking to pull in real balances automatically, instead of entering them by
+              hand. Read-only — this can't move money.
             </div>
-            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
-              View
-            </button>
-          </Card>
-        ) : (
-          <Card className="wmg-connect-bank-banner">
-            <div className="wmg-connect-bank-banner-text">
-              <div className="wmg-connect-bank-banner-title">Connect a bank</div>
-              <div className="wmg-connect-bank-banner-sub">
-                Link an account via Open Banking to pull in real balances automatically, instead of entering them by
-                hand. Read-only — this can't move money.
-              </div>
-            </div>
-            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
-              Connect
-            </button>
-            <button
-              type="button"
-              className="wmg-score-explainer-close"
-              aria-label="Dismiss"
-              onClick={() => setField?.(["dismissedConnectBankBanner"])(true)}
-            >
-              ×
-            </button>
-          </Card>
-        )
+          </div>
+          <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
+            Connect
+          </button>
+          <button
+            type="button"
+            className="wmg-score-explainer-close"
+            aria-label="Dismiss"
+            onClick={() => setField?.(["dismissedConnectBankBanner"])(true)}
+          >
+            ×
+          </button>
+        </Card>
       )}
 
       {!hasPremium && !profile.dismissedPremiumBanner && (
@@ -551,7 +529,26 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           preference for lists over pie charts throughout tonight — the
           biggest outflow sits at the top, "Left over" always last
           since it's what remains, not a competing outflow. */}
-      <div className="wmg-section-title">Income &amp; essential outgoings</div>
+      <div className="wmg-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        Income &amp; essential outgoings
+        {/* Was a full-width "All wired up" banner sitting right at the
+            top of the page, the very first thing anyone saw on opening
+            the app — on request, replaced with something small enough
+            to just be a passing detail, tucked next to the section it
+            actually relates to, rather than announcing itself first. */}
+        {hasConnectedBank && (
+          <button
+            type="button"
+            onClick={() => onNavigate?.("import")}
+            style={{
+              background: "var(--sage-soft)", border: "none", borderRadius: 999,
+              padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--sage)", cursor: "pointer",
+            }}
+          >
+            🔗 bank synced
+          </button>
+        )}
+      </div>
       <Card style={{ marginBottom: 16 }}>
         <div className="wmg-flow-income-row">
           <div className="wmg-flow-income-label">Income</div>

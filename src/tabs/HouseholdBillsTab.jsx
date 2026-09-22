@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { gbp } from "../lib/finance";
 import { Card, NumberInput } from "../components/ui";
 
@@ -16,6 +16,14 @@ import { Card, NumberInput } from "../components/ui";
 // the score, or anywhere else that already reads essential spending
 // needs to change, and there's only ever one real source of truth for
 // what a household's essential spending actually is.
+
+// The pre-selected list, on request — rather than starting from a blank
+// "type a name" box, every household sees these ready to fill in a
+// figure for straight away. Deliberately just the common, genuinely
+// near-universal ones; anything unusual still fits through "Add another
+// bill" below.
+const COMMON_BILLS = ["Electricity", "Gas", "Water", "Council Tax", "Broadband", "Home insurance", "TV licence", "Mobile phone"];
+
 export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateItem }) {
   const essentialCategories = profile.expenseCategories.filter((c) => c.type === "essential");
   // The first essential category is where new bills land. Most
@@ -24,6 +32,22 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
   // asking someone to pick a category just to add "Electricity".
   const targetCategory = essentialCategories[0] || null;
   const [newBillName, setNewBillName] = useState("");
+  // Guards the seeding effect below to run at most once per visit to
+  // this page, regardless of re-renders — without it, each render
+  // before the newly-added items actually land in profile would look
+  // like "still missing" and re-trigger addNamedItem again, seeding
+  // duplicates.
+  const hasSeeded = useRef(false);
+
+  useEffect(() => {
+    if (!targetCategory || hasSeeded.current) return;
+    hasSeeded.current = true;
+    const existingNames = new Set(targetCategory.items.map((i) => i.name.toLowerCase()));
+    COMMON_BILLS.forEach((name) => {
+      if (!existingNames.has(name.toLowerCase())) addNamedItem(targetCategory.id, name);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetCategory?.id]);
 
   const handleAdd = () => {
     if (!newBillName.trim() || !targetCategory) return;
@@ -35,8 +59,8 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
     <>
       <div className="wmg-section-title">Household bills</div>
       <div className="wmg-section-desc">
-        Add each regular bill — electricity, gas, water, council tax, broadband — and what it actually costs.
-        This is exactly what feeds your essential spending everywhere else in the app.
+        The usual essentials, ready to fill in — just add what you actually pay for each. Nothing here is pulled
+        from your bank; every figure comes from you.
       </div>
 
       {!targetCategory ? (
@@ -49,20 +73,12 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
       ) : (
         <>
           <Card>
-            {targetCategory.items.length === 0 && (
-              <div className="wmg-sub" style={{ marginBottom: 10 }}>Nothing added yet — start below.</div>
-            )}
             {targetCategory.items.map((item) => (
               <div
                 key={item.id}
                 style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "0.5px solid var(--hair)" }}
               >
-                <input
-                  className="wmg-input"
-                  style={{ flex: 1 }}
-                  value={item.name}
-                  onChange={(e) => updateItem(targetCategory.id, item.id, "name", e.target.value)}
-                />
+                <span style={{ flex: 1, fontSize: 13.5, color: "var(--paper)" }}>{item.name}</span>
                 <NumberInput
                   className="wmg-input"
                   style={{ width: 90, flexShrink: 0 }}
@@ -82,12 +98,13 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
           </Card>
 
           <Card style={{ marginTop: 12 }}>
-            <div className="wmg-field-label">Add a bill</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <div className="wmg-field-label">Add another bill</div>
+            <div className="wmg-sub" style={{ marginBottom: 8 }}>Anything not covered above — a service charge, ground rent, whatever it is.</div>
+            <div style={{ display: "flex", gap: 8 }}>
               <input
                 className="wmg-input"
                 style={{ flex: 1 }}
-                placeholder="e.g. Electricity"
+                placeholder="e.g. Ground rent"
                 value={newBillName}
                 onChange={(e) => setNewBillName(e.target.value)}
                 onKeyDown={(e) => {
@@ -97,10 +114,6 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
               <button type="button" className="wmg-btn-primary" onClick={handleAdd} disabled={!newBillName.trim()}>
                 Add
               </button>
-            </div>
-            <div className="wmg-sub" style={{ marginTop: 10 }}>
-              A few common ones, if it helps: Electricity, Gas, Water, Council Tax, Broadband, Home insurance, TV
-              licence, Mobile phone.
             </div>
           </Card>
 
