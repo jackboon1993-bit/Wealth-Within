@@ -136,7 +136,19 @@ export function SavingsTab({ profile, totals, setField, updateGoal, addGoal, add
             <div className="wmg-sentence-card">
               You currently have{" "}
               <InlinePill value={profile.savings.balance} onChange={(v) => setField(["savings", "balance"])(v)} formatter={(v) => gbp(v)} ariaLabel="Savings balance" />{" "}
-              in general savings.
+              in general savings, earning{" "}
+              <InlinePill
+                value={profile.savings.interestRate ?? 0}
+                onChange={(v) => setField(["savings", "interestRate"])(v)}
+                formatter={(v) => `${v}%`}
+                ariaLabel="Savings interest rate"
+              />{" "}
+              a year.
+            </div>
+            <div className="wmg-sub" style={{ marginTop: 8 }}>
+              Check your actual account for this — easy-access and fixed-rate savings vary a lot, and this is what
+              lets your growth projections (like on Overview) show real compound interest rather than just the
+              money you've put in.
             </div>
             <div className="wmg-entry-edit-actions" style={{ marginTop: 10 }}>
               <button type="button" className="wmg-entry-done-btn" onClick={() => setSavingsEditing(false)}>Done</button>
@@ -146,6 +158,9 @@ export function SavingsTab({ profile, totals, setField, updateGoal, addGoal, add
           <div className="wmg-entry-view">
             <div className="wmg-entry-view-text">
               <div className="wmg-entry-title">{gbp(profile.savings.balance)} in savings</div>
+              {profile.savings.interestRate > 0 && (
+                <div className="wmg-sub" style={{ marginTop: 2 }}>earning {profile.savings.interestRate}% a year</div>
+              )}
             </div>
             <button type="button" className="wmg-entry-edit-btn" onClick={() => setSavingsEditing(true)} aria-label="Edit savings">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

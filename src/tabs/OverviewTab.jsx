@@ -463,14 +463,22 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             interestSaved = Math.max(0, baselineInterest - withExtraInterest);
           }
 
-          // Deliberately principal-only — there's no interest rate
-          // anywhere in the savings data model (SavingsTab.jsx only
-          // ever tracks a balance and a linear monthly contribution,
-          // never a rate), so showing compound growth here would mean
-          // inventing a number nothing in the app actually knows. Five
-          // years is a reasonable illustrative horizon, clearly labelled
-          // as before any interest rather than dressed up as growth.
-          const savingsAfterFiveYears = spare * 60;
+          // Now genuinely compound when a rate is actually set — this
+          // is a future-value-of-an-annuity calculation (regular monthly
+          // contributions, each compounding for the months remaining),
+          // not the existing balance growing; the existing balance would
+          // grow (or not) regardless of this decision, so it's kept out
+          // of this specific comparison on purpose. Falls back to the
+          // honest principal-only figure when no rate has been set —
+          // SavingsTab.jsx now has a real interestRate field to fill in,
+          // but until someone actually does, this stays truthful rather
+          // than assuming a rate nobody's confirmed.
+          const months = 60; // 5 years, same illustrative horizon as before
+          const annualRate = Number(profile.savings.interestRate || 0);
+          const monthlyRate = annualRate / 100 / 12;
+          const savingsAfterFiveYears =
+            monthlyRate > 0 ? spare * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) : spare * months;
+          const savingsInterestEarned = Math.max(0, savingsAfterFiveYears - spare * months);
 
           return (
             <Reveal delay={30}>
@@ -489,8 +497,25 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                 )}
                 <div className="wmg-sub" style={{ marginBottom: 14 }}>
                   Or put it all into savings instead, and you'd have{" "}
-                  <strong style={{ color: "var(--paper)" }}>{gbp(savingsAfterFiveYears)}</strong> saved after 5 years —
-                  before any interest a savings account might add on top.
+                  <strong style={{ color: "var(--paper)" }}>{gbp(savingsAfterFiveYears)}</strong> saved after 5 years
+                  {monthlyRate > 0 ? (
+                    <>
+                      {" "}— {gbp(savingsInterestEarned)} of that is interest, at {profile.savings.interestRate}%/year.
+                    </>
+                  ) : (
+                    <>
+                      {" "}— before any interest, since there's no savings rate set yet.{" "}
+                      <button
+                        type="button"
+                        className="wmg-onboard-skip"
+                        style={{ display: "inline", padding: 0, fontSize: "inherit" }}
+                        onClick={() => onNavigate?.("savings")}
+                      >
+                        Add your rate
+                      </button>{" "}
+                      for a real projection.
+                    </>
+                  )}
                 </div>
                 <button type="button" className="wmg-onboard-skip" onClick={() => onNavigate?.("mortgage-overpayment")}>
                   Explore the mortgage overpayment calculator
