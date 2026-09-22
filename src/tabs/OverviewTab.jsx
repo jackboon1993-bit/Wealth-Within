@@ -1,9 +1,7 @@
 import React, { useState } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, gbpApprox, addMonths, getActiveMode, monthsToPayoff, totalInterestOwed } from "../lib/finance";
-import { FLOW_TONE_COLORS } from "../lib/constants";
 import { hasAccounts } from "../lib/storage";
-import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon, Reveal, StreakBadge } from "../components/ui";
+import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField, setupChecklistReady }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
@@ -526,34 +524,68 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         })()
       )}
 
-      <div className="wmg-section-title">This month</div>
-      <Card>
+      {/* Was a donut chart + legend — replaced with a plain sorted list
+          on request: mortgage gets its own line (previously bundled
+          into "Essential" for the pie), and savings now appears too,
+          using the real monthly figure already tracked per savings
+          goal (profile.goals[].monthlyContribution) rather than the
+          account balance. Sorted by size, matching the stated
+          preference for lists over pie charts throughout tonight — the
+          biggest outflow sits at the top, "Left over" always last
+          since it's what remains, not a competing outflow. */}
+      <div className="wmg-section-title">Income &amp; essential outgoings</div>
+      <Card style={{ marginBottom: 16 }}>
         <div className="wmg-flow-income-row">
           <div className="wmg-flow-income-label">Income</div>
           <div className="wmg-flow-income-val">{gbp(Math.round(animatedIncome))}</div>
         </div>
-        <div className="wmg-category-chart-row">
-          <div style={{ width: 140, height: 140, flexShrink: 0 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={flowSegments} dataKey="value" nameKey="label" innerRadius={42} outerRadius={68} paddingAngle={2} strokeWidth={0}>
-                  {flowSegments.map((seg) => (
-                    <Cell key={seg.key} fill={FLOW_TONE_COLORS[seg.tone] || "var(--brand)"} />
-                  ))}
-                </Pie>
-                <Tooltip content={<CategoryTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="wmg-flow-legend">
-            {flowSegments.map((seg) => (
-              <div className="wmg-flow-legend-item" key={seg.key}>
-                <span className="wmg-swatch" style={{ background: `var(--${seg.tone}-fill)` }} />
-                {seg.label} <span className="wmg-flow-legend-val">{gbp(seg.value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {(() => {
+          const savingsMonthly = (profile.goals || []).reduce((s, g) => s + Number(g.monthlyContribution || 0), 0);
+          const investmentsMonthly = Number(profile.investments.monthlyContribution || 0);
+          const mortgagePayment = Number(profile.mortgage.payment || 0);
+          const billsOnly = totals.essentialCatTotal;
+          const leftOver = Math.max(
+            0,
+            totals.income - mortgagePayment - billsOnly - totals.debtPayments - totals.pensionContribution - savingsMonthly - investmentsMonthly
+          );
+
+          const rows = [
+            { label: "Mortgage", value: mortgagePayment, tone: "slate" },
+            { label: "Bills", value: billsOnly, tone: "gold" },
+            { label: "Debt repayments", value: totals.debtPayments, tone: "rust" },
+            { label: "Pension", value: totals.pensionContribution, tone: "coral" },
+            { label: "Savings", value: savingsMonthly, tone: "sage" },
+            { label: "Investments", value: investmentsMonthly, tone: "brand" },
+          ]
+            .filter((r) => r.value > 0)
+            .sort((a, b) => b.value - a.value);
+          rows.push({ label: "Left over", value: leftOver, tone: "paper" });
+
+          return (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 2 }}>
+              {rows.map((r) => (
+                <div
+                  key={r.label}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "9px 0",
+                    borderBottom: r.label === "Left over" ? "none" : "0.5px solid var(--hair)",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                      background: r.label === "Left over" ? "var(--paper-dim)" : `var(--${r.tone})`,
+                    }}
+                  />
+                  <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: r.label === "Left over" ? 700 : 500 }}>
+                    {r.label}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{gbp(r.value)}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </Card>
     </>
   );
