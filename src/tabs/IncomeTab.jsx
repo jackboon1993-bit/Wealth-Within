@@ -260,6 +260,19 @@ export function SubscriptionRow({ sub, index, onEdit, onToggleCancel, onRemove, 
               value={sub.amount}
               onChange={(v) => onEdit("amount", v)}
             />
+            {/* Day of month it renews — new, on request, so this can
+                feed a forward-looking "what's coming up" view on
+                Overview. Deliberately just a day-of-month (1-31)
+                rather than a full date, matching how a recurring
+                monthly charge is naturally described ("renews on the
+                15th"), not tied to any specific calendar month. */}
+            <NumberInput
+              className="wmg-input"
+              style={{ width: 56 }}
+              value={sub.renewsOn || ""}
+              onChange={(v) => onEdit("renewsOn", Math.max(1, Math.min(31, Math.round(v) || 1)))}
+              placeholder="day"
+            />
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--paper-dim)" }}>
               <input type="checkbox" checked={sub.flagged} onChange={(e) => onEdit("flagged", e.target.checked)} />
               flag

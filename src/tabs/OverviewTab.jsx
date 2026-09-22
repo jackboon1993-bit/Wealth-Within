@@ -15,6 +15,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   // setting.
   const [leftOverPct, setLeftOverPct] = useState(100);
   const [leftOverCustom, setLeftOverCustom] = useState("");
+  const [paydayInput, setPaydayInput] = useState("");
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
   // opened until the sync is actually reviewed or discarded in the
@@ -186,6 +187,112 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           </button>
         ))}
       </Popout>
+
+      {/* "Coming up" — a genuinely new, forward-looking section, on
+          request. Combines two sources of real due-dates added
+          specifically to support this: subscriptions' renewsOn
+          (IncomeTab.jsx) and household bills' dueOn
+          (HouseholdBillsTab.jsx). Mortgage and loan payments are
+          deliberately NOT included here — neither currently tracks a
+          payment day, and I didn't want to guess at one or silently
+          leave the biggest payment out of a list that looks complete.
+          If a real due-day gets added to those later, they belong
+          here too. */}
+      {(() => {
+        const now = new Date();
+        const today = now.getDate();
+        const thisMonth = now.getMonth();
+        const thisYear = now.getFullYear();
+
+        // Turns a bare day-of-month into a real, sorted-comparable
+        // date — this month if it hasn't happened yet, next month if
+        // it has (or is today, handled as "today" rather than pushed
+        // out a whole month).
+        const nextOccurrence = (day) => {
+          const candidate = new Date(thisYear, thisMonth, day);
+          if (candidate < new Date(thisYear, thisMonth, today)) {
+            return new Date(thisYear, thisMonth + 1, day);
+          }
+          return candidate;
+        };
+
+        const subItems = (profile.subscriptions || [])
+          .filter((s) => !s.cancelled && s.renewsOn > 0)
+          .map((s) => ({ name: s.name, amount: Number(s.amount) || 0, date: nextOccurrence(s.renewsOn), kind: "Subscription" }));
+
+        const billItems = (profile.expenseCategories || [])
+          .filter((c) => c.type === "essential")
+          .flatMap((c) => c.items)
+          .filter((i) => i.dueOn > 0 && Number(i.amount) > 0)
+          .map((i) => ({ name: i.name, amount: Number(i.amount) || 0, date: nextOccurrence(i.dueOn), kind: "Bill" }));
+
+        const upcoming = [...subItems, ...billItems]
+          .filter((i) => (i.date - now) / 86400000 <= 31)
+          .sort((a, b) => a.date - b.date);
+
+        if (upcoming.length === 0) return null;
+
+        const payday = Number(profile.payday) || 0;
+        const nextPayday = payday > 0 ? nextOccurrence(payday) : null;
+        const beforePayday = nextPayday ? upcoming.filter((i) => i.date <= nextPayday) : [];
+        const beforePaydayTotal = beforePayday.reduce((s, i) => s + i.amount, 0);
+
+        return (
+          <Reveal>
+            <div className="wmg-section-title">📅 Coming up</div>
+            <Card style={{ marginBottom: 16 }}>
+              {!payday && (
+                <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "0.5px solid var(--hair)" }}>
+                  <div className="wmg-sub" style={{ marginBottom: 8 }}>
+                    When do you usually get paid? Add the day of the month and this can tell you what's due before
+                    your next payday specifically.
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <NumberInput
+                      className="wmg-input"
+                      style={{ width: 70 }}
+                      value={paydayInput}
+                      onChange={setPaydayInput}
+                      placeholder="day"
+                    />
+                    <button
+                      type="button"
+                      className="wmg-btn-primary"
+                      onClick={() => {
+                        const day = Math.max(1, Math.min(31, Math.round(Number(paydayInput)) || 0));
+                        if (day > 0) setField?.(["payday"])(day);
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+              {payday && beforePayday.length > 0 && (
+                <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: "0.5px solid var(--hair)" }}>
+                  <div className="wmg-eyebrow" style={{ marginBottom: 4 }}>Before your next payday</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "var(--brand)" }}>{gbp(beforePaydayTotal)}</div>
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {upcoming.map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 34, textAlign: "center", flexShrink: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--paper)" }}>{item.date.getDate()}</div>
+                      <div style={{ fontSize: 9, color: "var(--paper-dim)" }}>{item.date.toLocaleDateString("en-GB", { month: "short" })}</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13.5, color: "var(--paper)", fontWeight: 500 }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--paper-dim)" }}>{item.kind}</div>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--paper)" }}>{gbp(item.amount)}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Reveal>
+        );
+      })()}
 
       {scoreInfoOpen && (
         <Card className="wmg-score-explainer-card">

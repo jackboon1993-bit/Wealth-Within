@@ -72,16 +72,33 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
         </Card>
       ) : (
         <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 2px 6px", fontSize: 10.5, color: "var(--paper-dim)", fontWeight: 700 }}>
+            <span style={{ flex: 1 }}>BILL</span>
+            <span style={{ width: 48, flexShrink: 0, textAlign: "center" }}>DUE ON</span>
+            <span style={{ width: 80, flexShrink: 0, textAlign: "center" }}>AMOUNT</span>
+            <span style={{ width: 15, flexShrink: 0 }} />
+          </div>
           <Card>
             {targetCategory.items.map((item) => (
               <div
                 key={item.id}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "0.5px solid var(--hair)" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: "0.5px solid var(--hair)" }}
               >
                 <span style={{ flex: 1, fontSize: 13.5, color: "var(--paper)" }}>{item.name}</span>
+                {/* "Due on" — new, on request, so this can feed the
+                    forward-looking "coming up" forecast on Overview.
+                    Same day-of-month approach as subscriptions'
+                    renewsOn, for consistency across both. */}
                 <NumberInput
                   className="wmg-input"
-                  style={{ width: 90, flexShrink: 0 }}
+                  style={{ width: 48, flexShrink: 0 }}
+                  value={item.dueOn || ""}
+                  onChange={(v) => updateItem(targetCategory.id, item.id, "dueOn", Math.max(1, Math.min(31, Math.round(v) || 1)))}
+                  placeholder="day"
+                />
+                <NumberInput
+                  className="wmg-input"
+                  style={{ width: 80, flexShrink: 0 }}
                   value={item.amount}
                   onChange={(v) => updateItem(targetCategory.id, item.id, "amount", v)}
                 />
