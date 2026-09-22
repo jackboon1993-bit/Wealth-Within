@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { gbp, addMonths, getActiveMode } from "../lib/finance";
+import { gbp, gbpApprox, addMonths, getActiveMode, monthsToPayoff, totalInterestOwed } from "../lib/finance";
 import { FLOW_TONE_COLORS } from "../lib/constants";
 import { hasAccounts } from "../lib/storage";
 import { Card, GrowthRing, useCountUp, CategoryTooltip, StatIcon, Reveal, StreakBadge } from "../components/ui";
@@ -418,6 +418,88 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           ))}
         </Card>
       </Reveal>
+
+      {/* Two new cards, directly under the net-worth tiles — on request.
+          profile.billsConfirmed is the same flag the existing guided
+          bills flow (IncomeTab.jsx) already sets once someone's gone
+          through entering their actual utility bills — reused here
+          rather than inventing a second "have they told us this yet"
+          flag. Before that's true, ask for it right here, since it's
+          exactly what makes the spare-money figure below trustworthy;
+          once it's true, show what that spare money could actually do,
+          immediately, rather than making someone tap through to find
+          out. */}
+      {!profile.billsConfirmed ? (
+        <Reveal delay={30}>
+          <Card style={{ marginBottom: 16 }}>
+            <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>One more thing that'd help</div>
+            <div className="wmg-sub" style={{ marginBottom: 12 }}>
+              Add your actual utility bills — electricity, gas, water and the like — and we can tell you exactly how
+              much you have spare each month, and what that spare money could actually do for you.
+            </div>
+            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("income")}>
+              Add my bills
+            </button>
+          </Card>
+        </Reveal>
+      ) : (
+        (() => {
+          const spare = Math.max(0, totals.available);
+          if (spare <= 0) return null;
+
+          const balance = totals?.mortgageBalanceToday ?? profile.mortgage.balance;
+          const rate = profile.mortgage.rate;
+          const payment = profile.mortgage.payment;
+          const hasMortgage = balance > 0 && payment > 0 && rate > 0;
+
+          let monthsSaved = 0;
+          let interestSaved = 0;
+          if (hasMortgage) {
+            const baselineMonths = monthsToPayoff(balance, rate, payment);
+            const baselineInterest = totalInterestOwed(balance, rate, payment, baselineMonths);
+            const withExtraMonths = monthsToPayoff(balance, rate, payment + spare);
+            const withExtraInterest = totalInterestOwed(balance, rate, payment + spare, withExtraMonths);
+            monthsSaved = Math.round(baselineMonths - withExtraMonths);
+            interestSaved = Math.max(0, baselineInterest - withExtraInterest);
+          }
+
+          // Deliberately principal-only — there's no interest rate
+          // anywhere in the savings data model (SavingsTab.jsx only
+          // ever tracks a balance and a linear monthly contribution,
+          // never a rate), so showing compound growth here would mean
+          // inventing a number nothing in the app actually knows. Five
+          // years is a reasonable illustrative horizon, clearly labelled
+          // as before any interest rather than dressed up as growth.
+          const savingsAfterFiveYears = spare * 60;
+
+          return (
+            <Reveal delay={30}>
+              <Card style={{ marginBottom: 16 }}>
+                <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>What your spare money could do</div>
+                <div className="wmg-sub" style={{ marginBottom: 14 }}>
+                  After everything essential, you have{" "}
+                  <strong style={{ color: "var(--paper)" }}>{gbp(spare)}/month</strong> spare.
+                </div>
+                {hasMortgage && monthsSaved > 0 && (
+                  <div className="wmg-sub" style={{ marginBottom: 10 }}>
+                    Put it all toward your mortgage, and you'd be mortgage-free{" "}
+                    <strong style={{ color: "var(--sage)" }}>{monthsSaved} month{monthsSaved === 1 ? "" : "s"} sooner</strong>, saving{" "}
+                    <strong style={{ color: "var(--sage)" }}>{gbpApprox(interestSaved)}</strong> in interest.
+                  </div>
+                )}
+                <div className="wmg-sub" style={{ marginBottom: 14 }}>
+                  Or put it all into savings instead, and you'd have{" "}
+                  <strong style={{ color: "var(--paper)" }}>{gbp(savingsAfterFiveYears)}</strong> saved after 5 years —
+                  before any interest a savings account might add on top.
+                </div>
+                <button type="button" className="wmg-onboard-skip" onClick={() => onNavigate?.("mortgage-overpayment")}>
+                  Explore the mortgage overpayment calculator
+                </button>
+              </Card>
+            </Reveal>
+          );
+        })()
+      )}
 
       <div className="wmg-section-title">This month</div>
       <Card>
