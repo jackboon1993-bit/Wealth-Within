@@ -233,26 +233,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Reveal>
       )}
 
-      {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
-        <Card className="wmg-connect-bank-banner">
-          <div className="wmg-connect-bank-banner-text">
-            <div className="wmg-connect-bank-banner-title">New spending synced from your bank</div>
-            <div className="wmg-connect-bank-banner-sub">
-              {pendingBankSync.transactionCount} transaction{pendingBankSync.transactionCount === 1 ? "" : "s"} since{" "}
-              {pendingBankSync.fromDate}, ready to review — nothing's been added to your budget yet.
-            </div>
-          </div>
-          <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
-            <button type="button" className="wmg-onboard-skip" onClick={() => setPendingSyncDismissed(true)}>
-              Not now
-            </button>
-            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
-              Review
-            </button>
-          </div>
-        </Card>
-      )}
-
       {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && !profile.dismissedConnectBankBanner && !hasConnectedBank && (
         <Card className="wmg-connect-bank-banner">
           <div className="wmg-connect-bank-banner-text">
@@ -413,17 +393,49 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       )}
 
 
+      {/* Moved down from the very top of the page — same reasoning as
+          the "All wired up" banner and the "Connect a bank" card
+          above: this was competing for the very first thing anyone
+          saw on opening the app. Still keeps its full Card treatment
+          (unlike the small "bank synced" badge) since "Not now" vs.
+          "Review" is a genuine choice, not just a status to glance at. */}
+      {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
+        <Reveal>
+          <Card className="wmg-connect-bank-banner" style={{ marginBottom: 16 }}>
+            <div className="wmg-connect-bank-banner-text">
+              <div className="wmg-connect-bank-banner-title">New spending synced from your bank</div>
+              <div className="wmg-connect-bank-banner-sub">
+                {pendingBankSync.transactionCount} transaction{pendingBankSync.transactionCount === 1 ? "" : "s"} since{" "}
+                {pendingBankSync.fromDate}, ready to review — nothing's been added to your budget yet.
+              </div>
+            </div>
+            <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
+              <button type="button" className="wmg-onboard-skip" onClick={() => setPendingSyncDismissed(true)}>
+                Not now
+              </button>
+              <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
+                Review
+              </button>
+            </div>
+          </Card>
+        </Reveal>
+      )}
+
       {/* Two new cards, directly under the net-worth tiles — on request.
-          profile.billsConfirmed is the same flag the existing guided
-          bills flow (IncomeTab.jsx) already sets once someone's gone
-          through entering their actual utility bills — reused here
-          rather than inventing a second "have they told us this yet"
-          flag. Before that's true, ask for it right here, since it's
-          exactly what makes the spare-money figure below trustworthy;
-          once it's true, show what that spare money could actually do,
-          immediately, rather than making someone tap through to find
-          out. */}
-      {!profile.billsConfirmed ? (
+          Was keyed off profile.billsConfirmed, the flag the OLD guided
+          bills flow inside Budget used to set — but the new, separate
+          Household Bills page (built since) never touches that flag at
+          all, so this kept showing "add my bills" forever even once
+          real bills had genuinely been entered there. Now checks the
+          actual essential-category total instead — the real number the
+          new page writes into — so this disappears the moment real
+          money has actually been entered, regardless of that now
+          orphaned flag. Before that's true, ask for it right here,
+          since it's exactly what makes the spare-money figure below
+          trustworthy; once it's true, show what that spare money could
+          actually do, immediately, rather than making someone tap
+          through to find out. */}
+      {totals.essentialCatTotal <= 0 ? (
         <Reveal delay={30}>
           <Card style={{ marginBottom: 16 }}>
             <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>One more thing that'd help</div>
@@ -431,7 +443,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               Add your actual utility bills — electricity, gas, water and the like — and we can tell you exactly how
               much you have spare each month, and what that spare money could actually do for you.
             </div>
-            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("income")}>
+            <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("household-bills")}>
               Add my bills
             </button>
           </Card>
