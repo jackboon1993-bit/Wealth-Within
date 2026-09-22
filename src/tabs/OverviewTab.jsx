@@ -1,11 +1,13 @@
 import React, { useState } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, gbpApprox, addMonths, getActiveMode, monthsToPayoff, totalInterestOwed } from "../lib/finance";
 import { hasAccounts } from "../lib/storage";
-import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge, Popout } from "../components/ui";
+import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge, Popout, CategoryTooltip } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField, setupChecklistReady }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   const [netWorthBreakdownOpen, setNetWorthBreakdownOpen] = useState(false);
+  const [leftOverPopoutOpen, setLeftOverPopoutOpen] = useState(false);
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
   // opened until the sync is actually reviewed or discarded in the
@@ -396,46 +398,17 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       {/* Moved down from the very top of the page — same reasoning as
           the "All wired up" banner and the "Connect a bank" card
           above: this was competing for the very first thing anyone
-          saw on opening the app. Still keeps its full Card treatment
-          (unlike the small "bank synced" badge) since "Not now" vs.
-          "Review" is a genuine choice, not just a status to glance at. */}
-      {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
-        <Reveal>
-          <Card className="wmg-connect-bank-banner" style={{ marginBottom: 16 }}>
-            <div className="wmg-connect-bank-banner-text">
-              <div className="wmg-connect-bank-banner-title">New spending synced from your bank</div>
-              <div className="wmg-connect-bank-banner-sub">
-                {pendingBankSync.transactionCount} transaction{pendingBankSync.transactionCount === 1 ? "" : "s"} since{" "}
-                {pendingBankSync.fromDate}, ready to review — nothing's been added to your budget yet.
-              </div>
-            </div>
-            <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
-              <button type="button" className="wmg-onboard-skip" onClick={() => setPendingSyncDismissed(true)}>
-                Not now
-              </button>
-              <button type="button" className="wmg-btn-primary" onClick={() => onNavigate?.("import")}>
-                Review
-              </button>
-            </div>
-          </Card>
-        </Reveal>
-      )}
+          saw on opening the app. On request, shrunk further still —
+          into a small orange pill sitting right next to the green
+          "bank synced" one, rather than a full Card anywhere on the
+          page at all. */}
 
-      {/* Two new cards, directly under the net-worth tiles — on request.
-          Was keyed off profile.billsConfirmed, the flag the OLD guided
-          bills flow inside Budget used to set — but the new, separate
-          Household Bills page (built since) never touches that flag at
-          all, so this kept showing "add my bills" forever even once
-          real bills had genuinely been entered there. Now checks the
-          actual essential-category total instead — the real number the
-          new page writes into — so this disappears the moment real
-          money has actually been entered, regardless of that now
-          orphaned flag. Before that's true, ask for it right here,
-          since it's exactly what makes the spare-money figure below
-          trustworthy; once it's true, show what that spare money could
-          actually do, immediately, rather than making someone tap
-          through to find out. */}
-      {totals.essentialCatTotal <= 0 ? (
+      {/* Was two cards — the bills prompt, and "What your spare money
+          could do" underneath it. The second one is removed entirely
+          on request; that whole comparison now lives properly on its
+          own Savings Growth screen, reached via the "Left over" teaser
+          further down instead of sitting here permanently. */}
+      {totals.essentialCatTotal <= 0 && (
         <Reveal delay={30}>
           <Card style={{ marginBottom: 16 }}>
             <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>One more thing that'd help</div>
@@ -448,88 +421,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             </button>
           </Card>
         </Reveal>
-      ) : (
-        (() => {
-          const spare = Math.max(0, totals.available);
-          if (spare <= 0) return null;
-
-          const balance = totals?.mortgageBalanceToday ?? profile.mortgage.balance;
-          const rate = profile.mortgage.rate;
-          const payment = profile.mortgage.payment;
-          const hasMortgage = balance > 0 && payment > 0 && rate > 0;
-
-          let monthsSaved = 0;
-          let interestSaved = 0;
-          if (hasMortgage) {
-            const baselineMonths = monthsToPayoff(balance, rate, payment);
-            const baselineInterest = totalInterestOwed(balance, rate, payment, baselineMonths);
-            const withExtraMonths = monthsToPayoff(balance, rate, payment + spare);
-            const withExtraInterest = totalInterestOwed(balance, rate, payment + spare, withExtraMonths);
-            monthsSaved = Math.round(baselineMonths - withExtraMonths);
-            interestSaved = Math.max(0, baselineInterest - withExtraInterest);
-          }
-
-          // Now genuinely compound when a rate is actually set — this
-          // is a future-value-of-an-annuity calculation (regular monthly
-          // contributions, each compounding for the months remaining),
-          // not the existing balance growing; the existing balance would
-          // grow (or not) regardless of this decision, so it's kept out
-          // of this specific comparison on purpose. Falls back to the
-          // honest principal-only figure when no rate has been set —
-          // SavingsTab.jsx now has a real interestRate field to fill in,
-          // but until someone actually does, this stays truthful rather
-          // than assuming a rate nobody's confirmed.
-          const months = 60; // 5 years, same illustrative horizon as before
-          const annualRate = Number(profile.savings.interestRate || 0);
-          const monthlyRate = annualRate / 100 / 12;
-          const savingsAfterFiveYears =
-            monthlyRate > 0 ? spare * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) : spare * months;
-          const savingsInterestEarned = Math.max(0, savingsAfterFiveYears - spare * months);
-
-          return (
-            <Reveal delay={30}>
-              <Card style={{ marginBottom: 16 }}>
-                <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>What your spare money could do</div>
-                <div className="wmg-sub" style={{ marginBottom: 14 }}>
-                  After everything essential, you have{" "}
-                  <strong style={{ color: "var(--paper)" }}>{gbp(spare)}/month</strong> spare.
-                </div>
-                {hasMortgage && monthsSaved > 0 && (
-                  <div className="wmg-sub" style={{ marginBottom: 10 }}>
-                    Put it all toward your mortgage, and you'd be mortgage-free{" "}
-                    <strong style={{ color: "var(--sage)" }}>{monthsSaved} month{monthsSaved === 1 ? "" : "s"} sooner</strong>, saving{" "}
-                    <strong style={{ color: "var(--sage)" }}>{gbpApprox(interestSaved)}</strong> in interest.
-                  </div>
-                )}
-                <div className="wmg-sub" style={{ marginBottom: 14 }}>
-                  Or put it all into savings instead, and you'd have{" "}
-                  <strong style={{ color: "var(--paper)" }}>{gbp(savingsAfterFiveYears)}</strong> saved after 5 years
-                  {monthlyRate > 0 ? (
-                    <>
-                      {" "}— {gbp(savingsInterestEarned)} of that is interest, at {profile.savings.interestRate}%/year.
-                    </>
-                  ) : (
-                    <>
-                      {" "}— before any interest, since there's no savings rate set yet.{" "}
-                      <button
-                        type="button"
-                        className="wmg-onboard-skip"
-                        style={{ display: "inline", padding: 0, fontSize: "inherit" }}
-                        onClick={() => onNavigate?.("savings")}
-                      >
-                        Add your rate
-                      </button>{" "}
-                      for a real projection.
-                    </>
-                  )}
-                </div>
-                <button type="button" className="wmg-onboard-skip" onClick={() => onNavigate?.("mortgage-overpayment")}>
-                  Explore the mortgage overpayment calculator
-                </button>
-              </Card>
-            </Reveal>
-          );
-        })()
       )}
 
       {/* Was a donut chart + legend — replaced with a plain sorted list
@@ -563,6 +454,24 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             🔗 bank synced
           </button>
         )}
+        {/* Small orange pill replacing the old full-width "New spending
+            synced" banner — tapping it goes straight to Review (the
+            same destination the banner's own "Review" button did);
+            there's no room for a separate "Not now" in something this
+            small, but being this unobtrusive means there's much less
+            need for one — it's easy to just not tap it. */}
+        {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
+          <button
+            type="button"
+            onClick={() => onNavigate?.("import")}
+            style={{
+              background: "var(--gold-soft)", border: "none", borderRadius: 999,
+              padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--gold)", cursor: "pointer",
+            }}
+          >
+            🔶 sync last bank transactions
+          </button>
+        )}
       </div>
       <Card style={{ marginBottom: 16 }}>
         <div className="wmg-flow-income-row">
@@ -594,34 +503,36 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           ]
             .filter((r) => r.value > 0)
             .sort((a, b) => b.value - a.value);
-          rows.push({ label: "Left over", value: leftOver, tone: "paper", tab: null });
+          rows.push({ label: "Left over", value: leftOver, tone: "brand", tab: null });
 
-          // A quick, exciting teaser under "Left over" specifically —
-          // reusing the exact same mortgage-overpayment maths as the
-          // full "What your spare money could do" card further down,
-          // rather than a second, separately-tuned calculation. Kept
-          // deliberately to one line here; the full comparison (plus
-          // the savings alternative) still lives in that card below —
-          // this is what makes someone want to scroll down and look,
-          // not a replacement for it.
-          let leftOverTeaser = null;
-          if (leftOver > 0) {
-            const mortBalance = totals?.mortgageBalanceToday ?? profile.mortgage.balance;
-            const mortRate = profile.mortgage.rate;
-            if (mortBalance > 0 && mortgagePayment > 0 && mortRate > 0) {
-              const baselineMonths = monthsToPayoff(mortBalance, mortRate, mortgagePayment);
-              const withExtraMonths = monthsToPayoff(mortBalance, mortRate, mortgagePayment + leftOver);
-              const saved = Math.round(baselineMonths - withExtraMonths);
-              if (saved > 0) {
-                leftOverTeaser = `Put it all toward your mortgage, and you'd be mortgage-free ${saved} month${saved === 1 ? "" : "s"} sooner.`;
-              }
-            }
-            if (!leftOverTeaser) {
-              leftOverTeaser = `Even putting a little of this into savings each month adds up faster than you'd think.`;
-            }
-          }
+          // Whether "Left over" is worth making tappable at all —
+          // the actual content (a real compound-interest projection,
+          // plus a link through to the mortgage overpayment calculator)
+          // now lives in the leftOverPopoutOpen popout below, rather
+          // than a single pre-computed sentence guessed at in advance.
+          const hasLeftOverTease = leftOver > 0;
 
           return (
+            <div>
+              {/* Rebuilt using the exact same `rows` the list below
+                  renders, rather than the old flowSegments prop — that
+                  prop's breakdown (Essential/Debt/Pension/Investments/
+                  Available) is coarser than what this list now shows
+                  (Mortgage and Bills split out, Savings included), so
+                  reusing it here would have shown different numbers in
+                  the chart than in the list directly underneath it. */}
+              <div style={{ width: 160, height: 160, margin: "0 auto 4px" }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={rows} dataKey="value" nameKey="label" innerRadius={48} outerRadius={76} paddingAngle={2} strokeWidth={0}>
+                      {rows.map((r) => (
+                        <Cell key={r.label} fill={`var(--${r.tone})`} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CategoryTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 2 }}>
               {rows.map((r) =>
                 r.tab ? (
@@ -642,20 +553,91 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                     <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{gbp(r.value)}</span>
                   </button>
                 ) : (
-                  <div key={r.label} style={{ padding: "9px 0 4px" }}>
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => hasLeftOverTease && setLeftOverPopoutOpen(true)}
+                    disabled={!hasLeftOverTease}
+                    aria-label={`${r.label}: ${gbp(r.value)}${hasLeftOverTease ? ". See what this could do" : ""}`}
+                    style={{
+                      display: "block", width: "100%", padding: "9px 0 4px",
+                      background: "none", border: "none", textAlign: "left",
+                      cursor: hasLeftOverTease ? "pointer" : "default",
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: "var(--brand)" }} />
                       <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: 700 }}>{r.label}</span>
                       <span style={{ fontSize: 15, fontWeight: 800, color: "var(--brand)" }}>{gbp(r.value)}</span>
                     </div>
-                    {leftOverTeaser && (
+                    {hasLeftOverTease && (
                       <div style={{ marginTop: 6, marginLeft: 18, fontSize: 12, color: "var(--sage)", fontWeight: 600 }}>
-                        ✨ {leftOverTeaser}
+                        ✨ What could you do with your spare money? →
+                      </div>
+                    )}
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* The actual "what could this become" content — reached
+                by tapping "Left over" above. A popout rather than a
+                fully separate page, given how much else was already
+                being asked for in the same message this was requested
+                in — it delivers the same substance (a real savings
+                projection, plus mortgage overpayment) without the extra
+                scope of a brand new standalone screen. */}
+            <Popout open={leftOverPopoutOpen} onClose={() => setLeftOverPopoutOpen(false)} title="What could your spare money do?">
+              <div className="wmg-sub" style={{ marginBottom: 14 }}>
+                You have <strong style={{ color: "var(--paper)" }}>{gbp(leftOver)}/month</strong> spare, after
+                everything essential.
+              </div>
+              {(() => {
+                const annualRate = Number(profile.savings.interestRate || 0);
+                const monthlyRate = annualRate / 100 / 12;
+                const fv = (months) =>
+                  monthlyRate > 0
+                    ? leftOver * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate)
+                    : leftOver * months;
+                return (
+                  <div style={{ marginBottom: 16 }}>
+                    <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>
+                      If you saved all of it {monthlyRate > 0 ? `at ${profile.savings.interestRate}%/year` : ""}
+                    </div>
+                    <div className="wmg-forecast-summary" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                      <div>
+                        <div className="wmg-calc-item-label">1 year</div>
+                        <div className="wmg-calc-item-val">{gbp(fv(12))}</div>
+                      </div>
+                      <div>
+                        <div className="wmg-calc-item-label">5 years</div>
+                        <div className="wmg-calc-item-val">{gbp(fv(60))}</div>
+                      </div>
+                      <div>
+                        <div className="wmg-calc-item-label">10 years</div>
+                        <div className="wmg-calc-item-val">{gbp(fv(120))}</div>
+                      </div>
+                    </div>
+                    {monthlyRate === 0 && (
+                      <div className="wmg-sub" style={{ marginTop: 10, fontSize: 11.5 }}>
+                        Principal only — add a real interest rate on Savings for an actual growth projection.
                       </div>
                     )}
                   </div>
-                )
-              )}
+                );
+              })()}
+              <button
+                type="button"
+                className="wmg-btn-primary"
+                style={{ width: "100%" }}
+                onClick={() => {
+                  setLeftOverPopoutOpen(false);
+                  onNavigate?.("mortgage-overpayment");
+                }}
+              >
+                Or see what it could do for your mortgage
+              </button>
+            </Popout>
             </div>
           );
         })()}
