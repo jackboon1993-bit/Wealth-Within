@@ -275,6 +275,18 @@ export function MortgageTab({ profile, totals, setField, confirmMortgageBalance,
               <Field label="Monthly payment">
                 <NumberInput className="wmg-input" value={profile.mortgage.payment} onChange={setField(["mortgage", "payment"])} />
               </Field>
+              {/* Day of month it's paid — new, on request, so this can
+                  feed the "Coming up" forecast on Overview alongside
+                  subscriptions and household bills. Same day-of-month
+                  approach as those, for consistency across all three. */}
+              <Field label="Day paid each month">
+                <NumberInput
+                  className="wmg-input"
+                  value={profile.mortgage.paymentDay || ""}
+                  onChange={(v) => setField(["mortgage", "paymentDay"])(Math.max(1, Math.min(31, Math.round(v) || 1)))}
+                  placeholder="e.g. 1"
+                />
+              </Field>
               <div>
                 <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Mortgage-free</div>
                 <div className="wmg-figure tone-sage">{isFinite(mortgageMonths) ? addMonths(mortgageMonths) : "—"}</div>

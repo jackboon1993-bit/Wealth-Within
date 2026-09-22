@@ -189,15 +189,14 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
       </Popout>
 
       {/* "Coming up" — a genuinely new, forward-looking section, on
-          request. Combines two sources of real due-dates added
-          specifically to support this: subscriptions' renewsOn
-          (IncomeTab.jsx) and household bills' dueOn
-          (HouseholdBillsTab.jsx). Mortgage and loan payments are
-          deliberately NOT included here — neither currently tracks a
-          payment day, and I didn't want to guess at one or silently
-          leave the biggest payment out of a list that looks complete.
-          If a real due-day gets added to those later, they belong
-          here too. */}
+          request. Combines four sources of real due-dates: subscriptions'
+          renewsOn and household bills' dueOn (both added specifically for
+          this), mortgage's new paymentDay (MortgageTab.jsx), and loans/
+          cards' paymentDayOfMonth (LoansAndCardsTab.jsx — that one
+          already existed, nothing new needed there). Pension and
+          investment contributions are deliberately still excluded —
+          those aren't essential outgoings, and neither tracks a payment
+          day either. */}
       {(() => {
         const now = new Date();
         const today = now.getDate();
@@ -226,7 +225,19 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           .filter((i) => i.dueOn > 0 && Number(i.amount) > 0)
           .map((i) => ({ name: i.name, amount: Number(i.amount) || 0, date: nextOccurrence(i.dueOn), kind: "Bill" }));
 
-        const upcoming = [...subItems, ...billItems]
+        // Mortgage — uses the new paymentDay field (MortgageTab.jsx).
+        const mortgageItems =
+          profile.mortgage.paymentDay > 0 && Number(profile.mortgage.payment) > 0
+            ? [{ name: "Mortgage", amount: Number(profile.mortgage.payment), date: nextOccurrence(profile.mortgage.paymentDay), kind: "Mortgage" }]
+            : [];
+
+        // Loans and credit cards — paymentDayOfMonth already existed
+        // here (LoansAndCardsTab.jsx), nothing new needed for these.
+        const debtItems = [...(profile.loans || []), ...(profile.cards || [])]
+          .filter((d) => d.paymentDayOfMonth > 0 && Number(d.payment) > 0)
+          .map((d) => ({ name: d.name, amount: Number(d.payment) || 0, date: nextOccurrence(d.paymentDayOfMonth), kind: "Debt repayment" }));
+
+        const upcoming = [...subItems, ...billItems, ...mortgageItems, ...debtItems]
           .filter((i) => (i.date - now) / 86400000 <= 31)
           .sort((a, b) => a.date - b.date);
 
