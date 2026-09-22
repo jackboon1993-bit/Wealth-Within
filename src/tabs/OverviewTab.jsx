@@ -111,45 +111,52 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
 
   return (
     <>
-      <div className="wmg-mosaic-hero">
+      <div className="wmg-mosaic-hero" style={{ background: "linear-gradient(135deg, var(--brand-deep), var(--brand))" }}>
         <div className="wmg-mosaic-hero-top">
-          <div className="wmg-mosaic-hero-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span>Net worth</span>
-            <StreakBadge streakCount={profile.streakCount} />
-          </div>
-          <button type="button" className="wmg-mosaic-hero-score" onClick={() => setScoreInfoOpen((o) => !o)} aria-expanded={scoreInfoOpen}>
-            <GrowthRing progress={score / 100} size={24} tone={scoreTone} />
-            <span className="wmg-mosaic-hero-score-val">{Math.round(animatedScore)}</span>
-          </button>
+          <div className="wmg-mosaic-hero-label">Net worth</div>
+          {/* Streak moved up here, small — was sharing a row with the
+              score button lower down, which (along with the "past
+              comfortable" line below) made this feel crowded. */}
+          <StreakBadge streakCount={profile.streakCount} />
         </div>
         <div>
           <div className="wmg-mosaic-hero-val">{gbp(Math.round(animatedNetWorth))}</div>
-          <div className="wmg-mosaic-hero-sub">
-            {gap > 0 ? (
-              <>{gbp(Math.round(gap))}/mo from "comfortable"</>
-            ) : (
-              <>{gbp(Math.round(-gap))}/mo past "comfortable"</>
-            )}
+          {/* The "£X/mo from/past comfortable" line is gone — on
+              request, it was making this feel busy. Score and the
+              breakdown link now share one clear row below instead. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 20 }}>
+            <button
+              type="button"
+              onClick={() => setScoreInfoOpen((o) => !o)}
+              aria-expanded={scoreInfoOpen}
+              style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <GrowthRing progress={score / 100} size={40} tone={scoreTone} />
+              <span style={{ textAlign: "left" }}>
+                <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: "var(--paper)" }}>{Math.round(animatedScore)}</span>
+                <span style={{ display: "block", fontSize: 10.5, color: "var(--paper-dim)" }}>health score</span>
+              </span>
+            </button>
+            {/* Was a separate card full of tappable rows sitting on the
+                page permanently — collapsed into a popout triggered from
+                right here instead, since it's specifically about the Net
+                Worth figure directly above it, not something that needs
+                to always be visible. */}
+            <button
+              type="button"
+              onClick={() => setNetWorthBreakdownOpen(true)}
+              style={{
+                marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6,
+                background: "rgba(255,255,255,0.16)", border: "none", borderRadius: 999,
+                padding: "7px 14px", color: "#FFFFFF", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+              }}
+            >
+              See breakdown
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
           </div>
-          {/* Was a separate card full of tappable rows sitting on the
-              page permanently — collapsed into a popout triggered from
-              right here instead, since it's specifically about the Net
-              Worth figure directly above it, not something that needs
-              to always be visible. */}
-          <button
-            type="button"
-            onClick={() => setNetWorthBreakdownOpen(true)}
-            style={{
-              marginTop: 12, display: "inline-flex", alignItems: "center", gap: 6,
-              background: "rgba(255,255,255,0.16)", border: "none", borderRadius: 999,
-              padding: "7px 14px", color: "#FFFFFF", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
-            }}
-          >
-            See breakdown
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
         </div>
       </div>
 
