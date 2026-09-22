@@ -2,12 +2,19 @@ import React, { useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, gbpApprox, addMonths, getActiveMode, monthsToPayoff, totalInterestOwed } from "../lib/finance";
 import { hasAccounts } from "../lib/storage";
-import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge, Popout, CategoryTooltip } from "../components/ui";
+import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge, Popout, CategoryTooltip, NumberInput } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField, setupChecklistReady }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
   const [netWorthBreakdownOpen, setNetWorthBreakdownOpen] = useState(false);
   const [leftOverPopoutOpen, setLeftOverPopoutOpen] = useState(false);
+  // Drives the "what if I only put some of it away" choice inside the
+  // spare-money popout — a preset percentage, or "custom" to reveal a
+  // free-entry amount instead. Reset each time the popout is reopened
+  // (below) rather than persisted, since it's a quick what-if, not a
+  // setting.
+  const [leftOverPct, setLeftOverPct] = useState(100);
+  const [leftOverCustom, setLeftOverCustom] = useState("");
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
   // opened until the sync is actually reviewed or discarded in the
@@ -438,17 +445,19 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           treatment. Genuinely "its own box" now, since it's inside
           the bordered card rather than floating as plain text above it. */}
       {(hasConnectedBank || (hasAccounts && pendingBankSync && !pendingSyncDismissed)) && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           {hasConnectedBank && (
             <button
               type="button"
               onClick={() => onNavigate?.("import")}
               style={{
-                background: "var(--sage-soft)", border: "none", borderRadius: 999,
-                padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--sage)", cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "var(--sage-soft)", border: "1px solid var(--sage)", borderRadius: 999,
+                padding: "5px 12px 5px 8px", fontSize: 11, fontWeight: 700, color: "var(--sage)", cursor: "pointer",
               }}
             >
-              🔗 bank synced
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--sage)", flexShrink: 0 }} />
+              Bank synced
             </button>
           )}
           {/* Small orange pill replacing the old full-width "New spending
@@ -462,11 +471,13 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               type="button"
               onClick={() => onNavigate?.("import")}
               style={{
-                background: "var(--gold-soft)", border: "none", borderRadius: 999,
-                padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--gold)", cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "var(--gold-soft)", border: "1px solid var(--gold)", borderRadius: 999,
+                padding: "5px 12px 5px 8px", fontSize: 11, fontWeight: 700, color: "var(--gold)", cursor: "pointer",
               }}
             >
-              🔶 sync last bank transactions
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", flexShrink: 0 }} />
+              New transactions to sync
             </button>
           )}
         </div>
@@ -555,7 +566,12 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                   <button
                     key={r.label}
                     type="button"
-                    onClick={() => hasLeftOverTease && setLeftOverPopoutOpen(true)}
+                    onClick={() => {
+                      if (!hasLeftOverTease) return;
+                      setLeftOverPct(100);
+                      setLeftOverCustom("");
+                      setLeftOverPopoutOpen(true);
+                    }}
                     disabled={!hasLeftOverTease}
                     aria-label={`${r.label}: ${gbp(r.value)}${hasLeftOverTease ? ". See what this could do" : ""}`}
                     style={{
@@ -586,12 +602,65 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                 in — it delivers the same substance (a real savings
                 projection, plus mortgage overpayment) without the extra
                 scope of a brand new standalone screen. */}
-            <Popout open={leftOverPopoutOpen} onClose={() => setLeftOverPopoutOpen(false)} title="What could your spare money do?">
+            <Popout
+              open={leftOverPopoutOpen}
+              onClose={() => setLeftOverPopoutOpen(false)}
+              title="What could your spare money do?"
+            >
               <div className="wmg-sub" style={{ marginBottom: 14 }}>
                 You have <strong style={{ color: "var(--paper)" }}>{gbp(leftOver)}/month</strong> spare, after
                 everything essential.
               </div>
+              {/* How much of it to actually run the projection on —
+                  defaults to all of it, but a real household often
+                  wants to keep some back for day-to-day spending
+                  rather than commit every last pound to a what-if. */}
+              <div className="wmg-field-label" style={{ marginBottom: 6 }}>How much of it?</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: leftOverPct === -1 ? 10 : 16 }}>
+                {[25, 50, 75, 100].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setLeftOverPct(pct)}
+                    style={{
+                      flex: 1, padding: "8px 0", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                      border: leftOverPct === pct ? "1.5px solid var(--brand)" : "0.5px solid var(--hair)",
+                      background: leftOverPct === pct ? "var(--brand-soft)" : "var(--ink-2)",
+                      color: leftOverPct === pct ? "var(--brand)" : "var(--paper)",
+                    }}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setLeftOverPct(-1)}
+                  style={{
+                    flex: 1.4, padding: "8px 0", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                    border: leftOverPct === -1 ? "1.5px solid var(--brand)" : "0.5px solid var(--hair)",
+                    background: leftOverPct === -1 ? "var(--brand-soft)" : "var(--ink-2)",
+                    color: leftOverPct === -1 ? "var(--brand)" : "var(--paper)",
+                  }}
+                >
+                  Custom
+                </button>
+              </div>
+              {leftOverPct === -1 && (
+                <div style={{ marginBottom: 16 }}>
+                  <NumberInput
+                    className="wmg-input"
+                    style={{ width: "100%" }}
+                    value={leftOverCustom}
+                    onChange={setLeftOverCustom}
+                    placeholder={`Up to ${gbp(leftOver)}`}
+                  />
+                </div>
+              )}
               {(() => {
+                const projectionAmount =
+                  leftOverPct === -1
+                    ? Math.min(leftOver, Math.max(0, Number(leftOverCustom || 0)))
+                    : leftOver * (leftOverPct / 100);
                 // Was principal-only when no rate had been set — now
                 // falls back to a real average instead, per the Bank
                 // of England's own data (average UK easy-access rate,
@@ -603,11 +672,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                 const AVERAGE_UK_EASY_ACCESS_RATE = 3.12;
                 const annualRate = usingOwnRate ? Number(profile.savings.interestRate) : AVERAGE_UK_EASY_ACCESS_RATE;
                 const monthlyRate = annualRate / 100 / 12;
-                const fv = (months) => leftOver * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
+                const fv = (months) => projectionAmount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
                 return (
                   <div style={{ marginBottom: 16 }}>
                     <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>
-                      If you saved all of it at {annualRate}%/year
+                      Saving {gbp(projectionAmount)}/month at {annualRate}%/year
                     </div>
                     <div className="wmg-forecast-summary" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
                       <div>
