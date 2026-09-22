@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { gbp, gbpApprox, addMonths, getActiveMode, monthsToPayoff, totalInterestOwed } from "../lib/finance";
 import { hasAccounts } from "../lib/storage";
-import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge } from "../components/ui";
+import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge, Popout } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField, setupChecklistReady }) {
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false);
+  const [netWorthBreakdownOpen, setNetWorthBreakdownOpen] = useState(false);
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
   // opened until the sync is actually reviewed or discarded in the
@@ -121,8 +122,50 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
               <>{gbp(Math.round(-gap))}/mo past "comfortable"</>
             )}
           </div>
+          {/* Was a separate card full of tappable rows sitting on the
+              page permanently — collapsed into a popout triggered from
+              right here instead, since it's specifically about the Net
+              Worth figure directly above it, not something that needs
+              to always be visible. */}
+          <button
+            type="button"
+            onClick={() => setNetWorthBreakdownOpen(true)}
+            style={{
+              marginTop: 10, background: "none", border: "none", padding: 0,
+              color: "var(--brand-2)", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+            }}
+          >
+            See breakdown of net worth →
+          </button>
         </div>
       </div>
+
+      <Popout open={netWorthBreakdownOpen} onClose={() => setNetWorthBreakdownOpen(false)} title="What makes up your net worth">
+        {heroStats.map((s, i) => (
+          <button
+            key={s.label}
+            type="button"
+            onClick={() => {
+              setNetWorthBreakdownOpen(false);
+              onNavigate?.(s.tab);
+            }}
+            aria-label={`${s.label}: ${s.value}. Go to ${s.label}`}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "11px 0",
+              borderBottom: i === heroStats.length - 1 ? "none" : "0.5px solid var(--hair)",
+              background: "none", border: "none", borderTop: "none", borderLeft: "none", borderRight: "none",
+              textAlign: "left", cursor: "pointer",
+            }}
+          >
+            <span className={`wmg-showcase-icon tone-${s.tone}`} style={{ width: 26, height: 26, flexShrink: 0 }} aria-hidden="true">
+              <StatIcon name={s.icon} />
+            </span>
+            <span style={{ flex: 1, fontSize: 13, color: "var(--paper)" }}>{s.label}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{s.value}</span>
+          </button>
+        ))}
+      </Popout>
 
       {scoreInfoOpen && (
         <Card className="wmg-score-explainer-card">
@@ -391,36 +434,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Reveal>
       )}
 
-      {/* Reverted the "What makes up your net worth" reframing and
-          proportion bar — didn't land well visually. Back to a plain
-          list, same as before that change; "Budget" stays removed
-          though, since the new list's "Bills" row already covers
-          that route now. */}
-      <Reveal delay={20}>
-        <Card style={{ padding: "2px 16px", marginBottom: 16 }}>
-          {heroStats.map((s, i) => (
-            <button
-              key={s.label}
-              type="button"
-              onClick={() => onNavigate?.(s.tab)}
-              aria-label={`${s.label}: ${s.value}. Go to ${s.label}`}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 10,
-                padding: "11px 0",
-                borderBottom: i === heroStats.length - 1 ? "none" : "0.5px solid var(--hair)",
-                background: "none", border: "none", borderTop: "none", borderLeft: "none", borderRight: "none",
-                textAlign: "left", cursor: "pointer",
-              }}
-            >
-              <span className={`wmg-showcase-icon tone-${s.tone}`} style={{ width: 26, height: 26, flexShrink: 0 }} aria-hidden="true">
-                <StatIcon name={s.icon} />
-              </span>
-              <span style={{ flex: 1, fontSize: 13, color: "var(--paper)" }}>{s.label}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{s.value}</span>
-            </button>
-          ))}
-        </Card>
-      </Reveal>
 
       {/* Two new cards, directly under the net-worth tiles — on request.
           profile.billsConfirmed is the same flag the existing guided
@@ -556,7 +569,12 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
 
           const rows = [
             { label: "Mortgage", value: mortgagePayment, tone: "slate", tab: "mortgage" },
-            { label: "Bills", value: billsOnly, tone: "gold", tab: "income" },
+            // Now its own genuinely separate page — the previous
+            // "navigate to Budget and force billsConfirmed false"
+            // approach still left this buried inside a much longer
+            // tab. household-bills is a small, single-purpose page
+            // with nothing else on it.
+            { label: "Bills", value: billsOnly, tone: "gold", tab: "household-bills" },
             { label: "Debt repayments", value: totals.debtPayments, tone: "rust", tab: "loans" },
             { label: "Pension", value: totals.pensionContribution, tone: "coral", tab: "pension" },
             { label: "Savings", value: savingsMonthly, tone: "sage", tab: "savings" },
@@ -573,20 +591,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                   <button
                     key={r.label}
                     type="button"
-                    onClick={() => {
-                      // Bills specifically needs one more thing than a
-                      // plain tab switch — the guided bill-entry form
-                      // (IncomeTab.jsx) only shows once
-                      // profile.billsConfirmed is false; once it's true
-                      // (the normal state after someone's gone through
-                      // it once) it collapses into a summary with a
-                      // small "Edit my bills" button, easy to miss on a
-                      // long scroll. Forcing it false here means landing
-                      // directly on the actual editable water/gas/
-                      // electricity form, not a summary to hunt through.
-                      if (r.label === "Bills") setField(["billsConfirmed"])(false);
-                      onNavigate?.(r.tab);
-                    }}
+                    onClick={() => onNavigate?.(r.tab)}
                     aria-label={`${r.label}: ${gbp(r.value)}. Go to ${r.label}`}
                     style={{
                       display: "flex", alignItems: "center", gap: 10, padding: "9px 0",

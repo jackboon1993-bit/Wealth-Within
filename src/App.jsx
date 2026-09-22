@@ -35,6 +35,7 @@ import { syncWidgetData } from "./utils/widgetSync";
 // would just trade one big blocking download for a different one.
 import { OverviewTab } from "./tabs/OverviewTab";
 const IncomeTab = lazy(() => import("./tabs/IncomeTab").then((m) => ({ default: m.IncomeTab })));
+const HouseholdBillsTab = lazy(() => import("./tabs/HouseholdBillsTab").then((m) => ({ default: m.HouseholdBillsTab })));
 const LoansAndCardsTab = lazy(() => import("./tabs/LoansAndCardsTab").then((m) => ({ default: m.LoansAndCardsTab })));
 const MortgageTab = lazy(() => import("./tabs/MortgageTab").then((m) => ({ default: m.MortgageTab })));
 const SavingsTab = lazy(() => import("./tabs/SavingsTab").then((m) => ({ default: m.SavingsTab })));
@@ -2160,6 +2161,15 @@ export default function App() {
                 hasPremium={subscription.hasPremium}
                 subscriptionStatus={subscription.status}
                 onUpgrade={handleUpgrade}
+              />
+            )}
+
+            {tab === "household-bills" && (
+              <HouseholdBillsTab
+                profile={profile}
+                addNamedItem={addNamedItem}
+                removeItem={removeItem}
+                updateItem={updateItem}
               />
             )}
 

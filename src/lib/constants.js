@@ -41,6 +41,11 @@ export const TAB_TITLES = {
   // OverviewTab.jsx deployment mistake, this time caught before shipping
   // rather than after.
   pension: "Pension",
+  // Same reasoning as pension above — a real, reachable tab (from
+  // Overview's "Bills" row in the income-vs-outgoings list), not a
+  // bottom-nav icon, so it needs its own title entry to avoid the exact
+  // blank-title-bar bug this file already warns about above.
+  "household-bills": "Household Bills",
 };
 
 
@@ -52,6 +57,7 @@ export const MASCOT_MESSAGES = {
   savings: "Set a target for anything you're saving towards — a holiday, a house deposit — and see when you'll realistically get there.",
   investments: "Track what you hold outside your pension — an ISA, a general investment account, or anything else — separately from cash savings and your pension balance.",
   pension: "Your pension and State Pension both feed into your retirement forecast. Even rough numbers here are better than leaving it blank.",
+  "household-bills": "Add each regular bill — electricity, gas, water, council tax, broadband — and what it actually costs. This feeds your essential spending everywhere else in the app.",
   "pension-reader": "Upload a PDF or a photo of any pension or investment statement, and I'll explain what it actually says in plain English — free, and nothing's saved unless you choose to use it.",
   forecast: "This projects your finances forward using everything else you've entered. Try the sliders to see how overpaying debt or saving more changes your future.",
   "mortgage-overpayment": "See what a one-off lump sum or an extra amount every month could actually save on your mortgage — in time and in interest.",
