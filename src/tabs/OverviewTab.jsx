@@ -42,13 +42,13 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
     "Not just this month's cash flow — it's a blend of five things: how much you're saving each month (30%), how well-funded your emergency fund is (20%), how much debt you're carrying relative to your income (20%), your pension and investments relative to your income (15%), and how much of your home you actually own outright (15%). Being close to \"comfortable\" on cash flow alone doesn't lift the score much if debt or savings are still catching up.";
 
   const heroStats = [
-    // Was fully removed — turns out this was also the only easy way to
-    // reach the Budget tab from Overview at all, not just a display of
-    // a number that changes daily. Restored as a plain navigation row
-    // instead: no live £ figure any more (that's the part that was
-    // genuinely disliked), just "This month" as a stable label — still
-    // one tap through to everything Budget actually shows.
-    { label: "Budget", value: "This month", tone: "brand", tab: "income", icon: "wallet", gradient: true },
+    // "Budget" removed — the new "Income & essential outgoings" list
+    // below now has its own tappable "Bills" row routing to the same
+    // place, so this no longer needs to be the only way there the way
+    // it was earlier tonight. Without it, every remaining row here is
+    // genuinely a net-worth component (a balance or an equity figure),
+    // which is what let this box get reframed properly below rather
+    // than staying a mixed bag of different kinds of number.
     { label: "Loans & credit cards", value: gbp(Math.round(animatedTotalDebt)), tone: "coral", tab: "loans", icon: "debt", gradient: true },
     { label: "Savings", value: gbp(Math.round(animatedSavings)), tone: "sage", tab: "savings", icon: "savings", gradient: true },
     // Debt-free and Mortgage-free payoff-date tiles were dropped from
@@ -391,8 +391,33 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Reveal>
       )}
 
+      {/* Reframed explicitly as "what makes up net worth" — tied
+          directly to the big Net Worth figure already shown above,
+          rather than reading as a generic, disconnected list of
+          numbers. The proportion bar is new: a quick visual read on
+          how much of the whole picture is debt versus everything
+          else, which the old plain list never showed at a glance. */}
+      <div className="wmg-section-title">What makes up your net worth</div>
       <Reveal delay={20}>
-        <Card style={{ padding: "2px 16px", marginBottom: 16 }}>
+        <Card style={{ padding: "16px 16px 2px", marginBottom: 16 }}>
+          {(() => {
+            const totalAssets = Math.round(animatedSavings) + Math.round(animatedHomeEquity) + Math.round(animatedPension) + Math.round(animatedInvestments);
+            const totalDebtRounded = Math.round(animatedTotalDebt);
+            const grossTotal = Math.max(1, totalAssets + totalDebtRounded);
+            const debtShare = (totalDebtRounded / grossTotal) * 100;
+            return (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ height: 8, borderRadius: 999, overflow: "hidden", display: "flex", background: "var(--hair)" }}>
+                  <div style={{ width: `${100 - debtShare}%`, background: "var(--sage)" }} />
+                  <div style={{ width: `${debtShare}%`, background: "var(--coral)" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11, color: "var(--paper-dim)" }}>
+                  <span>{gbp(totalAssets)} in assets</span>
+                  <span>{gbp(totalDebtRounded)} in debt</span>
+                </div>
+              </div>
+            );
+          })()}
           {heroStats.map((s, i) => (
             <button
               key={s.label}
@@ -550,39 +575,45 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           );
 
           const rows = [
-            { label: "Mortgage", value: mortgagePayment, tone: "slate" },
-            { label: "Bills", value: billsOnly, tone: "gold" },
-            { label: "Debt repayments", value: totals.debtPayments, tone: "rust" },
-            { label: "Pension", value: totals.pensionContribution, tone: "coral" },
-            { label: "Savings", value: savingsMonthly, tone: "sage" },
-            { label: "Investments", value: investmentsMonthly, tone: "brand" },
+            { label: "Mortgage", value: mortgagePayment, tone: "slate", tab: "mortgage" },
+            { label: "Bills", value: billsOnly, tone: "gold", tab: "income" },
+            { label: "Debt repayments", value: totals.debtPayments, tone: "rust", tab: "loans" },
+            { label: "Pension", value: totals.pensionContribution, tone: "coral", tab: "pension" },
+            { label: "Savings", value: savingsMonthly, tone: "sage", tab: "savings" },
+            { label: "Investments", value: investmentsMonthly, tone: "brand", tab: "investments" },
           ]
             .filter((r) => r.value > 0)
             .sort((a, b) => b.value - a.value);
-          rows.push({ label: "Left over", value: leftOver, tone: "paper" });
+          rows.push({ label: "Left over", value: leftOver, tone: "paper", tab: null });
 
           return (
             <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 2 }}>
-              {rows.map((r) => (
-                <div
-                  key={r.label}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "9px 0",
-                    borderBottom: r.label === "Left over" ? "none" : "0.5px solid var(--hair)",
-                  }}
-                >
-                  <span
+              {rows.map((r) =>
+                r.tab ? (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => onNavigate?.(r.tab)}
+                    aria-label={`${r.label}: ${gbp(r.value)}. Go to ${r.label}`}
                     style={{
-                      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                      background: r.label === "Left over" ? "var(--paper-dim)" : `var(--${r.tone})`,
+                      display: "flex", alignItems: "center", gap: 10, padding: "9px 0",
+                      borderBottom: "0.5px solid var(--hair)",
+                      background: "none", border: "none", borderTop: "none", borderLeft: "none", borderRight: "none",
+                      width: "100%", textAlign: "left", cursor: "pointer",
                     }}
-                  />
-                  <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: r.label === "Left over" ? 700 : 500 }}>
-                    {r.label}
-                  </span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{gbp(r.value)}</span>
-                </div>
-              ))}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: `var(--${r.tone})` }} />
+                    <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: 500 }}>{r.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{gbp(r.value)}</span>
+                  </button>
+                ) : (
+                  <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: "var(--paper-dim)" }} />
+                    <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: 700 }}>{r.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{gbp(r.value)}</span>
+                  </div>
+                )
+              )}
             </div>
           );
         })()}
