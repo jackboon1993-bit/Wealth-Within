@@ -391,33 +391,13 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Reveal>
       )}
 
-      {/* Reframed explicitly as "what makes up net worth" — tied
-          directly to the big Net Worth figure already shown above,
-          rather than reading as a generic, disconnected list of
-          numbers. The proportion bar is new: a quick visual read on
-          how much of the whole picture is debt versus everything
-          else, which the old plain list never showed at a glance. */}
-      <div className="wmg-section-title">What makes up your net worth</div>
+      {/* Reverted the "What makes up your net worth" reframing and
+          proportion bar — didn't land well visually. Back to a plain
+          list, same as before that change; "Budget" stays removed
+          though, since the new list's "Bills" row already covers
+          that route now. */}
       <Reveal delay={20}>
-        <Card style={{ padding: "16px 16px 2px", marginBottom: 16 }}>
-          {(() => {
-            const totalAssets = Math.round(animatedSavings) + Math.round(animatedHomeEquity) + Math.round(animatedPension) + Math.round(animatedInvestments);
-            const totalDebtRounded = Math.round(animatedTotalDebt);
-            const grossTotal = Math.max(1, totalAssets + totalDebtRounded);
-            const debtShare = (totalDebtRounded / grossTotal) * 100;
-            return (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ height: 8, borderRadius: 999, overflow: "hidden", display: "flex", background: "var(--hair)" }}>
-                  <div style={{ width: `${100 - debtShare}%`, background: "var(--sage)" }} />
-                  <div style={{ width: `${debtShare}%`, background: "var(--coral)" }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11, color: "var(--paper-dim)" }}>
-                  <span>{gbp(totalAssets)} in assets</span>
-                  <span>{gbp(totalDebtRounded)} in debt</span>
-                </div>
-              </div>
-            );
-          })()}
+        <Card style={{ padding: "2px 16px", marginBottom: 16 }}>
           {heroStats.map((s, i) => (
             <button
               key={s.label}
@@ -593,7 +573,20 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                   <button
                     key={r.label}
                     type="button"
-                    onClick={() => onNavigate?.(r.tab)}
+                    onClick={() => {
+                      // Bills specifically needs one more thing than a
+                      // plain tab switch — the guided bill-entry form
+                      // (IncomeTab.jsx) only shows once
+                      // profile.billsConfirmed is false; once it's true
+                      // (the normal state after someone's gone through
+                      // it once) it collapses into a summary with a
+                      // small "Edit my bills" button, easy to miss on a
+                      // long scroll. Forcing it false here means landing
+                      // directly on the actual editable water/gas/
+                      // electricity form, not a summary to hunt through.
+                      if (r.label === "Bills") setField(["billsConfirmed"])(false);
+                      onNavigate?.(r.tab);
+                    }}
                     aria-label={`${r.label}: ${gbp(r.value)}. Go to ${r.label}`}
                     style={{
                       display: "flex", alignItems: "center", gap: 10, padding: "9px 0",
