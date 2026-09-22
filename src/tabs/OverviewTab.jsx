@@ -133,8 +133,8 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             >
               <GrowthRing progress={score / 100} size={40} tone={scoreTone} />
               <span style={{ textAlign: "left" }}>
-                <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: "var(--paper)" }}>{Math.round(animatedScore)}</span>
-                <span style={{ display: "block", fontSize: 10.5, color: "var(--paper-dim)" }}>health score</span>
+                <span style={{ display: "block", fontSize: 18, fontWeight: 800, color: "#FFFFFF" }}>{Math.round(animatedScore)}</span>
+                <span style={{ display: "block", fontSize: 10.5, color: "rgba(255,255,255,0.7)" }}>health score</span>
               </span>
             </button>
             {/* Was a separate card full of tappable rows sitting on the
