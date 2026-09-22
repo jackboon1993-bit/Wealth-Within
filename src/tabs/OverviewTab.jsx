@@ -432,11 +432,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           preference for lists over pie charts throughout tonight — the
           biggest outflow sits at the top, "Left over" always last
           since it's what remains, not a competing outflow. */}
-      {/* Simplified to a plain title on request — the boxed icon
-          badge broke the same look every other section title uses.
-          The pills also moved to their own row below, rather than
-          crowding the title's line and risking it wrapping. */}
-      <div className="wmg-section-title">💷 Income &amp; essential outgoings</div>
+      {/* Moved inside the Card as a proper wmg-eyebrow — the same
+          small-caps style used for every other card header tonight
+          ("One more thing that'd help", etc.), rather than a one-off
+          treatment. Genuinely "its own box" now, since it's inside
+          the bordered card rather than floating as plain text above it. */}
       {(hasConnectedBank || (hasAccounts && pendingBankSync && !pendingSyncDismissed)) && (
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           {hasConnectedBank && (
@@ -472,6 +472,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </div>
       )}
       <Card style={{ marginBottom: 16 }}>
+        <div className="wmg-eyebrow" style={{ marginBottom: 10 }}>💷 Income &amp; essential outgoings</div>
         <div className="wmg-flow-income-row">
           <div className="wmg-flow-income-label">Income</div>
           <div className="wmg-flow-income-val">{gbp(Math.round(animatedIncome))}</div>
@@ -591,16 +592,22 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                 everything essential.
               </div>
               {(() => {
-                const annualRate = Number(profile.savings.interestRate || 0);
+                // Was principal-only when no rate had been set — now
+                // falls back to a real average instead, per the Bank
+                // of England's own data (average UK easy-access rate,
+                // Dec 2025: 3.12%), rather than either fabricating a
+                // number or showing flat, ungrown principal. Still
+                // clearly labelled as an estimate, and still prefers
+                // your own real rate the moment one's set on Savings.
+                const usingOwnRate = Number(profile.savings.interestRate || 0) > 0;
+                const AVERAGE_UK_EASY_ACCESS_RATE = 3.12;
+                const annualRate = usingOwnRate ? Number(profile.savings.interestRate) : AVERAGE_UK_EASY_ACCESS_RATE;
                 const monthlyRate = annualRate / 100 / 12;
-                const fv = (months) =>
-                  monthlyRate > 0
-                    ? leftOver * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate)
-                    : leftOver * months;
+                const fv = (months) => leftOver * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
                 return (
                   <div style={{ marginBottom: 16 }}>
                     <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>
-                      If you saved all of it {monthlyRate > 0 ? `at ${profile.savings.interestRate}%/year` : ""}
+                      If you saved all of it at {annualRate}%/year
                     </div>
                     <div className="wmg-forecast-summary" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
                       <div>
@@ -616,9 +623,10 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                         <div className="wmg-calc-item-val">{gbp(fv(120))}</div>
                       </div>
                     </div>
-                    {monthlyRate === 0 && (
+                    {!usingOwnRate && (
                       <div className="wmg-sub" style={{ marginTop: 10, fontSize: 11.5 }}>
-                        Principal only — add a real interest rate on Savings for an actual growth projection.
+                        Based on the average UK easy-access rate (3.12%, Bank of England data) — add your own
+                        account's real rate on Savings for an exact figure.
                       </div>
                     )}
                   </div>
