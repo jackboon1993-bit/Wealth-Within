@@ -432,47 +432,45 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           preference for lists over pie charts throughout tonight — the
           biggest outflow sits at the top, "Left over" always last
           since it's what remains, not a competing outflow. */}
-      <div className="wmg-section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 7, background: "var(--brand-soft)", fontSize: 12 }}>
-          💷
-        </span>
-        Income &amp; essential outgoings
-        {/* Was a full-width "All wired up" banner sitting right at the
-            top of the page, the very first thing anyone saw on opening
-            the app — on request, replaced with something small enough
-            to just be a passing detail, tucked next to the section it
-            actually relates to, rather than announcing itself first. */}
-        {hasConnectedBank && (
-          <button
-            type="button"
-            onClick={() => onNavigate?.("import")}
-            style={{
-              background: "var(--sage-soft)", border: "none", borderRadius: 999,
-              padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--sage)", cursor: "pointer",
-            }}
-          >
-            🔗 bank synced
-          </button>
-        )}
-        {/* Small orange pill replacing the old full-width "New spending
-            synced" banner — tapping it goes straight to Review (the
-            same destination the banner's own "Review" button did);
-            there's no room for a separate "Not now" in something this
-            small, but being this unobtrusive means there's much less
-            need for one — it's easy to just not tap it. */}
-        {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
-          <button
-            type="button"
-            onClick={() => onNavigate?.("import")}
-            style={{
-              background: "var(--gold-soft)", border: "none", borderRadius: 999,
-              padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--gold)", cursor: "pointer",
-            }}
-          >
-            🔶 sync last bank transactions
-          </button>
-        )}
-      </div>
+      {/* Simplified to a plain title on request — the boxed icon
+          badge broke the same look every other section title uses.
+          The pills also moved to their own row below, rather than
+          crowding the title's line and risking it wrapping. */}
+      <div className="wmg-section-title">💷 Income &amp; essential outgoings</div>
+      {(hasConnectedBank || (hasAccounts && pendingBankSync && !pendingSyncDismissed)) && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {hasConnectedBank && (
+            <button
+              type="button"
+              onClick={() => onNavigate?.("import")}
+              style={{
+                background: "var(--sage-soft)", border: "none", borderRadius: 999,
+                padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--sage)", cursor: "pointer",
+              }}
+            >
+              🔗 bank synced
+            </button>
+          )}
+          {/* Small orange pill replacing the old full-width "New spending
+              synced" banner — tapping it goes straight to Review (the
+              same destination the banner's own "Review" button did);
+              there's no room for a separate "Not now" in something this
+              small, but being this unobtrusive means there's much less
+              need for one — it's easy to just not tap it. */}
+          {hasAccounts && pendingBankSync && !pendingSyncDismissed && (
+            <button
+              type="button"
+              onClick={() => onNavigate?.("import")}
+              style={{
+                background: "var(--gold-soft)", border: "none", borderRadius: 999,
+                padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: "var(--gold)", cursor: "pointer",
+              }}
+            >
+              🔶 sync last bank transactions
+            </button>
+          )}
+        </div>
+      )}
       <Card style={{ marginBottom: 16 }}>
         <div className="wmg-flow-income-row">
           <div className="wmg-flow-income-label">Income</div>
