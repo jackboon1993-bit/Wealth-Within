@@ -124,7 +124,21 @@ export function QuickImport({ onAdd }) {
 
 export const WIZARD_DATA_STEPS = ["mode", "income", "debts", "savings", "pension"];
 
-export const WIZARD_STEPS = ["welcome", "connect", ...WIZARD_DATA_STEPS, "showcase", "done"];
+// Was ["welcome", "connect", ...WIZARD_DATA_STEPS, "showcase", "done"] —
+// "connect" removed entirely from the sequence on feedback that
+// asking to link a bank as literally the first real step, before any
+// trust has been built through simpler interaction, reads as
+// premature and mildly suspicious. Connecting a bank is still fully
+// possible — via the existing "Connect a bank" prompt on Overview,
+// once someone's actually in the app — just not asked for during
+// onboarding at all. That does mean income/debts/savings on the data
+// steps below no longer get pre-filled from a bank connected
+// mid-wizard the way they briefly could; pullAndPrefillFromBank and
+// the bank-prefill status below are dead code left over from that,
+// kept only because BankConnectPanel-adjacent wiring elsewhere may
+// still reference the same shape — worth a cleanup pass later, not
+// urgent on its own.
+export const WIZARD_STEPS = ["welcome", ...WIZARD_DATA_STEPS, "showcase", "done"];
 
 // What gets highlighted on the "showcase" step, right after someone's
 // finished entering their numbers and right before they land on their
@@ -407,7 +421,17 @@ export function SetupWizard({ onFinish }) {
     }));
   };
 
-  const skipAll = () => onFinish((p) => ({ ...p, onboarded: true }));
+  // Was its own separate function that only ever set onboarded: true,
+  // leaving every other field exactly as it was before the wizard ran
+  // — if that starting profile had any non-zero figures already in it
+  // (a demo/default profile, or a stale earlier session), skipping
+  // left them in place with no way to tell they weren't real. Routing
+  // through the same finishWithData logic instead means a full skip
+  // (nothing touched) writes the exact same all-zeroed profile every
+  // other empty branch already produces — and a partial skip (a few
+  // steps filled in, then Skip) still keeps whatever was genuinely
+  // entered, exactly as if they'd pressed Next through to the end.
+  const skipAll = () => finishWithData();
 
   return (
     <div className="wmg-onboard">
@@ -440,61 +464,9 @@ export function SetupWizard({ onFinish }) {
           </div>
         )}
 
-        {step === "connect" && (
-          <div className="wmg-wizard-step">
-            <h2 className="wmg-wizard-step-title">Connect a bank</h2>
-            <p className="wmg-wizard-step-sub">
-              Optional — link an account via Open Banking now, or skip and enter your numbers by
-              hand on the next few screens instead. Read-only, and you can always connect later
-              from Overview.
-            </p>
-            {hasAccounts && householdId ? (
-              <>
-                <BankConnectPanel
-                  householdId={householdId}
-                  onAccountsChanged={(accounts) => {
-                    // BankConnectPanel reports every status check here, not
-                    // just real connections — including its own initial
-                    // "not connected yet" 404 check on mount, before the
-                    // person has done anything. Only treat this as "a bank
-                    // just got connected" when real account data actually
-                    // comes back, otherwise pullAndPrefillFromBank would
-                    // fire immediately on page load (before any bank
-                    // exists), fail, and — since it only ever runs once —
-                    // never get a second chance even after a real
-                    // connection succeeds moments later.
-                    if (Array.isArray(accounts) && accounts.length > 0) {
-                      pullAndPrefillFromBank();
-                    }
-                  }}
-                  onUseAsSavings={(balance) => setSavingsBalance((prev) => (prev === 0 ? balance : prev))}
-                  onUseAsCardDebt={handleUseAsCardDebt}
-                  existingCards={cards}
-                  savingsBalance={savingsBalance}
-                />
-                {bankPrefillStatus === "loading" && (
-                  <div className="wmg-sub" style={{ marginTop: 10 }}>
-                    Reading your recent transactions to fill in the next few questions for you…
-                  </div>
-                )}
-                {bankPrefillStatus === "done" && (
-                  <div className="wmg-sub" style={{ marginTop: 10, color: "var(--sage)" }}>
-                    ✓ Income and spending on the next screens have been pre-filled from your bank — check them over,
-                    they're easy to adjust.
-                  </div>
-                )}
-                {bankPrefillStatus === "error" && (
-                  <div className="wmg-sub" style={{ marginTop: 10 }}>
-                    Couldn't read transaction history right now — no problem, just enter income and spending by hand
-                    on the next screens.
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="wmg-sub">Loading…</p>
-            )}
-          </div>
-        )}
+        {/* "connect" step removed — see the WIZARD_STEPS comment above.
+            Bank connection is now reached only via Overview's existing
+            post-onboarding prompt, not as part of the wizard at all. */}
 
         {step === "mode" && (
           <div className="wmg-wizard-step">
