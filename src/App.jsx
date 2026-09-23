@@ -822,8 +822,11 @@ export default function App() {
     // for everything — categories are typically few (under a dozen),
     // and this keeps each category's items cleanly scoped to its own
     // matching rows rather than one large result to split up client-side.
+    // Essential categories are skipped entirely here — see the note
+    // below on why bank import must never touch them.
     const categoryItemsResolved = {};
     for (const [catName, imported] of Object.entries(categoryTotals)) {
+      if (profile.expenseCategories.find((c) => c.name === catName)?.type === "essential") continue;
       const namedItems = categoryItems?.[catName];
       if (namedItems && namedItems.length > 0) continue; // manual pull already named these
       if (!supabase || imported == null) continue;
@@ -848,6 +851,21 @@ export default function App() {
       ...p,
       incomes: incomeItems || p.incomes,
       expenseCategories: p.expenseCategories.map((c) => {
+        // Essential categories (Household Bills, and anything else
+        // flagged essential) are never touched by a bank import, full
+        // stop — on request, tonight's real bug report: a pull was
+        // replacing manually-entered bill items with fresh ones built
+        // from raw transactions, silently wiping the dueOn day each
+        // one had been given (a brand-new item, with a brand-new id,
+        // has never heard of dueOn) and adding merchant-named items
+        // nobody asked for. Essential spending is meant to be entirely
+        // user-controlled now — it's what Overview's income/outgoings
+        // list and "Coming up" forecast are built on, and a household
+        // bill's day-of-month is something only the person themselves
+        // actually knows, not something transaction history can supply
+        // reliably anyway. Lifestyle categories are unaffected — this
+        // is scoped to essential specifically, not imports generally.
+        if (c.type === "essential") return c;
         const imported = categoryTotals[c.name];
         if (imported == null) return c;
         const namedItems = categoryItems?.[c.name] || categoryItemsResolved[c.name];
