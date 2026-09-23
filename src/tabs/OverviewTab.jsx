@@ -348,8 +348,12 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
 
           // Level 2 — a category's real transactions for this month.
           if (explorerSelectedCategory) {
+            const sortedTx = [...explorerTransactions].sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount)));
             return (
               <div>
+                {/* Made into a proper pill/chip rather than a plain text
+                    link — on request, plain text links haven't read as
+                    obviously tappable elsewhere tonight either. */}
                 <button
                   type="button"
                   onClick={() => {
@@ -357,17 +361,25 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                     setExplorerTxStatus("idle");
                     setExplorerTransactions([]);
                   }}
-                  style={{ background: "none", border: "none", padding: 0, marginBottom: 12, fontSize: 12.5, fontWeight: 700, color: "var(--brand)", cursor: "pointer" }}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    background: "var(--brand-soft)", border: "none", borderRadius: 999,
+                    padding: "6px 12px", marginBottom: 12, fontSize: 12.5, fontWeight: 700, color: "var(--brand)", cursor: "pointer",
+                  }}
                 >
                   ← Back to categories
                 </button>
+                <div className="wmg-sub" style={{ marginBottom: 12, fontSize: 11.5 }}>
+                  {monthDate.toLocaleDateString("en-GB", { day: "numeric", month: "long" })} – {monthEndDate.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
+                  , sorted by amount
+                </div>
                 {explorerTxStatus === "loading" && <div className="wmg-sub">Looking at transactions…</div>}
-                {explorerTxStatus === "done" && explorerTransactions.length === 0 && (
+                {explorerTxStatus === "done" && sortedTx.length === 0 && (
                   <div className="wmg-sub">No transactions found for this category in {monthLabel}.</div>
                 )}
-                {explorerTxStatus === "done" && explorerTransactions.length > 0 && (
+                {explorerTxStatus === "done" && sortedTx.length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {explorerTransactions.map((t, i) => (
+                    {sortedTx.map((t, i) => (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "0.5px solid var(--hair)" }}>
                         <div style={{ fontSize: 11, color: "var(--paper-dim)", width: 60, flexShrink: 0 }}>
                           {new Date(t.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
@@ -413,6 +425,27 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                   ›
                 </button>
               </div>
+
+              <div className="wmg-sub" style={{ marginBottom: 14, textAlign: "center", fontSize: 11.5 }}>
+                {monthDate.toLocaleDateString("en-GB", { day: "numeric", month: "long" })} –{" "}
+                {(explorerMonthOffset === 0 ? now : monthEndDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
+              </div>
+
+              {/* Doesn't pull fresh data itself — that would duplicate
+                  the real, already-tested sync logic on the Import
+                  tab rather than risk a second, hand-rolled version of
+                  it. Just gets you there in one tap. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSpendingExplorerOpen(false);
+                  onNavigate?.("import");
+                }}
+                className="wmg-onboard-skip"
+                style={{ width: "100%", marginBottom: 16 }}
+              >
+                🔄 Pull latest from my bank
+              </button>
 
               <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: "0.5px solid var(--hair)" }}>
                 <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Ask your budget</div>
