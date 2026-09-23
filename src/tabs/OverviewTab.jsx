@@ -830,7 +830,8 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             }}
             style={{
               display: "inline-flex", alignItems: "center", gap: 5,
-              background: "none", border: "none", padding: 0, cursor: "pointer",
+              background: "var(--brand-soft)", border: "none", borderRadius: 999,
+              padding: "5px 12px", cursor: "pointer",
               fontSize: 11.5, fontWeight: 700, color: "var(--brand)",
             }}
           >
@@ -939,8 +940,16 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                       <span style={{ fontSize: 15, fontWeight: 800, color: "var(--brand)" }}>{gbp(r.value)}</span>
                     </div>
                     {hasLeftOverTease && (
-                      <div style={{ marginTop: 6, marginLeft: 18, fontSize: 12, color: "var(--sage)", fontWeight: 600 }}>
-                        ✨ What could you do with your spare money? →
+                      <div style={{ marginTop: 8, marginLeft: 18 }}>
+                        <span
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            background: "var(--sage-soft)", borderRadius: 999,
+                            padding: "5px 12px", fontSize: 12, fontWeight: 700, color: "var(--sage)",
+                          }}
+                        >
+                          ✨ What could you do with your spare money? →
+                        </span>
                       </div>
                     )}
                   </button>
