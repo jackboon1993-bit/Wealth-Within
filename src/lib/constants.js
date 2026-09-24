@@ -46,11 +46,15 @@ export const TAB_TITLES = {
   // bottom-nav icon, so it needs its own title entry to avoid the exact
   // blank-title-bar bug this file already warns about above.
   "household-bills": "Household Bills",
+  // Same reasoning again — reachable from Overview's "See your spending"
+  // button, not a bottom-nav icon.
+  spending: "Spending",
 };
 
 
 export const MASCOT_MESSAGES = {
   overview: "This is your whole financial picture in one place — net worth, score, and what needs attention, all pulled from what you've entered elsewhere.",
+  spending: "A real month-by-month look at where your money actually went — essential costs, lifestyle spending by category, and how this month compares to your last six.",
   income: "Add every category you spend in here. The more complete this is, the more useful your score and forecast become.",
   loans: "Tap the balance, rate, or payment on any loan or card to update it. Confirming it every so often keeps your \"debt-free by\" date accurate.",
   mortgage: "Keep your balance, rate, and payment up to date here — it feeds your mortgage-free date and how much of your home you actually own outright.",
