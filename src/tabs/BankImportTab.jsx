@@ -406,6 +406,14 @@ export function ImportTab({ profile, addBulkItems, onApplyImportedSpending, onBa
 export function TransactionsImport({ profile, onApplyImportedSpending, readFileText, hasConnectedBank, pendingBankSync, onBankSyncApplied, onDiscardPendingSync, onSubscriptionsDetected, onSubscriptionsPossiblyStopped, hasPremium, subscriptionStatus, onUpgrade, canPullBank, nextPullAvailableAt, onManualBankPullApplied }) {
   const inputRef = useRef(null);
   const [status, setStatus] = useState("idle"); // idle | parsed | categorizing | reviewing | error
+  // How far back to pull — on request, 90 days by default was both slower
+  // to categorise (more transactions through the Claude call) and pricier
+  // on the Anthropic bill than most people actually need. Defaults to 30
+  // days (the common case — "what did I spend last month"); 90 stays
+  // available for someone who wants a fuller history in one go. Purely a
+  // client-side choice for now — see importFromBank below for how it's
+  // sent to the server.
+  const [pullRangeDays, setPullRangeDays] = useState(30);
   const [errorMsg, setErrorMsg] = useState("");
   const [parsedTx, setParsedTx] = useState(null);
   const [progress, setProgress] = useState("");
@@ -513,7 +521,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const resp = await fetch(`${API_BASE}/api/truelayer-transactions`, {
+      const resp = await fetch(`${API_BASE}/api/truelayer-transactions?days=${pullRangeDays}`, {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       const data = await resp.json();
@@ -523,17 +531,25 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         }
         throw new Error(data.error || "Couldn't fetch transactions from your bank.");
       }
-      const transactions = (data.transactions || []).map((t) => ({
-        description: t.description,
-        amount: t.amount,
-        date: new Date(t.date),
-        // Preserved so categorize() below can pass it through as
-        // external_id for de-duplicating transaction history — falls
-        // back through a couple of likely field names since this file
-        // doesn't have truelayer-transactions.js's exact raw response
-        // shape to hand; worth confirming against that file directly.
-        transaction_id: t.transaction_id || t.id || null,
-      }));
+      // Client-side safety net regardless of whether the server actually
+      // honours ?days= yet — TrueLayer's own API can return a wider window
+      // than asked, and this guarantees the categoriser (and the Claude
+      // API bill) only ever sees what was actually requested.
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - pullRangeDays);
+      const transactions = (data.transactions || [])
+        .filter((t) => new Date(t.date) >= cutoff)
+        .map((t) => ({
+          description: t.description,
+          amount: t.amount,
+          date: new Date(t.date),
+          // Preserved so categorize() below can pass it through as
+          // external_id for de-duplicating transaction history — falls
+          // back through a couple of likely field names since this file
+          // doesn't have truelayer-transactions.js's exact raw response
+          // shape to hand; worth confirming against that file directly.
+          transaction_id: t.transaction_id || t.id || null,
+        }));
       if (transactions.length === 0) {
         setStatus("error");
         setErrorMsg("No transactions found for your connected bank in the last 90 days.");
@@ -780,8 +796,33 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
           <div className="wmg-eyebrow" style={{ marginBottom: 6 }}>Bank connected</div>
           {canPullBank !== false ? (
             <>
-              <div className="wmg-sub" style={{ marginBottom: 12 }}>
-                Pull in your last 90 days of transactions automatically — no CSV needed.
+              <div className="wmg-sub" style={{ marginBottom: 10 }}>
+                Pull in transactions automatically — no CSV needed.
+              </div>
+              {/* How far back to pull — was a fixed 90 days regardless,
+                  which was both slower to categorise and pricier than
+                  most people need. 1 month covers the common "what did I
+                  spend last month" case; 3 months is there for a fuller
+                  history when it's actually wanted. */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                {[
+                  { label: "1 month", days: 30 },
+                  { label: "3 months", days: 90 },
+                ].map((opt) => (
+                  <button
+                    key={opt.days}
+                    type="button"
+                    onClick={() => setPullRangeDays(opt.days)}
+                    style={{
+                      flex: 1, padding: "9px 0", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      border: pullRangeDays === opt.days ? "1.5px solid var(--brand)" : "0.5px solid var(--hair)",
+                      background: pullRangeDays === opt.days ? "var(--brand-soft)" : "var(--ink-2)",
+                      color: pullRangeDays === opt.days ? "var(--brand)" : "var(--paper)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
               <button className="wmg-btn-primary" style={{ width: "100%" }} onClick={importFromBank}>
                 Pull transactions from my connected bank
@@ -791,7 +832,7 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
             <>
               <div className="wmg-sub" style={{ marginBottom: 12 }}>
                 {hasPremium
-                  ? "Pull in your last 90 days of transactions automatically — no CSV needed."
+                  ? "Pull in transactions automatically — no CSV needed."
                   : `You've used this month's free bank pull. On the free plan you can pull once every 7 days — next pull available ${
                       nextPullAvailableAt ? nextPullAvailableAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "soon"
                     }.`}
@@ -847,30 +888,66 @@ export function TransactionsImport({ profile, onApplyImportedSpending, readFileT
         </Card>
       )}
 
+      {/* Was a plain inline Card with a spinner — easy to miss and didn't
+          read as "something real is happening" on request. This is now a
+          proper half-screen bottom sheet: dims the rest of the page,
+          slides up from the bottom, and can't be dismissed until the
+          pull/categorise finishes (there's deliberately no close button —
+          this is a blocking operation, not a browsable panel). */}
       {status === "categorizing" && (
-        <Card style={{ textAlign: "center", padding: "32px 20px" }}>
-          {/* Simple self-contained CSS spinner — no shared spinner
-              component exists anywhere else in the app yet, so this is
-              defined inline rather than reaching for one that isn't
-              there. Was previously just a single line of plain text,
-              easy to miss and not obviously "something is happening". */}
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
           <style>{`
             @keyframes wmg-spin { to { transform: rotate(360deg); } }
+            @keyframes wmg-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+            @keyframes wmg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes wmg-pulse-scale { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
           `}</style>
           <div
             style={{
-              width: 40, height: 40, margin: "0 auto 16px",
-              border: "3px solid var(--hair)", borderTopColor: "var(--brand)",
-              borderRadius: "50%", animation: "wmg-spin 0.8s linear infinite",
+              position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)",
+              animation: "wmg-fade-in 0.2s ease-out",
             }}
           />
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--paper)", marginBottom: 6 }}>
-            {progress || "Categorising…"}
+          <div
+            style={{
+              position: "relative", width: "100%", maxWidth: 480,
+              height: "50vh", minHeight: 320,
+              background: "var(--ink-1)", borderRadius: "22px 22px 0 0",
+              padding: "36px 28px", textAlign: "center",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              animation: "wmg-sheet-up 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
+              boxShadow: "0 -8px 40px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div
+              style={{
+                width: 84, height: 84, borderRadius: "50%", marginBottom: 24,
+                background: "var(--brand-soft)", display: "flex", alignItems: "center", justifyContent: "center",
+                animation: "wmg-pulse-scale 1.6s ease-in-out infinite",
+              }}
+            >
+              <div
+                style={{
+                  width: 52, height: 52,
+                  border: "4px solid var(--brand-soft)", borderTopColor: "var(--brand)",
+                  borderRadius: "50%", animation: "wmg-spin 0.8s linear infinite",
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--paper)", marginBottom: 8, lineHeight: 1.35 }}>
+              {progress || "Categorising your transactions…"}
+            </div>
+            <div className="wmg-sub" style={{ fontSize: 13, opacity: 0.75, maxWidth: 280 }}>
+              This can take a little while for a lot of transactions — we're matching each one to your own budget
+              categories. Hang tight.
+            </div>
           </div>
-          <div className="wmg-sub" style={{ fontSize: 12, opacity: 0.7 }}>
-            This can take a little while for a lot of transactions — hang tight.
-          </div>
-        </Card>
+        </div>
       )}
 
       {status === "reviewing" && categoryTotals && (

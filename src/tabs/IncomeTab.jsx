@@ -943,7 +943,7 @@ export function IncomeSourceCard({ inc, canRemove, updateArrayItem, removeArrayI
 }
 
 
-export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, toggleSub, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, onAcceptDetectedSubscription, onDismissDetectedSubscription, onConfirmSubscriptionStopped, onKeepFlaggedSubscription, hasPremium, subscriptionStatus, onUpgrade }) {
+export function IncomeTab({ profile, totals, setField, addCategory, removeCategory, updateCategoryField, addItem, addNamedItem, removeItem, updateItem, updateArrayItem, addArrayItem, addArrayItemWithId, removeArrayItem, hasPremium, subscriptionStatus, onUpgrade }) {
   const [justAddedIncomeId, setJustAddedIncomeId] = useState(null);
   // Collapsed by default with exactly one income source — the sources
   // list otherwise just repeats the same figure the summary sentence
@@ -960,12 +960,6 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
     addArrayItemWithId("incomes", { id, name: "New income", amount: 0 })();
     setJustAddedIncomeId(id);
     setShowIncomeSources(true);
-  };
-  const [justAddedSubId, setJustAddedSubId] = useState(null);
-  const handleAddSubscription = () => {
-    const id = nextId();
-    addArrayItemWithId("subscriptions", { id, name: "New subscription", amount: 0, flagged: false, cancelled: false })();
-    setJustAddedSubId(id);
   };
   const activeMode = getActiveMode(profile);
   const [editSpendingOpen, setEditSpendingOpen] = useState(false);
@@ -1670,121 +1664,6 @@ export function IncomeTab({ profile, totals, setField, addCategory, removeCatego
           onClose={() => setEditSpendingOpen(false)}
         />
       )}
-
-      <div className="wmg-section-title">Subscriptions</div>
-      {/* The explainer paragraph only shows before there's anything real
-          to look at — once real subscriptions exist, "list anything
-          that charges you regularly" is just onboarding text nobody
-          needs to keep re-reading every time they open this section.
-          The Logo.dev attribution line stays regardless of that — it's
-          a standing requirement of Logo.dev's free tier for commercial
-          use, not onboarding copy, so it can't be tied to the same
-          condition. */}
-      {(profile.subscriptions.length === 0 || LOGO_DEV_TOKEN) && (
-        <Card style={{ marginBottom: 10 }}>
-          {profile.subscriptions.length === 0 && (
-            <div className="wmg-sub">
-              List anything that charges you regularly — streaming, apps, gym, subscription boxes. We'll flag ones
-              worth reconsidering. Marking one cancelled just stops it counting in your total here — it doesn't cancel
-              it with the provider, so you'll still need to do that yourself.
-            </div>
-          )}
-          {LOGO_DEV_TOKEN && (
-            <div className="wmg-sub" style={{ marginTop: profile.subscriptions.length === 0 ? 8 : 0, fontSize: 11 }}>
-              Logos provided by{" "}
-              <a href="https://logo.dev" target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>
-                Logo.dev
-              </a>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {!hasPremium && (!profile.pendingSubscriptions || profile.pendingSubscriptions.length === 0) && (
-        <Card style={{ marginBottom: 10 }}>
-          <PremiumGate
-            subscriptionStatus={subscriptionStatus}
-            onUpgrade={onUpgrade}
-            text="Premium automatically spots subscriptions in your connected bank's transaction history — new ones, and ones that look like they've stopped."
-          />
-        </Card>
-      )}
-
-      {profile.pendingSubscriptions && profile.pendingSubscriptions.length > 0 && (
-        <Card style={{ marginBottom: 10 }}>
-          <div className="wmg-sub" style={{ marginBottom: 10 }}>
-            Spotted in your connected bank's transaction history — check these before adding them.
-          </div>
-          <div className="wmg-sub-list">
-            {profile.pendingSubscriptions.map((s) => (
-              <div key={s.id} className="wmg-chip-row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{s.name}</div>
-                  <div className="wmg-sub" style={{ fontSize: 12 }}>
-                    {gbp(s.rawAmount)}/{s.frequency === "weekly" ? "week" : "month"}
-                    {s.frequency === "weekly" ? ` ≈ ${gbp(s.monthlyAmount)}/month` : ""} — seen {s.occurrences} time{s.occurrences === 1 ? "" : "s"}
-                    {s.lastDate ? `, last on ${s.lastDate}` : ""}
-                  </div>
-                </div>
-                <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
-                  <button type="button" className="wmg-onboard-skip" onClick={() => onDismissDetectedSubscription?.(s.id)}>
-                    Dismiss
-                  </button>
-                  <button type="button" className="wmg-btn-primary" onClick={() => onAcceptDetectedSubscription?.(s)}>
-                    Add
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {profile.pendingSubscriptionRemovals && profile.pendingSubscriptionRemovals.length > 0 && (
-        <Card style={{ marginBottom: 10 }}>
-          <div className="wmg-sub" style={{ marginBottom: 10 }}>
-            These haven't shown up in your connected bank's recent transactions — still have them?
-          </div>
-          <div className="wmg-sub-list">
-            {profile.pendingSubscriptionRemovals.map((r) => (
-              <div key={r.id} className="wmg-chip-row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontWeight: 600 }}>{r.name}</div>
-                <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
-                  <button type="button" className="wmg-onboard-skip" onClick={() => onKeepFlaggedSubscription?.(r.id)}>
-                    Still have it
-                  </button>
-                  <button type="button" className="wmg-btn-primary" onClick={() => onConfirmSubscriptionStopped?.(r.id)}>
-                    Mark cancelled
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <Card>
-        <div className="wmg-sub-list">
-          {profile.subscriptions.map((s, i) => (
-            <SubscriptionRow
-              key={s.id}
-              sub={s}
-              index={i}
-              onEdit={(field, value) => updateArrayItem("subscriptions")(s.id, field, value)}
-              onToggleCancel={() => toggleSub(s.id)}
-              onRemove={() => removeArrayItem("subscriptions")(s.id)}
-              startEditing={s.id === justAddedSubId}
-            />
-          ))}
-        </div>
-        <button className="wmg-add-btn" onClick={handleAddSubscription} style={{ marginTop: 10 }}>
-          + Add subscription
-        </button>
-        <div className="wmg-subs-total">
-          <span>Active total</span>
-          <span>{gbp(totals.subsTotal, 2)}/month</span>
-        </div>
-      </Card>
     </>
   );
 }

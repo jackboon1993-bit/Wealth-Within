@@ -34,6 +34,14 @@ import { syncWidgetData } from "./utils/widgetSync";
 // load. Overview is used at every startup so we DON'T lazy-load it — that
 // would just trade one big blocking download for a different one.
 import { OverviewTab } from "./tabs/OverviewTab";
+// The dedicated Spending tab (deep-dive on where money went this month —
+// see SpendingTab.jsx) replaces the old "Ask about your spending" popout
+// on Overview and takes over spending/merchant-breakdown duties from the
+// old Budget tab (IncomeTab.jsx) below, per the reshuffle. IncomeTab's
+// route is left in place for now (income-source editing still needs a
+// home) — only its spending-calendar/insight/ask-budget content is
+// superseded.
+const SpendingTab = lazy(() => import("./tabs/SpendingTab").then((m) => ({ default: m.SpendingTab })));
 const IncomeTab = lazy(() => import("./tabs/IncomeTab").then((m) => ({ default: m.IncomeTab })));
 const HouseholdBillsTab = lazy(() => import("./tabs/HouseholdBillsTab").then((m) => ({ default: m.HouseholdBillsTab })));
 const LoansAndCardsTab = lazy(() => import("./tabs/LoansAndCardsTab").then((m) => ({ default: m.LoansAndCardsTab })));
@@ -558,10 +566,10 @@ export default function App() {
     if (inFinancialHardship) return [];
     const tips = [];
     if (totals.available < 0) {
-      tips.push({ tone: "rust", tab: "income", text: `You're spending ${gbp(Math.abs(totals.available))} more than comes in each month. Close that gap before anything else — start with the lifestyle column.` });
+      tips.push({ tone: "rust", tab: "spending", text: `You're spending ${gbp(Math.abs(totals.available))} more than comes in each month. Close that gap before anything else — start with the lifestyle column.` });
     }
     if (flaggedCount > 0) {
-      tips.push({ tone: "gold", tab: "income", text: `Cancel ${flaggedCount} flagged subscriptions → save ${gbp(flaggedSavings)}/month, ${gbp(flaggedSavings * 12)} a year.` });
+      tips.push({ tone: "gold", tab: "household-bills", text: `Cancel ${flaggedCount} flagged subscriptions → save ${gbp(flaggedSavings)}/month, ${gbp(flaggedSavings * 12)} a year.` });
     }
     if (profile.emergencyFund.balance < profile.emergencyFund.target && totals.available > 0) {
       const suggestedMove = Math.max(50, Math.round(Math.min(totals.available * 0.4, profile.emergencyFund.target - profile.emergencyFund.balance) / 10) * 10);
@@ -577,9 +585,9 @@ export default function App() {
       tips.push({ tone: "sage", tab: "forecast", text: `You're already ${gbp(totals.available - comfortableTarget)}/month past "comfortable." Consider directing the surplus at your highest-interest debt or your pension.` });
     }
     if (essentialRatio > 0.6) {
-      tips.push({ tone: "rust", tab: "income", text: `Essential costs are eating ${Math.round(essentialRatio * 100)}% of your income — a common guideline is keeping this under 50-60%. Worth checking bills and housing costs for anything that could realistically shrink.` });
+      tips.push({ tone: "rust", tab: "household-bills", text: `Essential costs are eating ${Math.round(essentialRatio * 100)}% of your income — a common guideline is keeping this under 50-60%. Worth checking bills and housing costs for anything that could realistically shrink.` });
     } else if (essentialRatio > 0 && essentialRatio < 0.45) {
-      tips.push({ tone: "sage", tab: "income", text: `Essential costs are a comfortable ${Math.round(essentialRatio * 100)}% of your income — well within the usual 50-60% guideline, giving you real room to save or invest the rest.` });
+      tips.push({ tone: "sage", tab: "household-bills", text: `Essential costs are a comfortable ${Math.round(essentialRatio * 100)}% of your income — well within the usual 50-60% guideline, giving you real room to save or invest the rest.` });
     }
     const pensionContribRatio = totals.income > 0 ? totals.pensionContribution / totals.income : 0;
     if (pensionContribRatio < 0.05 && totals.pensionContribution >= 0) {
@@ -2155,6 +2163,17 @@ export default function App() {
               />
             )}
 
+            {tab === "spending" && (
+              <SpendingTab
+                profile={profile}
+                totals={totals}
+                onNavigate={navigateTo}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
+              />
+            )}
+
             {tab === "income" && (
               <IncomeTab
                 profile={profile}
@@ -2167,15 +2186,10 @@ export default function App() {
                 addNamedItem={addNamedItem}
                 removeItem={removeItem}
                 updateItem={updateItem}
-                toggleSub={toggleSub}
                 updateArrayItem={updateArrayItem}
                 addArrayItem={addArrayItem}
                 addArrayItemWithId={addArrayItemWithId}
                 removeArrayItem={removeArrayItem}
-                onAcceptDetectedSubscription={acceptDetectedSubscription}
-                onDismissDetectedSubscription={dismissDetectedSubscription}
-                onConfirmSubscriptionStopped={confirmSubscriptionStopped}
-                onKeepFlaggedSubscription={keepFlaggedSubscription}
                 hasPremium={subscription.hasPremium}
                 subscriptionStatus={subscription.status}
                 onUpgrade={handleUpgrade}
@@ -2188,6 +2202,18 @@ export default function App() {
                 addNamedItem={addNamedItem}
                 removeItem={removeItem}
                 updateItem={updateItem}
+                totals={totals}
+                toggleSub={toggleSub}
+                updateArrayItem={updateArrayItem}
+                addArrayItemWithId={addArrayItemWithId}
+                removeArrayItem={removeArrayItem}
+                onAcceptDetectedSubscription={acceptDetectedSubscription}
+                onDismissDetectedSubscription={dismissDetectedSubscription}
+                onConfirmSubscriptionStopped={confirmSubscriptionStopped}
+                onKeepFlaggedSubscription={keepFlaggedSubscription}
+                hasPremium={subscription.hasPremium}
+                subscriptionStatus={subscription.status}
+                onUpgrade={handleUpgrade}
               />
             )}
 

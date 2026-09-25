@@ -8,6 +8,11 @@ import { supabase } from "../lib/supabaseClient";
 // than duplicated, same gating pattern already used for the bill
 // checker, spending insight and Pension Reader.
 import { PremiumGate } from "./IncomeTab";
+import {
+  isGroceryTransaction,
+  isKnownSubscriptionTransaction,
+  classifyLifestyleTransaction,
+} from "../lib/spendingCategories";
 
 // The dedicated "Spending" tab — replaces both the old "Ask about your
 // spending" popout on Overview and the old Budget tab (IncomeTab.jsx)
@@ -91,21 +96,43 @@ export function SpendingTab({ profile, totals, onNavigate, hasPremium, subscript
   // pension and investment contributions don't reliably show up as
   // categorised bank transactions, so profile/totals is the honest
   // source for these, exactly as it already is on Overview.
+  // Groceries — genuinely essential, but unlike Mortgage/Bills/Pension/
+  // Investments there's nowhere anyone manually enters a grocery budget,
+  // so this is the one Essential row actually derived from real bank
+  // transactions each month (via isGroceryTransaction — see
+  // ../lib/spendingCategories) rather than a fixed profile field. On
+  // request, added here specifically so grocery spending stops landing in
+  // the Lifestyle "Other" bucket, since groceries aren't discretionary.
+  const groceryTotal = useMemo(
+    () => monthTx.filter(isGroceryTransaction).reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0),
+    [monthTx]
+  );
+
   const essentialRows = useMemo(() => {
     const mortgagePayment = profile.mortgage.includedInExpenditure ? 0 : Number(profile.mortgage.payment || 0);
     return [
       { name: "Mortgage", value: mortgagePayment },
       { name: "Bills", value: totals.essentialCatTotal },
+      { name: "Groceries", value: groceryTotal, fromTransactions: true },
       { name: "Pension", value: totals.pensionContribution },
       { name: "Investments", value: Number(profile.investments.monthlyContribution || 0) },
     ].filter((r) => r.value > 0);
-  }, [profile.mortgage, profile.investments.monthlyContribution, totals.essentialCatTotal, totals.pensionContribution]);
+  }, [profile.mortgage, profile.investments.monthlyContribution, totals.essentialCatTotal, totals.pensionContribution, groceryTotal]);
 
+  // Lifestyle — classified from each transaction's own merchant text
+  // against a fixed, curated taxonomy (see ../lib/spendingCategories),
+  // not from whatever the household's own budget category names happen
+  // to be. Groceries and known subscriptions are excluded entirely here:
+  // groceries now have their own Essential row above, and a subscription
+  // already counts once, on Household Bills (totals.subsTotal) — counting
+  // it again here would double it.
   const lifestyleRows = useMemo(() => {
     const byCategory = new Map();
     monthTx.forEach((t) => {
-      const name = t.category || "Other";
-      if (isEssentialCategoryName(name, essentialNames)) return;
+      if (isEssentialCategoryName(t.category || "", essentialNames)) return;
+      if (isGroceryTransaction(t)) return;
+      if (isKnownSubscriptionTransaction(t)) return;
+      const name = classifyLifestyleTransaction(t);
       const amt = Math.abs(Number(t.amount) || 0);
       byCategory.set(name, (byCategory.get(name) || 0) + amt);
     });
@@ -122,9 +149,23 @@ export function SpendingTab({ profile, totals, onNavigate, hasPremium, subscript
   const categoryTransactions = useMemo(() => {
     if (!selectedCategory) return [];
     return monthTx
-      .filter((t) => (selectedCategory.group === "lifestyle" ? (t.category || "Other") === selectedCategory.name : true))
+      .filter((t) => {
+        if (selectedCategory.group === "lifestyle") {
+          if (isEssentialCategoryName(t.category || "", essentialNames)) return false;
+          if (isGroceryTransaction(t)) return false;
+          if (isKnownSubscriptionTransaction(t)) return false;
+          return classifyLifestyleTransaction(t) === selectedCategory.name;
+        }
+        // Essential group: only Groceries is actually derived from real
+        // transactions (see groceryTotal above) — Mortgage/Bills/Pension/
+        // Investments are fixed profile figures with no per-transaction
+        // breakdown to show, so tapping them isn't offered in the first
+        // place (see the essentialRows.map below).
+        if (selectedCategory.name === "Groceries") return isGroceryTransaction(t);
+        return true;
+      })
       .sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount)));
-  }, [monthTx, selectedCategory]);
+  }, [monthTx, selectedCategory, essentialNames]);
 
   // ---- 6-month trend ----
   const [trendStatus, setTrendStatus] = useState("idle"); // idle | loading | done | error
@@ -377,9 +418,20 @@ export function SpendingTab({ profile, totals, onNavigate, hasPremium, subscript
       <Card>
         <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Essential</div>
         {essentialRows.length === 0 && <div className="wmg-sub" style={{ fontSize: 12 }}>Nothing essential set up yet.</div>}
-        {essentialRows.map((r) => (
-          <BarRow key={r.name} label={r.name} value={r.value} max={essentialMax} tone="slate" formatter={gbp} />
-        ))}
+        {essentialRows.map((r) =>
+          r.fromTransactions ? (
+            <button
+              key={r.name}
+              type="button"
+              onClick={() => setSelectedCategory({ name: r.name, group: "essential" })}
+              style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+            >
+              <BarRow label={r.name} value={r.value} max={essentialMax} tone="slate" formatter={gbp} />
+            </button>
+          ) : (
+            <BarRow key={r.name} label={r.name} value={r.value} max={essentialMax} tone="slate" formatter={gbp} />
+          )
+        )}
       </Card>
 
       <Card style={{ marginTop: 12 }}>

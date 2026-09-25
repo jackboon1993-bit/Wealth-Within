@@ -27,7 +27,14 @@ const API_BASE = "https://api.truelayer.com/data/v1";
 // How far back to pull on a one-time import. 90 days covers most people's
 // "get me started" use case without the request ballooning in size; some
 // banks won't return more than this anyway depending on the consent given.
+// The frontend now lets the person choose 1 month or 3 months (on request
+// — a full 90-day pull by default was both slower to categorise and
+// pricier on the Claude API bill than most people actually needed), sent
+// as ?days=<n>. This is the fallback when that's missing, and also the
+// outer ceiling — MAX_LOOKBACK_DAYS below stops a tampered/unexpected
+// value from requesting more than the app's own longest offered range.
 const DEFAULT_LOOKBACK_DAYS = 90;
+const MAX_LOOKBACK_DAYS = 90;
 // Hard ceiling so a single request can't grow unbounded — matches the
 // batch cap already enforced in api/categorize-transactions.js (200 per
 // batch); the frontend can batch this many across multiple categorize
@@ -93,8 +100,17 @@ export default async function handler(req, res) {
     const accountsData = await accountsResp.json();
     const accountIds = (accountsData.results || []).map((a) => a.account_id);
 
+    // ?days=<n> from the frontend's 1-month/3-month picker — clamped to a
+    // sane range rather than trusted outright, since this is a plain query
+    // param. Falls back to the original 90-day default if missing or not
+    // a valid number.
+    const requestedDays = Number.parseInt(req.query.days, 10);
+    const lookbackDays = Number.isFinite(requestedDays)
+      ? Math.min(MAX_LOOKBACK_DAYS, Math.max(1, requestedDays))
+      : DEFAULT_LOOKBACK_DAYS;
+
     const to = new Date();
-    const from = new Date(to.getTime() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+    const from = new Date(to.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
     const fromParam = isoDate(from);
     const toParam = isoDate(to);
 

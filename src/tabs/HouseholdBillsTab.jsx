@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { gbp } from "../lib/finance";
+import { gbp, nextId } from "../lib/finance";
 import { Card, NumberInput } from "../components/ui";
+// SubscriptionRow and PremiumGate live in IncomeTab.jsx (not ui.js) —
+// reused as-is rather than duplicated. Subscription management moved
+// here from the old Budget tab per the reshuffle: it's essential
+// recurring spend, same as the bills above it on this page, so it
+// belongs alongside them rather than on its own tab.
+import { SubscriptionRow, PremiumGate } from "./IncomeTab";
+
+const LOGO_DEV_TOKEN = import.meta.env.VITE_LOGO_DEV_TOKEN;
 
 // A genuinely separate, simple page for entering essential household
 // bills — electricity, gas, water, and the like. Built on request after
@@ -24,7 +32,24 @@ import { Card, NumberInput } from "../components/ui";
 // bill" below.
 const COMMON_BILLS = ["Electricity", "Gas", "Water", "Council Tax", "Broadband", "Home insurance", "TV licence", "Mobile phone"];
 
-export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateItem }) {
+export function HouseholdBillsTab({
+  profile,
+  addNamedItem,
+  removeItem,
+  updateItem,
+  totals,
+  toggleSub,
+  updateArrayItem,
+  addArrayItemWithId,
+  removeArrayItem,
+  onAcceptDetectedSubscription,
+  onDismissDetectedSubscription,
+  onConfirmSubscriptionStopped,
+  onKeepFlaggedSubscription,
+  hasPremium,
+  subscriptionStatus,
+  onUpgrade,
+}) {
   const essentialCategories = profile.expenseCategories.filter((c) => c.type === "essential");
   // The first essential category is where new bills land. Most
   // households only have one ("Housing & utilities" or similar) — if
@@ -53,6 +78,17 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
     if (!newBillName.trim() || !targetCategory) return;
     addNamedItem(targetCategory.id, newBillName.trim());
     setNewBillName("");
+  };
+
+  // Subscriptions — moved here from the old Budget tab (IncomeTab.jsx),
+  // unchanged in behaviour: same detected/possibly-stopped review
+  // flows, same SubscriptionRow editing (renewsOn, flag, cancel/
+  // restore, remove), same active total.
+  const [justAddedSubId, setJustAddedSubId] = useState(null);
+  const handleAddSubscription = () => {
+    const id = nextId();
+    addArrayItemWithId("subscriptions", { id, name: "New subscription", amount: 0, flagged: false, cancelled: false })();
+    setJustAddedSubId(id);
   };
 
   return (
@@ -139,6 +175,113 @@ export function HouseholdBillsTab({ profile, addNamedItem, removeItem, updateIte
           </div>
         </>
       )}
+
+      <div className="wmg-section-title" style={{ marginTop: 22 }}>Subscriptions</div>
+      {(profile.subscriptions.length === 0 || LOGO_DEV_TOKEN) && (
+        <Card style={{ marginBottom: 10 }}>
+          {profile.subscriptions.length === 0 && (
+            <div className="wmg-sub">
+              List anything that charges you regularly — streaming, apps, gym, subscription boxes. We'll flag ones
+              worth reconsidering. Marking one cancelled just stops it counting in your total here — it doesn't cancel
+              it with the provider, so you'll still need to do that yourself.
+            </div>
+          )}
+          {LOGO_DEV_TOKEN && (
+            <div className="wmg-sub" style={{ marginTop: profile.subscriptions.length === 0 ? 8 : 0, fontSize: 11 }}>
+              Logos provided by{" "}
+              <a href="https://logo.dev" target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>
+                Logo.dev
+              </a>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {!hasPremium && (!profile.pendingSubscriptions || profile.pendingSubscriptions.length === 0) && (
+        <Card style={{ marginBottom: 10 }}>
+          <PremiumGate
+            subscriptionStatus={subscriptionStatus}
+            onUpgrade={onUpgrade}
+            text="Premium automatically spots subscriptions in your connected bank's transaction history — new ones, and ones that look like they've stopped."
+          />
+        </Card>
+      )}
+
+      {profile.pendingSubscriptions && profile.pendingSubscriptions.length > 0 && (
+        <Card style={{ marginBottom: 10 }}>
+          <div className="wmg-sub" style={{ marginBottom: 10 }}>
+            Spotted in your connected bank's transaction history — check these before adding them.
+          </div>
+          <div className="wmg-sub-list">
+            {profile.pendingSubscriptions.map((s) => (
+              <div key={s.id} className="wmg-chip-row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{s.name}</div>
+                  <div className="wmg-sub" style={{ fontSize: 12 }}>
+                    {gbp(s.rawAmount)}/{s.frequency === "weekly" ? "week" : "month"}
+                    {s.frequency === "weekly" ? ` ≈ ${gbp(s.monthlyAmount)}/month` : ""} — seen {s.occurrences} time{s.occurrences === 1 ? "" : "s"}
+                    {s.lastDate ? `, last on ${s.lastDate}` : ""}
+                  </div>
+                </div>
+                <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
+                  <button type="button" className="wmg-onboard-skip" onClick={() => onDismissDetectedSubscription?.(s.id)}>
+                    Dismiss
+                  </button>
+                  <button type="button" className="wmg-btn-primary" onClick={() => onAcceptDetectedSubscription?.(s)}>
+                    Add
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {profile.pendingSubscriptionRemovals && profile.pendingSubscriptionRemovals.length > 0 && (
+        <Card style={{ marginBottom: 10 }}>
+          <div className="wmg-sub" style={{ marginBottom: 10 }}>
+            These haven't shown up in your connected bank's recent transactions — still have them?
+          </div>
+          <div className="wmg-sub-list">
+            {profile.pendingSubscriptionRemovals.map((r) => (
+              <div key={r.id} className="wmg-chip-row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 600 }}>{r.name}</div>
+                <div className="wmg-chip-row" style={{ flexShrink: 0 }}>
+                  <button type="button" className="wmg-onboard-skip" onClick={() => onKeepFlaggedSubscription?.(r.id)}>
+                    Still have it
+                  </button>
+                  <button type="button" className="wmg-btn-primary" onClick={() => onConfirmSubscriptionStopped?.(r.id)}>
+                    Mark cancelled
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <div className="wmg-sub-list">
+          {profile.subscriptions.map((s, i) => (
+            <SubscriptionRow
+              key={s.id}
+              sub={s}
+              index={i}
+              onEdit={(field, value) => updateArrayItem("subscriptions")(s.id, field, value)}
+              onToggleCancel={() => toggleSub(s.id)}
+              onRemove={() => removeArrayItem("subscriptions")(s.id)}
+              startEditing={s.id === justAddedSubId}
+            />
+          ))}
+        </div>
+        <button className="wmg-add-btn" onClick={handleAddSubscription} style={{ marginTop: 10 }}>
+          + Add subscription
+        </button>
+        <div className="wmg-subs-total">
+          <span>Active total</span>
+          <span>{gbp(totals?.subsTotal || 0, 2)}/month</span>
+        </div>
+      </Card>
     </>
   );
 }

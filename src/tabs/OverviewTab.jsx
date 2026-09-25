@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { gbp, gbpApprox, addMonths, getActiveMode, monthsToPayoff, totalInterestOwed } from "../lib/finance";
 import { hasAccounts } from "../lib/storage";
-import { API_BASE } from "../lib/apiBase";
 import { supabase } from "../lib/supabaseClient";
+import { isGroceryTransaction } from "../lib/spendingCategories";
 import { Card, GrowthRing, useCountUp, StatIcon, Reveal, StreakBadge, Popout, CategoryTooltip, NumberInput } from "../components/ui";
 
 export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortgageMonths, flowSegments, flowTotal, coachTips, inFinancialHardship, onNavigate, hasConnectedBank, hasPremium, subscriptionStatus, onUpgrade, setField, setupChecklistReady }) {
@@ -18,91 +18,30 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
   const [leftOverPct, setLeftOverPct] = useState(100);
   const [leftOverCustom, setLeftOverCustom] = useState("");
   const [paydayInput, setPaydayInput] = useState("");
-  // Drives the new "Ask about your spending" popout — Option C from
-  // the redesign discussion: one entry point rather than a separate
-  // tab, with a real month-by-month category breakdown and merchant
-  // drill-down happening entirely inside the popout, never spilling
-  // onto the page itself.
-  const [spendingExplorerOpen, setSpendingExplorerOpen] = useState(false);
-  const [explorerMonthOffset, setExplorerMonthOffset] = useState(0); // 0 = this month, -1 = last month, etc.
-  const [explorerStatus, setExplorerStatus] = useState("idle"); // idle | loading | done | empty | error
-  const [explorerCategories, setExplorerCategories] = useState([]);
-  const [explorerSelectedCategory, setExplorerSelectedCategory] = useState(null);
-  const [explorerTxStatus, setExplorerTxStatus] = useState("idle");
-  const [explorerTransactions, setExplorerTransactions] = useState([]);
-  const [askQuestion, setAskQuestion] = useState("");
-  const [askStatus, setAskStatus] = useState("idle"); // idle | loading | done | error | locked
-  const [askAnswer, setAskAnswer] = useState("");
 
-  // Category totals for the popout's selected month — proper effect
-  // rather than fetching inline during render, matching the pattern
-  // already established elsewhere (see SpendingCalendar in
-  // IncomeTab.jsx). Re-runs whenever the popout opens or the month
-  // changes; the idle/loading guard means it only ever fetches once
-  // per (open, month) combination.
+  // Groceries — the one row in the essential/outgoings list below that
+  // isn't a fixed profile figure, since nobody manually enters a grocery
+  // budget anywhere in the app. Sourced from this calendar month's real
+  // bank transactions (same isGroceryTransaction classifier SpendingTab
+  // uses, so the two screens can't disagree), via a light, RLS-scoped
+  // direct query — same established pattern as the removed spending-
+  // explorer popout used, just for one narrow figure rather than a full
+  // category breakdown.
+  const [groceryTotal, setGroceryTotal] = useState(0);
   useEffect(() => {
-    if (!spendingExplorerOpen || explorerStatus !== "idle") return;
     (async () => {
       const now = new Date();
-      const monthDate = new Date(now.getFullYear(), now.getMonth() + explorerMonthOffset, 1);
-      const monthStart = monthDate.toISOString().slice(0, 10);
-      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).toISOString().slice(0, 10);
-      setExplorerStatus("loading");
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
       const { data, error } = await supabase
         .from("household_transactions")
-        .select("category, amount")
+        .select("merchant, description, amount")
         .lt("amount", 0)
-        .gte("date", monthStart)
-        .lte("date", monthEnd);
-      if (error) {
-        setExplorerStatus("error");
-        return;
-      }
-      if (!data || data.length === 0) {
-        setExplorerCategories([]);
-        setExplorerStatus("empty");
-        return;
-      }
-      const byCategory = new Map();
-      data.forEach((t) => {
-        const name = t.category || "Other";
-        byCategory.set(name, (byCategory.get(name) || 0) + Math.abs(Number(t.amount) || 0));
-      });
-      setExplorerCategories(
-        Array.from(byCategory.entries())
-          .map(([name, total]) => ({ name, total }))
-          .sort((a, b) => b.total - a.total)
-      );
-      setExplorerStatus("done");
+        .gte("date", monthStart);
+      if (error || !data) return;
+      setGroceryTotal(data.filter(isGroceryTransaction).reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0));
     })();
-  }, [spendingExplorerOpen, explorerMonthOffset, explorerStatus]);
+  }, []);
 
-  // Real transactions for the selected category, same month — drives
-  // the popout's level-2 drill-down.
-  useEffect(() => {
-    if (!explorerSelectedCategory || explorerTxStatus !== "idle") return;
-    (async () => {
-      const now = new Date();
-      const monthDate = new Date(now.getFullYear(), now.getMonth() + explorerMonthOffset, 1);
-      const monthStart = monthDate.toISOString().slice(0, 10);
-      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).toISOString().slice(0, 10);
-      setExplorerTxStatus("loading");
-      const { data, error } = await supabase
-        .from("household_transactions")
-        .select("merchant, amount, date")
-        .eq("category", explorerSelectedCategory)
-        .lt("amount", 0)
-        .gte("date", monthStart)
-        .lte("date", monthEnd)
-        .order("date", { ascending: false });
-      if (error) {
-        setExplorerTxStatus("error");
-        return;
-      }
-      setExplorerTransactions(data || []);
-      setExplorerTxStatus("done");
-    })();
-  }, [explorerSelectedCategory, explorerMonthOffset, explorerTxStatus]);
 
   // Purely local "not now" — hides the banner for this session only.
   // Nothing is cleared in storage, so it reappears next time the app is
@@ -276,241 +215,6 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         ))}
       </Popout>
 
-      {/* "Ask about your spending" — Option C from the redesign
-          discussion: one entry point (the button on the income/
-          outgoings card above), everything else happens inside this
-          popout. Real category totals for the selected month, tapping
-          a category drills into real transactions for it (same
-          household_transactions query pattern the Budget tab's own
-          merchant breakdown already uses), and "Ask your budget" sits
-          alongside both rather than as a separate feature. */}
-      <Popout
-        open={spendingExplorerOpen}
-        onClose={() => setSpendingExplorerOpen(false)}
-        title={explorerSelectedCategory ? explorerSelectedCategory : "Ask about your spending"}
-      >
-        {(() => {
-          const now = new Date();
-          const monthDate = new Date(now.getFullYear(), now.getMonth() + explorerMonthOffset, 1);
-          const monthStart = monthDate.toISOString().slice(0, 10);
-          const monthEndDate = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-          const monthEnd = monthEndDate.toISOString().slice(0, 10);
-          const monthLabel = monthDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-
-          const handleAsk = async () => {
-            if (!askQuestion.trim()) return;
-            setAskStatus("loading");
-            try {
-              const {
-                data: { session },
-              } = await supabase.auth.getSession();
-              const { data: txRows } = await supabase
-                .from("household_transactions")
-                .select("merchant, category, amount, date")
-                .lt("amount", 0)
-                .gte("date", monthStart)
-                .lte("date", monthEnd);
-              const byMerchant = new Map();
-              (txRows || []).forEach((t) => {
-                const name = t.merchant || "Other";
-                const key = `${name}__${t.category || ""}`;
-                if (!byMerchant.has(key)) byMerchant.set(key, { name, category: t.category, total: 0, count: 0 });
-                const entry = byMerchant.get(key);
-                entry.total += Math.abs(Number(t.amount) || 0);
-                entry.count += 1;
-              });
-              const merchants = Array.from(byMerchant.values()).sort((a, b) => b.total - a.total).slice(0, 40);
-
-              const resp = await fetch(`${API_BASE}/api/ask-budget`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-                body: JSON.stringify({
-                  question: askQuestion,
-                  categories: explorerCategories.map((c) => ({ name: c.name, value: c.total, budget: null })),
-                  income: totals.income,
-                  subscriptions: (profile.subscriptions || []).filter((s) => !s.cancelled).map((s) => ({ name: s.name, amount: s.amount })),
-                  merchants,
-                }),
-              });
-              const data = await resp.json();
-              if (resp.status === 402) {
-                setAskStatus("locked");
-                return;
-              }
-              if (!resp.ok) throw new Error(data.error || "Something went wrong.");
-              setAskAnswer(data.answer);
-              setAskStatus("done");
-            } catch (e) {
-              setAskStatus("error");
-              setAskAnswer("Couldn't answer that right now.");
-            }
-          };
-
-          // Level 2 — a category's real transactions for this month.
-          if (explorerSelectedCategory) {
-            const sortedTx = [...explorerTransactions].sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount)));
-            return (
-              <div>
-                {/* Made into a proper pill/chip rather than a plain text
-                    link — on request, plain text links haven't read as
-                    obviously tappable elsewhere tonight either. */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExplorerSelectedCategory(null);
-                    setExplorerTxStatus("idle");
-                    setExplorerTransactions([]);
-                  }}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    background: "var(--brand-soft)", border: "none", borderRadius: 999,
-                    padding: "6px 12px", marginBottom: 12, fontSize: 12.5, fontWeight: 700, color: "var(--brand)", cursor: "pointer",
-                  }}
-                >
-                  ← Back to categories
-                </button>
-                <div className="wmg-sub" style={{ marginBottom: 12, fontSize: 11.5 }}>
-                  {monthDate.toLocaleDateString("en-GB", { day: "numeric", month: "long" })} – {monthEndDate.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
-                  , sorted by amount
-                </div>
-                {explorerTxStatus === "loading" && <div className="wmg-sub">Looking at transactions…</div>}
-                {explorerTxStatus === "done" && sortedTx.length === 0 && (
-                  <div className="wmg-sub">No transactions found for this category in {monthLabel}.</div>
-                )}
-                {explorerTxStatus === "done" && sortedTx.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {sortedTx.map((t, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "0.5px solid var(--hair)" }}>
-                        <div style={{ fontSize: 11, color: "var(--paper-dim)", width: 60, flexShrink: 0 }}>
-                          {new Date(t.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                        </div>
-                        <div style={{ flex: 1, fontSize: 13.5, color: "var(--paper)" }}>{t.merchant || "Other"}</div>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--paper)" }}>{gbp(Math.abs(Number(t.amount)))}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          // Level 1 — Ask your budget + category totals for the month.
-          return (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExplorerMonthOffset((m) => m - 1);
-                    setExplorerStatus("idle");
-                  }}
-                  style={{ background: "none", border: "none", padding: 4, cursor: "pointer", color: "var(--paper-dim)" }}
-                  aria-label="Previous month"
-                >
-                  ‹
-                </button>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--paper)" }}>{monthLabel}</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (explorerMonthOffset < 0) {
-                      setExplorerMonthOffset((m) => m + 1);
-                      setExplorerStatus("idle");
-                    }
-                  }}
-                  disabled={explorerMonthOffset >= 0}
-                  style={{ background: "none", border: "none", padding: 4, cursor: explorerMonthOffset < 0 ? "pointer" : "default", color: explorerMonthOffset < 0 ? "var(--paper-dim)" : "var(--hair)" }}
-                  aria-label="Next month"
-                >
-                  ›
-                </button>
-              </div>
-
-              <div className="wmg-sub" style={{ marginBottom: 14, textAlign: "center", fontSize: 11.5 }}>
-                {monthDate.toLocaleDateString("en-GB", { day: "numeric", month: "long" })} –{" "}
-                {(explorerMonthOffset === 0 ? now : monthEndDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
-              </div>
-
-              {/* Doesn't pull fresh data itself — that would duplicate
-                  the real, already-tested sync logic on the Import
-                  tab rather than risk a second, hand-rolled version of
-                  it. Just gets you there in one tap. */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSpendingExplorerOpen(false);
-                  onNavigate?.("import");
-                }}
-                className="wmg-onboard-skip"
-                style={{ width: "100%", marginBottom: 16 }}
-              >
-                🔄 Pull latest from my bank
-              </button>
-
-              <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: "0.5px solid var(--hair)" }}>
-                <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>Ask your budget</div>
-                <div style={{ display: "flex", gap: 8, marginBottom: askStatus === "done" || askStatus === "error" ? 10 : 0 }}>
-                  <input
-                    className="wmg-input"
-                    style={{ flex: 1 }}
-                    placeholder="e.g. How much did I spend on takeaways?"
-                    value={askQuestion}
-                    onChange={(e) => setAskQuestion(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAsk();
-                    }}
-                  />
-                  <button type="button" className="wmg-btn-primary" onClick={handleAsk} disabled={askStatus === "loading"}>
-                    {askStatus === "loading" ? "…" : "Ask"}
-                  </button>
-                </div>
-                {askStatus === "locked" && (
-                  <div className="wmg-sub" style={{ color: "var(--gold)" }}>
-                    This is a Premium feature —{" "}
-                    <button type="button" onClick={onUpgrade} style={{ background: "none", border: "none", padding: 0, color: "var(--brand)", fontWeight: 700, cursor: "pointer" }}>
-                      upgrade
-                    </button>{" "}
-                    to ask.
-                  </div>
-                )}
-                {(askStatus === "done" || askStatus === "error") && (
-                  <div className="wmg-sub">{askAnswer}</div>
-                )}
-              </div>
-
-              <div className="wmg-eyebrow" style={{ marginBottom: 8 }}>By category</div>
-              {explorerStatus === "loading" && <div className="wmg-sub">Looking at {monthLabel}…</div>}
-              {explorerStatus === "empty" && <div className="wmg-sub">No spending found for {monthLabel}.</div>}
-              {explorerStatus === "error" && <div className="wmg-sub">Couldn't load this right now.</div>}
-              {explorerStatus === "done" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {explorerCategories.map((c) => (
-                    <button
-                      key={c.name}
-                      type="button"
-                      onClick={() => {
-                        setExplorerSelectedCategory(c.name);
-                        setExplorerTxStatus("idle");
-                      }}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
-                        borderBottom: "0.5px solid var(--hair)", background: "none", border: "none",
-                        borderTop: "none", borderLeft: "none", borderRight: "none",
-                        width: "100%", textAlign: "left", cursor: "pointer",
-                      }}
-                    >
-                      <span style={{ flex: 1, fontSize: 13.5, color: "var(--paper)" }}>{c.name}</span>
-                      <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--paper)" }}>{gbp(c.total)}</span>
-                      <span style={{ color: "var(--paper-dim)" }}>›</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </Popout>
-
       {scoreInfoOpen && (
         <Card className="wmg-score-explainer-card">
           <div className="wmg-score-explainer-head">
@@ -573,7 +277,15 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Reveal>
       )}
 
-      {hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && !profile.dismissedConnectBankBanner && !hasConnectedBank && (
+      {/* Gated on setupChecklistReady (App.jsx: connectedBankAccounts !==
+          null && subscriptionLoaded) — hasConnectedBank and hasPremium
+          both start out false before their real values have loaded from
+          the server, so without this gate this banner (and the Premium
+          one below) would flash visible for a moment on every app open
+          before disappearing once the real "yes, connected"/"yes,
+          premium" state arrives. Same fix already applied to the setup
+          checklist itself; these two banners had been missed. */}
+      {setupChecklistReady && hasAccounts && !(pendingBankSync && !pendingSyncDismissed) && !profile.dismissedConnectBankBanner && !hasConnectedBank && (
         <Card className="wmg-connect-bank-banner">
           <div className="wmg-connect-bank-banner-text">
             <div className="wmg-connect-bank-banner-title">Connect a bank</div>
@@ -596,7 +308,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </Card>
       )}
 
-      {!hasPremium && !profile.dismissedPremiumBanner && (
+      {setupChecklistReady && !hasPremium && !profile.dismissedPremiumBanner && (
         <Card className="wmg-connect-bank-banner" style={{ background: "var(--brand-soft)", borderColor: "var(--brand)" }}>
           <div className="wmg-connect-bank-banner-text">
             <div className="wmg-connect-bank-banner-title">
@@ -814,30 +526,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
         </div>
       )}
       <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div className="wmg-eyebrow" style={{ marginBottom: 0 }}>💷 Income &amp; essential outgoings</div>
-          {/* Single entry point for spending detail — deliberately not
-              a tab, and not spread across pages. Everything (month
-              category breakdown, transaction drill-down, "ask your
-              budget") happens inside the popout this opens. */}
-          <button
-            type="button"
-            onClick={() => {
-              setSpendingExplorerOpen(true);
-              setExplorerMonthOffset(0);
-              setExplorerSelectedCategory(null);
-              setExplorerStatus("idle");
-            }}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              background: "var(--brand-soft)", border: "none", borderRadius: 999,
-              padding: "5px 12px", cursor: "pointer",
-              fontSize: 11.5, fontWeight: 700, color: "var(--brand)",
-            }}
-          >
-            🔍 Ask about your spending
-          </button>
-        </div>
+        <div className="wmg-eyebrow" style={{ marginBottom: 10 }}>💷 Income &amp; essential outgoings</div>
         <div className="wmg-flow-income-row">
           <div className="wmg-flow-income-label">Income</div>
           <div className="wmg-flow-income-val">{gbp(Math.round(animatedIncome))}</div>
@@ -849,7 +538,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
           const billsOnly = totals.essentialCatTotal;
           const leftOver = Math.max(
             0,
-            totals.income - mortgagePayment - billsOnly - totals.debtPayments - totals.pensionContribution - savingsMonthly - investmentsMonthly
+            totals.income - mortgagePayment - billsOnly - groceryTotal - totals.debtPayments - totals.pensionContribution - savingsMonthly - investmentsMonthly
           );
 
           const rows = [
@@ -860,6 +549,11 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
             // tab. household-bills is a small, single-purpose page
             // with nothing else on it.
             { label: "Bills", value: billsOnly, tone: "gold", tab: "household-bills" },
+            // Real spend this month, not a fixed budget figure — tapping
+            // this goes to the Spending tab (where it's also tappable,
+            // for the actual transaction list) rather than a manual-entry
+            // page, since there's nothing to manually enter here.
+            { label: "Groceries", value: groceryTotal, tone: "gold", tab: "spending" },
             { label: "Debt repayments", value: totals.debtPayments, tone: "rust", tab: "loans" },
             { label: "Pension", value: totals.pensionContribution, tone: "coral", tab: "pension" },
             { label: "Savings", value: savingsMonthly, tone: "sage", tab: "savings" },
@@ -929,7 +623,7 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                     disabled={!hasLeftOverTease}
                     aria-label={`${r.label}: ${gbp(r.value)}${hasLeftOverTease ? ". See what this could do" : ""}`}
                     style={{
-                      display: "block", width: "100%", padding: "9px 0 4px",
+                      display: "block", width: "100%", padding: "9px 0",
                       background: "none", border: "none", textAlign: "left",
                       cursor: hasLeftOverTease ? "pointer" : "default",
                     }}
@@ -939,23 +633,50 @@ export function OverviewTab({ score, gap, totals, profile, debtFreeMonths, mortg
                       <span style={{ flex: 1, fontSize: 13, color: "var(--paper)", fontWeight: 700 }}>{r.label}</span>
                       <span style={{ fontSize: 15, fontWeight: 800, color: "var(--brand)" }}>{gbp(r.value)}</span>
                     </div>
-                    {hasLeftOverTease && (
-                      <div style={{ marginTop: 8, marginLeft: 18 }}>
-                        <span
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 5,
-                            background: "var(--sage-soft)", borderRadius: 999,
-                            padding: "5px 12px", fontSize: 12, fontWeight: 700, color: "var(--sage)",
-                          }}
-                        >
-                          ✨ What could you do with your spare money? →
-                        </span>
-                      </div>
-                    )}
                   </button>
                 )
               )}
             </div>
+
+            {/* Two proper full-width CTAs, not small pills tucked into a
+                corner or buried inside a row — on request, these were
+                both too easy to miss. "See your spending" now sits
+                on its own beneath the whole breakdown, and the spare-
+                money tease is a genuinely eye-catching banner (real
+                amount included, not just a generic line) rather than
+                a quiet chip inside the "Left over" row. */}
+            <button
+              type="button"
+              onClick={() => onNavigate?.("spending")}
+              className="wmg-btn-primary"
+              style={{ width: "100%", marginTop: 16, fontSize: 14.5, padding: "13px 0" }}
+            >
+              🔍 See your spending
+            </button>
+
+            {hasLeftOverTease && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLeftOverPct(100);
+                  setLeftOverCustom("");
+                  setLeftOverPopoutOpen(true);
+                }}
+                style={{
+                  display: "block", width: "100%", marginTop: 10, cursor: "pointer",
+                  border: "none", borderRadius: 18, padding: "16px 18px", textAlign: "left",
+                  background: "linear-gradient(135deg, var(--sage) 0%, var(--brand) 100%)",
+                }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 4 }}>✨💰</div>
+                <div style={{ fontSize: 15.5, fontWeight: 800, color: "#FFFFFF", lineHeight: 1.3 }}>
+                  What could you do with {gbp(leftOver)}/month spare?
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: 3 }}>
+                  See what it could grow into →
+                </div>
+              </button>
+            )}
 
             {/* The actual "what could this become" content — reached
                 by tapping "Left over" above. A popout rather than a
